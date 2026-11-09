@@ -33,6 +33,36 @@ class SetupCheckTest {
         assertEquals(Problem.CHANNELS_SWAPPED, (check.voiceStep(Channel.TEACHER, l) as StepResult.Fail).problem)
     }
 
+    @Test fun `student on the right is fixed by switching channels`() {
+        val l = TestSignals.levels(TestSignals.stereo(2.0, leftDb = -45.0, rightDb = -25.0))
+        val outcome = check.studentStep(l)
+        assertEquals(StepResult.Pass, outcome.result)
+        assertEquals(true, outcome.switchChannels)
+    }
+
+    @Test fun `student on the left needs no switch`() {
+        val outcome = check.studentStep(TestSignals.levels(TestSignals.stereo(2.0, leftDb = -25.0, rightDb = -45.0)))
+        assertEquals(StepResult.Pass, outcome.result)
+        assertEquals(false, outcome.switchChannels)
+    }
+
+    @Test fun `a quiet student step is not mistaken for swapped mics`() {
+        val outcome = check.studentStep(TestSignals.levels(TestSignals.stereo(2.0, leftDb = null, rightDb = null)))
+        assertEquals(Problem.TOO_QUIET, (outcome.result as StepResult.Fail).problem)
+        assertEquals(false, outcome.switchChannels)
+    }
+
+    @Test fun `teacher on the student's channel after switching is flagged`() {
+        val r = check.teacherStep(TestSignals.levels(TestSignals.stereo(2.0, leftDb = -25.0, rightDb = -45.0)))
+        assertEquals(Problem.SAME_CHANNEL, (r as StepResult.Fail).problem)
+    }
+
+    @Test fun `swapping samples exchanges left and right`() {
+        val buf = shortArrayOf(1, 2, 3, 4, 5)
+        swapStereoInPlace(buf, 4)
+        assertEquals(listOf<Short>(2, 1, 4, 3, 5), buf.toList())
+    }
+
     @Test fun `mono mix is caught`() {
         val l = TestSignals.levels(TestSignals.stereo(2.0, leftDb = -25.0, rightDb = null, sameSignal = true))
         assertEquals(Problem.MONO_MIX, (check.voiceStep(Channel.STUDENT, l) as StepResult.Fail).problem)

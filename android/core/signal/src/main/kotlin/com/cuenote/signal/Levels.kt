@@ -21,6 +21,24 @@ data class StereoLevels(
     val frames: Long,
 ) {
     operator fun get(channel: Channel) = if (channel == Channel.STUDENT) student else teacher
+
+    /** The same audio with left and right exchanged. */
+    fun swapped() = copy(student = teacher, teacher = student)
+}
+
+/**
+ * Exchanges left and right in interleaved stereo, in place. Used when the
+ * student's transmitter turns out to be on the right input, so everything
+ * downstream still sees the student on the left.
+ */
+fun swapStereoInPlace(samples: ShortArray, sampleCount: Int = samples.size) {
+    var i = 0
+    while (i + 1 < sampleCount) {
+        val l = samples[i]
+        samples[i] = samples[i + 1]
+        samples[i + 1] = l
+        i += 2
+    }
 }
 
 /**

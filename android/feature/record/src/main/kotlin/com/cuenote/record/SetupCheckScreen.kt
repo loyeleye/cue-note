@@ -47,7 +47,15 @@ fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) 
         s.error?.let { Warning(it); return@Column }
 
         Spacer(Modifier.padding(8.dp))
-        LiveMeters(live)
+        LiveMeters(live, s.channelsSwitched)
+        if (s.switchedThisCheck) {
+            Text(
+                "The student was heard on the other channel, so Cue Note switched the channels for you. " +
+                    "Lessons will record correctly and nobody needs to swap transmitters. The teacher step checks it worked.",
+                color = Color(0xFF2E7D32),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
         Spacer(Modifier.padding(8.dp))
 
         SetupStep.entries.forEach { step ->
@@ -81,15 +89,19 @@ fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) 
         if (s.step.ordinal >= SetupStep.PIANO_ALONE.ordinal) {
             TextButton(onClick = vm::skipPiano) { Text("No piano today: skip the piano test") }
         }
+        TextButton(onClick = vm::switchChannelsManually, enabled = s.secondsLeft == null) {
+            Text("Switch student and teacher channels")
+        }
         OutlinedButton(onClick = onDone) { Text("Leave the check") }
     }
 }
 
 @Composable
-fun LiveMeters(levels: StereoLevels?) {
+fun LiveMeters(levels: StereoLevels?, switched: Boolean = false) {
+    // Levels are already in student/teacher order; the side says which input each came from.
     Column {
-        Meter("Student (left)", levels?.student?.rmsDb)
-        Meter("Teacher (right)", levels?.teacher?.rmsDb)
+        Meter(if (switched) "Student (right)" else "Student (left)", levels?.student?.rmsDb)
+        Meter(if (switched) "Teacher (left)" else "Teacher (right)", levels?.teacher?.rmsDb)
     }
 }
 

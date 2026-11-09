@@ -31,7 +31,11 @@ enum class Problem {
     NOT_SEPARATED,    // voice is on both channels about equally
     CLIPPING,         // too loud: lower receiver gain or move the mic
     PIANO_TOO_LOUD,   // the piano drowns the student's soft singing
+    SAME_CHANNEL,     // after the channels were set, both voices land on one of them
 }
+
+/** The student step's verdict, and whether the channels must be switched to get it. */
+data class StudentStepOutcome(val result: StepResult, val switchChannels: Boolean)
 
 class SetupCheck(private val t: SetupThresholds = SetupThresholds()) {
 
@@ -56,6 +60,33 @@ class SetupCheck(private val t: SetupThresholds = SetupThresholds()) {
             "This voice is on both channels (only %.0f dB apart). Clip each transmitter close to its wearer's mouth.".format(own - other),
         )
         return StepResult.Pass
+    }
+
+    /**
+     * The first step decides which input is the student's. If the student's
+     * voice is clearly on the right, that is fixed by switching the channels
+     * rather than by asking anyone to swap transmitters.
+     */
+    fun studentStep(levels: StereoLevels): StudentStepOutcome {
+        val asIs = voiceStep(Channel.STUDENT, levels)
+        if ((asIs as? StepResult.Fail)?.problem != Problem.CHANNELS_SWAPPED) return StudentStepOutcome(asIs, false)
+        val switched = voiceStep(Channel.STUDENT, levels.swapped())
+        return if (switched == StepResult.Pass) StudentStepOutcome(switched, true) else StudentStepOutcome(asIs, false)
+    }
+
+    /**
+     * The second step checks the channels the student step settled on. A
+     * teacher on the student's channel can't be fixed by switching again: both
+     * voices are reaching the same input.
+     */
+    fun teacherStep(levels: StereoLevels): StepResult {
+        val r = voiceStep(Channel.TEACHER, levels)
+        if ((r as? StepResult.Fail)?.problem != Problem.CHANNELS_SWAPPED) return r
+        return StepResult.Fail(
+            Problem.SAME_CHANNEL,
+            "Both voices are reaching the same mic channel, even after switching. Check that each of you wears a " +
+                "different transmitter and that both are switched on and connected, then start the check again.",
+        )
     }
 
     /** Someone sings a loud note; neither channel may clip. */
