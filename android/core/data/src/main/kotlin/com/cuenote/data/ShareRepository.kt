@@ -14,6 +14,7 @@ data class ShareRow(
     val status: String,
     @SerialName("created_at") val createdAt: String,
     @SerialName("accepted_at") val acceptedAt: String? = null,
+    @SerialName("restricted_to_taught") val restrictedToTaught: Boolean = false,
 )
 
 @Serializable
@@ -23,25 +24,49 @@ private data class NewShare(
 )
 
 @Serializable
-private data class ProfileName(val id: String, @SerialName("display_name") val displayName: String)
+private data class ProfileName(
+    val id: String,
+    @SerialName("display_name") val displayName: String,
+    val alias: String? = null,
+)
 
 @Serializable
 private data class StatusChange(val status: String)
 
+@Serializable
+private data class RestrictChange(@SerialName("restricted_to_taught") val restrictedToTaught: Boolean)
+
 /**
  * A teacher the student has invited, ready for the screen.
  *
- * [teacherName] is the name on the teacher's account, known only once the
- * teacher has accepted. When teachers get an alias ("Blue", "Tiger"), it goes in
- * front of the name here, and the screen shows "Blue (Marigold Stewart)".
+ * [teacherName] is how the student sees the teacher once they've accepted:
+ * their alias and real name, "Tiger (Marigold Stewart)". Other teachers may
+ * see only the alias, but the student always sees both.
+ *
+ * [restrictedToTaught] is the student's choice to show this teacher only the
+ * lessons they taught.
  */
 data class InvitedTeacher(
     val shareId: String,
     val email: String,
     val active: Boolean,
     val teacherName: String?,
+    val teacherId: String? = null,
+    val restrictedToTaught: Boolean = false,
 ) {
     val title: String get() = teacherName?.takeIf { it.isNotBlank() } ?: email
+}
+
+/** "Tiger (Marigold Stewart)", or whichever of the two is known. */
+internal fun studentFacingName(alias: String?, realName: String?): String? {
+    val a = alias?.trim().orEmpty()
+    val r = realName?.trim().orEmpty()
+    return when {
+        a.isNotEmpty() && r.isNotEmpty() -> "$a ($r)"
+        a.isNotEmpty() -> a
+        r.isNotEmpty() -> r
+        else -> null
+    }
 }
 
 /**
@@ -65,7 +90,7 @@ class ShareRepository(private val auth: AuthRepository) {
         val teacherIds = rows.mapNotNull { it.teacherId }.distinct()
         val names = if (teacherIds.isEmpty()) emptyMap() else
             client.from("profile").select { filter { isIn("id", teacherIds) } }
-                .decodeList<ProfileName>().associate { it.id to it.displayName }
+                .decodeList<ProfileName>().associate { it.id to studentFacingName(it.alias, it.displayName).orEmpty() }
         return toInvitedTeachers(rows, names)
     }
 
@@ -82,6 +107,10 @@ class ShareRepository(private val auth: AuthRepository) {
      * sent. An active share is marked revoked: the teacher loses access at
      * once, and the database keeps a record that they once had it.
      */
+    suspend fun setRestricted(teacher: InvitedTeacher, on: Boolean) {
+        client.from("teacher_student_share").update(RestrictChange(on)) { filter { eq("id", teacher.shareId) } }
+    }
+
     suspend fun revoke(teacher: InvitedTeacher) {
         val table = client.from("teacher_student_share")
         if (teacher.active) {
@@ -114,5 +143,7 @@ internal fun toInvitedTeachers(rows: List<ShareRow>, names: Map<String, String>)
                 email = it.inviteEmail,
                 active = it.status == "active",
                 teacherName = it.teacherId?.let(names::get),
+                teacherId = it.teacherId,
+                restrictedToTaught = it.restrictedToTaught,
             )
         }

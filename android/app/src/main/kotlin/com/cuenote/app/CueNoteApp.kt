@@ -7,6 +7,7 @@ import com.cuenote.data.AuthRepository
 import com.cuenote.data.ConsentStore
 import com.cuenote.data.LessonDatabase
 import com.cuenote.data.LessonRepository
+import com.cuenote.data.LessonTeacherStore
 import com.cuenote.data.ShareRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +24,7 @@ class CueNoteApp : Application() {
     lateinit var consent: ConsentStore private set
     lateinit var auth: AuthRepository private set
     lateinit var shares: ShareRepository private set
+    lateinit var lessonTeachers: LessonTeacherStore private set
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
@@ -31,6 +33,7 @@ class CueNoteApp : Application() {
         consent = ConsentStore(this)
         auth = AuthRepository.create()
         shares = ShareRepository(auth)
+        lessonTeachers = LessonTeacherStore(this)
 
         scope.launch {
             RecordingSession.state.collect { s ->

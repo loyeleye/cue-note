@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,14 +24,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cuenote.data.ConsentStore
+import com.cuenote.data.InvitedTeacher
 
 /**
  * Nothing records until both people agree. The first time, both read the
  * full text and tick their own box; after that, one tap per lesson.
+ *
+ * With more than one teacher, the student also says who is teaching today,
+ * so each teacher can be shown only their own lessons. [teachers] are the
+ * active ones; with one, they're picked without asking.
  */
 @Composable
-fun ConsentScreen(store: ConsentStore, onConsented: (consentAt: Long) -> Unit, onCancel: () -> Unit) {
+fun ConsentScreen(
+    store: ConsentStore,
+    teachers: List<InvitedTeacher>,
+    lastPicked: String?,
+    onConsented: (consentAt: Long, teacherId: String?) -> Unit,
+    onCancel: () -> Unit,
+) {
     var setup by rememberSaveable { mutableStateOf(store.firstSetup() != null) }
+    val choices = teachers.filter { it.active && it.teacherId != null }
+    var picked by rememberSaveable(choices.map { it.teacherId }) {
+        mutableStateOf(
+            when {
+                choices.size == 1 -> choices[0].teacherId
+                choices.any { it.teacherId == lastPicked } -> lastPicked
+                else -> null
+            },
+        )
+    }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
     ) {
@@ -46,8 +68,22 @@ fun ConsentScreen(store: ConsentStore, onConsented: (consentAt: Long) -> Unit, o
                 "${names.studentName} and ${names.teacherName}, do you both agree to record this lesson?",
                 style = MaterialTheme.typography.titleMedium,
             )
+            if (choices.size > 1) {
+                Spacer(Modifier.padding(8.dp))
+                Text("Who's teaching today?", style = MaterialTheme.typography.titleMedium)
+                choices.forEach { t ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = picked == t.teacherId, onClick = { picked = t.teacherId })
+                        Text(t.title)
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = picked == null, onClick = { picked = null })
+                    Text("Someone else, or not sure")
+                }
+            }
             Spacer(Modifier.padding(8.dp))
-            Button(onClick = { onConsented(System.currentTimeMillis()) }, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = { onConsented(System.currentTimeMillis(), picked) }, modifier = Modifier.fillMaxWidth()) {
                 Text("We both agree: start recording")
             }
         }

@@ -29,4 +29,18 @@ class ShareRulesTest {
         assertEquals("Marigold Stewart", list[0].title)
         assertEquals("new@example.com", list[1].title)
     }
+
+    @Test fun carriesTheTeacherAndTheStudentsLimit() {
+        val rows = listOf(ShareRow("a", "m@example.com", "t1", "active", "2026-11-02T10:00:00Z", restrictedToTaught = true))
+        val t = toInvitedTeachers(rows, emptyMap()).single()
+        assertEquals("t1", t.teacherId)
+        assertEquals(true, t.restrictedToTaught)
+    }
+
+    @Test fun studentsSeeTheAliasAndTheRealName() {
+        assertEquals("Tiger (Marigold Stewart)", studentFacingName("Tiger", " Marigold Stewart "))
+        assertEquals("Tiger", studentFacingName("Tiger", ""))
+        assertEquals("Marigold Stewart", studentFacingName(null, "Marigold Stewart"))
+        assertNull(studentFacingName(" ", null))
+    }
 }
