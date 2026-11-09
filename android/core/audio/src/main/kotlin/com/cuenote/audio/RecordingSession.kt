@@ -79,8 +79,10 @@ object RecordingSession {
                     update { it.copy(gaps = it.gaps + 1) }
                 },
             )
-            _state.value = RecordingState.Recording(lessonId, SystemClock.elapsedRealtime(), mic)
-            log(LessonEvent.MicChanged(0, mic))
+            // Note a switched setup in the lesson's own record, for anyone checking the audio later.
+            val micLabel = if (rec.switchChannels) "$mic (left and right switched)" else mic
+            _state.value = RecordingState.Recording(lessonId, SystemClock.elapsedRealtime(), micLabel)
+            log(LessonEvent.MicChanged(0, micLabel))
             Forwarder.start(rec)
         } catch (e: Exception) {
             cleanup()

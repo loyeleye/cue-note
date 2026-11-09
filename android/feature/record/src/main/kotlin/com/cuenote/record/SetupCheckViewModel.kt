@@ -4,10 +4,11 @@ import android.app.Application
 import android.os.BatteryManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cuenote.audio.ChannelSwap
 import com.cuenote.audio.LessonRecorder
 import com.cuenote.audio.MicInfo
 import com.cuenote.audio.UsbMic
-import com.cuenote.signal.Channel
+import com.cuenote.signal.Problem
 import com.cuenote.signal.SetupCheck
 import com.cuenote.signal.StepResult
 import com.cuenote.signal.StereoLevels
@@ -38,6 +39,10 @@ data class SetupUiState(
     val results: Map<SetupStep, StepResult> = emptyMap(),
     val error: String? = null,
     val done: Boolean = false,
+    /** Student on the right input, so recordings switch the channels. */
+    val channelsSwitched: Boolean = false,
+    /** Set when this check switched them, to tell the user why. */
+    val switchedThisCheck: Boolean = false,
 ) {
     val batteryLow: Boolean get() = !charging && batteryPercent < LOW_BATTERY_PERCENT
 
@@ -47,7 +52,7 @@ data class SetupUiState(
     }
 }
 
-class SetupCheckViewModel(app: Application) : AndroidViewModel(app) {
+class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) {
     private val recorder = LessonRecorder(app)
     private val rules = SetupCheck()
     private val captured = mutableMapOf<SetupStep, StereoLevels>()
@@ -64,6 +69,7 @@ class SetupCheckViewModel(app: Application) : AndroidViewModel(app) {
                 mic = UsbMic.describe(UsbMic.find(app)),
                 batteryPercent = battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY),
                 charging = battery.isCharging,
+                channelsSwitched = recorder.switchChannels,
             )
         }
         try {
@@ -85,6 +91,10 @@ class SetupCheckViewModel(app: Application) : AndroidViewModel(app) {
             }
             captured[step] = recorder.windowLevels()
             val result = judge(step)
+            if (step == SetupStep.STUDENT_SPEAK) {
+                val outcome = rules.studentStep(captured.getValue(step))
+                if (outcome.switchChannels) setSwitched(!recorder.switchChannels, byCheck = true)
+            }
             _state.update {
                 it.copy(
                     secondsLeft = null,
@@ -103,9 +113,30 @@ class SetupCheckViewModel(app: Application) : AndroidViewModel(app) {
 
     fun retry() {
         val step = _state.value.step
-        // A failed piano result means redoing all three piano steps.
-        val target = if (step == SetupStep.PIANO_LOUD) SetupStep.PIANO_ALONE else step
-        _state.update { it.copy(step = target, results = it.results - step) }
+        val failed = _state.value.results[step] as? StepResult.Fail
+        when {
+            // Both voices on one channel: the student step has to be redone too.
+            failed?.problem == Problem.SAME_CHANNEL -> _state.update {
+                it.copy(step = SetupStep.STUDENT_SPEAK, results = emptyMap(), switchedThisCheck = false)
+            }
+            // A failed piano result means redoing all three piano steps.
+            step == SetupStep.PIANO_LOUD -> _state.update { it.copy(step = SetupStep.PIANO_ALONE, results = it.results - step) }
+            else -> _state.update { it.copy(results = it.results - step) }
+        }
+    }
+
+    /** Manual override: switch which input is the student's and start the check over. */
+    fun switchChannelsManually() {
+        if (job?.isActive == true) return
+        setSwitched(!recorder.switchChannels, byCheck = false)
+        captured.clear()
+        _state.update { it.copy(step = SetupStep.STUDENT_SPEAK, results = emptyMap(), done = false) }
+    }
+
+    private fun setSwitched(on: Boolean, byCheck: Boolean) {
+        recorder.switchChannels = on
+        ChannelSwap.set(app, on)
+        _state.update { it.copy(channelsSwitched = on, switchedThisCheck = byCheck) }
     }
 
     private fun advance() {
@@ -115,8 +146,8 @@ class SetupCheckViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Returns null for steps that only capture audio for a later step. */
     private fun judge(step: SetupStep): StepResult? = when (step) {
-        SetupStep.STUDENT_SPEAK -> rules.voiceStep(Channel.STUDENT, captured.getValue(step))
-        SetupStep.TEACHER_SPEAK -> rules.voiceStep(Channel.TEACHER, captured.getValue(step))
+        SetupStep.STUDENT_SPEAK -> rules.studentStep(captured.getValue(step)).result
+        SetupStep.TEACHER_SPEAK -> rules.teacherStep(captured.getValue(step))
         SetupStep.LOUD_NOTE -> rules.loudStep(captured.getValue(step))
         SetupStep.PIANO_ALONE, SetupStep.PIANO_SOFT -> null
         SetupStep.PIANO_LOUD -> rules.pianoStep(

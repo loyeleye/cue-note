@@ -15,6 +15,7 @@ import com.cuenote.signal.GapDetector
 import com.cuenote.signal.LessonAudio
 import com.cuenote.signal.StereoLevelMeter
 import com.cuenote.signal.StereoLevels
+import com.cuenote.signal.swapStereoInPlace
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,6 +40,12 @@ class LessonRecorder(private val context: Context) {
 
     var framesRead = 0L
         private set
+
+    /**
+     * Switch left and right as audio comes in, so the student is always on
+     * the left in levels and saved files. Starts from the saved setting.
+     */
+    @Volatile var switchChannels: Boolean = ChannelSwap.isOn(context)
 
     /** Starts recording. Throws if the microphone permission is missing. */
     @SuppressLint("MissingPermission") // checked just below
@@ -111,6 +118,7 @@ class LessonRecorder(private val context: Context) {
             }
             val whole = n - n % LessonAudio.CHANNELS
             framesRead += whole / LessonAudio.CHANNELS
+            if (switchChannels) swapStereoInPlace(block, whole)
             sink?.invoke(block, whole)
             gaps.onFrames(whole / LessonAudio.CHANNELS, SystemClock.elapsedRealtimeNanos())?.let(onGap)
             synchronized(windowLock) { windowMeter.add(block, whole) }
