@@ -3,7 +3,10 @@
   // plus the notes and practice she can remove.
   import { api, app } from '$lib/app.svelte';
   import { bytes } from '$lib/format';
-  import type { StorageRow, StudentSummary } from '$lib/types';
+  import { COLOR_LABEL, colorVar, teacherLabel } from '$lib/people';
+  import type { StorageRow, StudentSummary, TeacherColor } from '$lib/types';
+  import { TEACHER_COLORS } from '$lib/types';
+  import Who from '$lib/components/Who.svelte';
 
   // Supabase's free plan includes 1 GB of file storage.
   const FREE_PLAN_BYTES = 1024 ** 3;
@@ -37,6 +40,44 @@
 
   $effect(() => { if (app.me) reload(); });
 
+  // How she appears to other teachers and to students.
+  let alias = $state('');
+  let realName = $state('');
+  let color = $state<TeacherColor>('blue');
+  let namePublic = $state(false);
+  let savingId = $state(false);
+  let idMessage = $state('');
+  let idError = $state('');
+  let loadedFor = '';
+  $effect(() => {
+    const m = app.me;
+    if (!m || loadedFor === m.id) return;
+    loadedFor = m.id;
+    alias = m.alias ?? '';
+    realName = m.display_name ?? '';
+    color = m.color ?? 'blue';
+    namePublic = !!m.name_public;
+  });
+  const idDirty = $derived(!!app.me && (alias.trim() !== (app.me.alias ?? '') || realName.trim() !== (app.me.display_name ?? '')
+    || color !== (app.me.color ?? 'blue') || namePublic !== !!app.me.name_public));
+  const preview = $derived({ id: 'preview', alias: alias.trim() || 'Your alias', color, name_public: namePublic });
+
+  async function saveIdentity(e: SubmitEvent) {
+    e.preventDefault();
+    if (!alias.trim()) { idError = 'Your alias can’t be empty.'; return; }
+    savingId = true;
+    idError = '';
+    idMessage = '';
+    try {
+      app.me = await api().updateMe({ alias: alias.trim(), display_name: realName.trim(), color, name_public: namePublic });
+      idMessage = 'Saved.';
+    } catch (err) {
+      idError = err instanceof Error ? err.message : String(err);
+    } finally {
+      savingId = false;
+    }
+  }
+
   const total = $derived(Object.values(usage).flat().reduce((n, r) => n + r.bytes, 0));
   const studentTotal = (id: string) => (usage[id] ?? []).reduce((n, r) => n + r.bytes, 0);
 
@@ -51,6 +92,51 @@
 
 <h1>Settings</h1>
 {#if error}<p class="error" role="alert">{error}</p>{/if}
+
+<section>
+  <h2>How you appear</h2>
+  <form class="card identity" onsubmit={saveIdentity}>
+    <p class="muted small">When a student shares lessons with more than one teacher, the others see your alias and color on
+      your edits and notes, like an anonymous editor in a shared document. Your students always see your real name too.</p>
+    <div class="row">
+      <label class="grow">
+        <span>Alias</span>
+        <input maxlength="40" bind:value={alias} />
+      </label>
+      <label class="grow">
+        <span>Your real name</span>
+        <input maxlength="80" bind:value={realName} placeholder="For example: Marigold Stewart" />
+      </label>
+    </div>
+    <fieldset>
+      <legend>Color</legend>
+      <div class="swatches">
+        {#each TEACHER_COLORS as c (c)}
+          <label class="swatch" class:on={color === c} title={COLOR_LABEL[c]}>
+            <input type="radio" name="color" value={c} bind:group={color} class="visually-hidden" />
+            <span class="sw" style:background={colorVar(c)} aria-hidden="true"></span>
+            <span class="visually-hidden">{COLOR_LABEL[c]}</span>
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+    <label class="check">
+      <input type="checkbox" bind:checked={namePublic} />
+      <span>Show my real name to everyone, including other teachers</span>
+    </label>
+    <dl class="preview">
+      <dt>Other teachers see</dt>
+      <dd><Who teacher={{ ...preview, display_name: namePublic ? realName.trim() || null : null }} /></dd>
+      <dt>Your students see</dt>
+      <dd><Who teacher={{ ...preview, display_name: realName.trim() || null }} /></dd>
+    </dl>
+    {#if idError}<p class="error small" role="alert">{idError}</p>{/if}
+    <div class="id-actions">
+      {#if idMessage && !idDirty}<span class="muted small" role="status">{idMessage}</span>{/if}
+      <button type="submit" class="primary" disabled={savingId || !idDirty}>{savingId ? 'Saving…' : 'Save'}</button>
+    </div>
+  </form>
+</section>
 
 <section>
   <h2>Storage used</h2>
@@ -98,7 +184,7 @@
 
 <section>
   <h2>Account</h2>
-  <p>Signed in as <strong>{app.demo ? 'the demo teacher' : app.email}</strong>.</p>
+  <p>Signed in as <strong>{app.demo ? 'the demo teacher' : app.email}</strong>{#if app.me?.alias}, shown to other teachers as <strong>{teacherLabel({ id: '', alias: app.me.alias, display_name: app.me.name_public ? app.me.display_name : null })}</strong>{/if}.</p>
   <p class="muted small">Deleting your whole account, and choosing which pitch metrics each student sees, arrive with the practice features (M5).</p>
 </section>
 
@@ -117,4 +203,23 @@
   .danger-btn { color: var(--danger); }
   .small { font-size: 13px; }
   .error { color: var(--danger); }
+  .identity { display: flex; flex-direction: column; gap: 12px; }
+  .identity p { margin: 0; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .grow { flex: 1 1 200px; }
+  .identity label:not(.swatch):not(.check), fieldset { display: flex; flex-direction: column; gap: 4px; }
+  .identity label > span, legend { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .identity .check > span { font-size: 14px; font-weight: 400; color: var(--fg); }
+  fieldset { border: none; padding: 0; margin: 0; }
+  legend { padding: 0; margin-bottom: 4px; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 2px solid transparent; cursor: pointer; }
+  .swatch.on { border-color: var(--fg); }
+  .swatch:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .sw { width: 22px; height: 22px; border-radius: 50%; }
+  .check { display: flex; gap: 8px; align-items: center; }
+  .preview { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 13px; background: var(--bg); border-radius: 8px; padding: 10px; }
+  .preview dt { color: var(--muted); }
+  .preview dd { margin: 0; min-width: 0; }
+  .id-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
 </style>

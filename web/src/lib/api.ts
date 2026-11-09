@@ -3,8 +3,8 @@
 // and the demo one keeps made-up sample data in the browser. Screens never know
 // which one they have, so the demo exercises exactly the same screens.
 import type {
-  Annotation, BarPosition, CardFields, CardVersion, Comment, Feedback, Lesson, PhotoMark,
-  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take
+  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, Feedback, Lesson, PhotoMark,
+  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
 
 export type Bucket = 'clips' | 'photos' | 'scores';
@@ -34,6 +34,51 @@ export interface NewAnnotation {
   y: number;
 }
 
+/** What a teacher can change about how they appear to others. */
+export type IdentityPatch = Partial<Pick<Profile, 'display_name' | 'alias' | 'color' | 'name_public'>>;
+
+export interface SaveOptions {
+  /** The values the editor started from, for the fields being changed. */
+  expected?: Partial<CardFields>;
+  /** The version being restored, so the history can say so. */
+  restoredFrom?: string;
+}
+
+/**
+ * Someone else changed one of the same fields while this teacher was editing.
+ * `theirs` holds the card's current values for those fields.
+ */
+export class EditConflict extends Error {
+  constructor(
+    readonly fields: (keyof CardFields)[],
+    readonly theirs: Partial<CardFields>,
+    readonly by: string | null,
+    readonly at: string | null
+  ) {
+    super('Someone else changed this card while you were editing.');
+  }
+}
+
+/** Another teacher with the same lesson open, and the card they're editing. */
+export interface PresentTeacher {
+  id: string;
+  editing: string | null;
+}
+
+export interface LessonEvents {
+  /** A card changed, by anyone, including this teacher in another tab. */
+  onCard(f: Feedback): void;
+  onVersion(v: CardVersion): void;
+  onCheckpoints(): void;
+  onPresence(present: PresentTeacher[]): void;
+}
+
+export interface LessonWatch {
+  /** Tell the others which card this teacher is editing (null for none). */
+  setEditing(cardId: string | null): void;
+  stop(): void;
+}
+
 export interface Api {
   readonly demo: boolean;
   me(): Promise<Profile | null>;
@@ -43,6 +88,9 @@ export interface Api {
   acceptInvite(shareId: string): Promise<void>;
   getStudent(studentId: string): Promise<{ student: Profile; share: Share } | null>;
   setNextLesson(shareId: string, at: string | null): Promise<void>;
+  /** Every teacher of this student, named as this viewer may see them. */
+  listTeachers(studentId: string): Promise<Teacher[]>;
+  updateMe(patch: IdentityPatch): Promise<Profile>;
 
   listLessons(studentId: string): Promise<Lesson[]>;
   getLesson(lessonId: string): Promise<Lesson | null>;
@@ -54,8 +102,23 @@ export interface Api {
   listSongTakes(songId: string): Promise<Take[]>;
 
   listVersions(feedbackId: string): Promise<CardVersion[]>;
-  /** Updates the card and appends a new version in one step. */
-  saveCard(feedbackId: string, changes: Partial<CardFields>): Promise<Feedback>;
+  /** Every version of every card in a lesson, newest first. */
+  listLessonVersions(lessonId: string): Promise<CardVersion[]>;
+  /**
+   * Updates the card and appends a new version in one step. With
+   * opts.expected, throws EditConflict instead of saving over someone else.
+   */
+  saveCard(feedbackId: string, changes: Partial<CardFields>, opts?: SaveOptions): Promise<Feedback>;
+
+  listCheckpoints(lessonId: string): Promise<Checkpoint[]>;
+  addCheckpoint(lessonId: string, label: string): Promise<Checkpoint>;
+  renameCheckpoint(id: string, label: string): Promise<void>;
+  deleteCheckpoint(id: string): Promise<void>;
+  /** Puts every card back to how it was at the named version; returns how many changed. */
+  restoreCheckpoint(id: string): Promise<number>;
+
+  /** Live changes and who else is here, until stop() is called. */
+  watchLesson(lessonId: string, events: LessonEvents): LessonWatch;
 
   listComments(studentId: string): Promise<Comment[]>;
   addComment(c: NewComment): Promise<Comment>;

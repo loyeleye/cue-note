@@ -1,12 +1,14 @@
 // The real data layer: Supabase, called with the teacher's own session, so
 // the database's security rules decide what she can read and change.
 import { supabase } from './supabase';
-import type { Api, Bucket, NewAnnotation, NewComment, NewPractice } from './api';
-import { scoreFormatOf } from './api';
+import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeacher } from './api';
+import { EditConflict, scoreFormatOf } from './api';
 import type {
-  Annotation, BarPosition, CardFields, CardVersion, Comment, Feedback, Lesson, PhotoMark,
-  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take
+  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, Feedback, Lesson, PhotoMark,
+  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
+
+const ME_COLUMNS = 'id, role, display_name, alias, color, name_public';
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -30,7 +32,7 @@ export const supabaseApi: Api = {
   async me() {
     const { data } = await supabase.auth.getSession();
     if (!data.session) return null;
-    const res = await supabase.from('profile').select('id, role, display_name').eq('id', data.session.user.id).single();
+    const res = await supabase.from('profile').select(ME_COLUMNS).eq('id', data.session.user.id).single();
     return res.data as Profile | null;
   },
 
@@ -82,6 +84,15 @@ export const supabaseApi: Api = {
     check(await supabase.from('teacher_student_share').update({ next_lesson_at: at }).eq('id', shareId));
   },
 
+  async listTeachers(studentId) {
+    return check(await supabase.rpc('list_teachers', { student: studentId })) as Teacher[];
+  },
+
+  async updateMe(patch) {
+    const me = await uid();
+    return check(await supabase.from('profile').update(patch).eq('id', me).select(ME_COLUMNS).single()) as Profile;
+  },
+
   async listLessons(studentId) {
     return check(await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state')
       .eq('student_id', studentId).order('recorded_at', { ascending: false })) as Lesson[];
@@ -122,9 +133,95 @@ export const supabaseApi: Api = {
       .order('created_at', { ascending: false })) as CardVersion[];
   },
 
-  async saveCard(feedbackId, changes: Partial<CardFields>) {
-    check(await supabase.rpc('save_card', { fb: feedbackId, changes }));
+  async listLessonVersions(lessonId) {
+    const rows = check(await supabase.from('card_version').select('*, feedback!inner(lesson_id)')
+      .eq('feedback.lesson_id', lessonId).order('created_at', { ascending: false })) as (CardVersion & { feedback: unknown })[];
+    return rows.map(({ feedback: _f, ...v }) => v);
+  },
+
+  async saveCard(feedbackId, changes: Partial<CardFields>, opts = {}) {
+    const res = await supabase.rpc('save_card', {
+      fb: feedbackId, changes, expected: opts.expected ?? null, restored_from: opts.restoredFrom ?? null
+    });
+    if (res.error?.code === 'P0409') {
+      let d: { fields?: (keyof CardFields)[]; theirs?: Partial<CardFields>; by?: string | null; at?: string | null } = {};
+      try { d = JSON.parse(res.error.details ?? '{}'); } catch { /* keep the defaults */ }
+      throw new EditConflict(d.fields ?? [], d.theirs ?? {}, d.by ?? null, d.at ?? null);
+    }
+    check(res);
     return check(await supabase.from('feedback').select('*').eq('id', feedbackId).single()) as Feedback;
+  },
+
+  async listCheckpoints(lessonId) {
+    return check(await supabase.from('lesson_checkpoint').select('*').eq('lesson_id', lessonId)
+      .order('created_at', { ascending: false })) as Checkpoint[];
+  },
+
+  async addCheckpoint(lessonId, label) {
+    const me = await uid();
+    return check(await supabase.from('lesson_checkpoint').insert({ lesson_id: lessonId, label, created_by: me })
+      .select().single()) as Checkpoint;
+  },
+
+  async renameCheckpoint(id, label) {
+    check(await supabase.from('lesson_checkpoint').update({ label }).eq('id', id));
+  },
+
+  async deleteCheckpoint(id) {
+    check(await supabase.from('lesson_checkpoint').delete().eq('id', id));
+  },
+
+  async restoreCheckpoint(id) {
+    return check(await supabase.rpc('restore_checkpoint', { checkpoint: id })) as number;
+  },
+
+  watchLesson(lessonId, events) {
+    // Row changes come over an ordinary channel; the database's security
+    // rules still decide which rows this teacher hears about.
+    const rows = supabase.channel(`lesson-rows:${lessonId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'feedback', filter: `lesson_id=eq.${lessonId}` },
+        (p) => events.onCard(p.new as Feedback))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'card_version' },
+        (p) => events.onVersion(p.new as CardVersion))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_checkpoint', filter: `lesson_id=eq.${lessonId}` },
+        () => events.onCheckpoints())
+      .subscribe();
+
+    // Presence is private: only this student's teachers may join it.
+    let editing: string | null = null;
+    let joined = false;
+    let stopped = false;
+    let presence: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const me = await uid().catch(() => null);
+      if (!me || stopped) return;
+      await supabase.realtime.setAuth();
+      presence = supabase.channel(`lesson:${lessonId}`, { config: { private: true, presence: { key: me } } });
+      presence.on('presence', { event: 'sync' }, () => {
+        const state = presence!.presenceState<{ editing: string | null }>();
+        const list: PresentTeacher[] = Object.entries(state).map(([id, metas]) => ({
+          id, editing: metas.find((m) => m.editing)?.editing ?? null
+        }));
+        events.onPresence(list);
+      });
+      presence.subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return;
+        joined = true;
+        presence!.track({ editing });
+      });
+    })();
+
+    return {
+      setEditing(cardId) {
+        editing = cardId;
+        if (joined) presence?.track({ editing });
+      },
+      stop() {
+        stopped = true;
+        supabase.removeChannel(rows);
+        if (presence) supabase.removeChannel(presence);
+      }
+    };
   },
 
   async listComments(studentId) {

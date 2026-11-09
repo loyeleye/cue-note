@@ -1,16 +1,29 @@
 <script lang="ts">
   // Edit one card. Saving writes the change and a new version together, so
   // the AI's original and every correction stay in the history.
+  //
+  // Two teachers can have the same card open. The editor remembers what the
+  // card looked like when it opened and sends that along: if someone else
+  // changed a different field meanwhile, both changes are kept; if they
+  // changed the same field, the save stops and asks which to keep.
   import { untrack } from 'svelte';
   import { api } from '$lib/app.svelte';
+  import { EditConflict } from '$lib/api';
+  import { FIELD_LABEL, showField } from '$lib/cardfields';
   import { clock } from '$lib/format';
-  import type { CardFields, Feedback, PracticeFlag, Song, Take } from '$lib/types';
+  import { findTeacher, teacherLabel } from '$lib/people';
+  import type { CardFields, Feedback, PracticeFlag, Song, Take, Teacher } from '$lib/types';
   import { CARD_FIELDS } from '$lib/types';
+  import Who from './Who.svelte';
 
-  let { card, takes, songs, onsaved, oncancel }: {
+  let { card, takes, songs, teachers = [], me = null, lastEditor = null, onsaved, oncancel }: {
     card: Feedback;
     takes: Take[];
     songs: Song[];
+    teachers?: Teacher[];
+    me?: string | null;
+    /** Who saved the card most recently, to name them if it changes under us. */
+    lastEditor?: string | null;
     onsaved: (f: Feedback) => void;
     oncancel: () => void;
   } = $props();
@@ -23,23 +36,50 @@
     bar_start: f.bar_start ?? null, bar_end: f.bar_end ?? null
   });
 
-  // A working copy; the card itself only changes once the save succeeds.
+  // The card as it was when the editor opened, and a working copy. The card
+  // itself only changes once the save succeeds.
+  let base = $state(untrack(() => pick(card)));
   let draft = $state(untrack(() => pick(card)));
+  let restoredFrom = $state<string | null>(null);
   let saving = $state(false);
   let error = $state('');
+  let conflict = $state<EditConflict | null>(null);
+  let unresolved = $state<(keyof CardFields)[]>([]);
 
-  export function load(fields: Partial<CardFields>) {
+  /** Load an older version into the editor, to save as a restore. */
+  export function load(fields: Partial<CardFields>, versionId: string | null = null) {
     draft = pick({ ...pick(card), ...fields });
+    restoredFrom = versionId;
   }
 
   const changes = $derived.by(() => {
-    const orig = pick(card);
     const out: Partial<CardFields> = {};
     for (const k of CARD_FIELDS) {
-      if (draft[k] !== orig[k]) (out as Record<string, unknown>)[k] = draft[k];
+      if (draft[k] !== base[k]) (out as Record<string, unknown>)[k] = draft[k];
     }
     return out;
   });
+
+  // Someone saved this card since it opened (it updates live).
+  const movedOn = $derived(CARD_FIELDS.some((k) => pick(card)[k] !== base[k]));
+  const other = $derived(lastEditor && lastEditor !== me ? findTeacher(teachers, lastEditor) : null);
+  const conflictBy = $derived(conflict?.by && conflict.by !== me ? findTeacher(teachers, conflict.by) : null);
+
+  const rec = (o: object) => o as Record<string, unknown>;
+
+  function keep(k: keyof CardFields, which: 'mine' | 'theirs') {
+    if (!conflict) return;
+    const theirs = rec(conflict.theirs)[k] ?? null;
+    // From now on, compare against their value: it is what's saved.
+    rec(base)[k] = theirs;
+    if (k === 'bar_start' || k === 'bar_end') {
+      const other = k === 'bar_start' ? 'bar_end' : 'bar_start';
+      if (other in conflict.theirs) rec(base)[other] = rec(conflict.theirs)[other] ?? null;
+    }
+    if (which === 'theirs') rec(draft)[k] = theirs;
+    unresolved = unresolved.filter((x) => x !== k);
+    if (!unresolved.length) conflict = null;
+  }
   const dirty = $derived(Object.keys(changes).length > 0);
   const barsInvalid = $derived(draft.bar_start != null && draft.bar_end != null && draft.bar_end < draft.bar_start);
 
@@ -57,9 +97,15 @@
     try {
       const fields = { ...changes };
       if ('bar_start' in fields && draft.bar_start != null && draft.bar_end == null) fields.bar_end = draft.bar_start;
-      onsaved(await api().saveCard(card.id, fields));
+      const expected = Object.fromEntries(Object.keys(fields).map((k) => [k, base[k as keyof CardFields]]));
+      onsaved(await api().saveCard(card.id, fields, { expected, restoredFrom: restoredFrom ?? undefined }));
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      if (err instanceof EditConflict) {
+        conflict = err;
+        unresolved = err.fields.filter((k, i, all) => !(k === 'bar_end' && all.includes('bar_start')));
+      } else {
+        error = err instanceof Error ? err.message : String(err);
+      }
     } finally {
       saving = false;
     }
@@ -67,6 +113,35 @@
 </script>
 
 <form class="editor" onsubmit={save}>
+  {#if conflict}
+    <div class="clash" role="alert">
+      <p><strong>{conflictBy ? teacherLabel(conflictBy, me) : 'Someone else'} changed this card while you were editing.</strong>
+        Choose what to keep for each field below, then save. You can still edit the text after choosing.</p>
+      {#each unresolved as k (k)}
+        <div class="clash-field">
+          <span class="field">{FIELD_LABEL[k]}</span>
+          <div class="sides">
+            <div class="side">
+              <span class="muted small">Yours</span>
+              <p>{showField(k, draft, takes, songs)}</p>
+              <button type="button" class="ghost small" onclick={() => keep(k, 'mine')}>Keep mine</button>
+            </div>
+            <div class="side">
+              <span class="muted small">{#if conflictBy}<Who teacher={conflictBy} {me} />{:else}Theirs{/if}</span>
+              <p>{showField(k, conflict.theirs, takes, songs)}</p>
+              <button type="button" class="ghost small" onclick={() => keep(k, 'theirs')}>Keep theirs</button>
+            </div>
+          </div>
+        </div>
+      {/each}
+    </div>
+  {:else if movedOn}
+    <p class="note">
+      {#if other}<Who teacher={other} {me} />{:else}Someone{/if} saved this card while you had it open.
+      Saving keeps their changes to fields you didn't touch.
+    </p>
+  {/if}
+  {#if restoredFrom}<p class="note">Restoring an older version. Check it, then save.</p>{/if}
   <label>
     <span>Cue</span>
     <textarea rows="2" bind:value={draft.cue} placeholder="The cue in a few words"></textarea>
@@ -129,7 +204,7 @@
 
   <div class="actions">
     <button type="button" class="ghost" onclick={oncancel}>Cancel</button>
-    <button type="submit" class="primary" disabled={!dirty || saving || barsInvalid}>
+    <button type="submit" class="primary" disabled={!dirty || saving || barsInvalid || !!conflict}>
       {saving ? 'Saving…' : dirty ? 'Save as new version' : 'No changes'}
     </button>
   </div>
@@ -150,4 +225,14 @@
   .seg button.on { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
   .actions { display: flex; justify-content: flex-end; gap: 8px; }
   .error { color: var(--danger); margin: 0; font-size: 13px; }
+  .note { margin: 0; font-size: 13px; background: var(--chip); border-radius: 8px; padding: 8px 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .clash { background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+  .clash p { margin: 0; }
+  .clash-field { display: flex; flex-direction: column; gap: 4px; }
+  .field { font-weight: 600; font-size: 12px; }
+  .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .side { background: var(--surface); color: var(--fg); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .side p { margin: 0; white-space: pre-wrap; }
+  .small { font-size: 12px; }
+  @media (max-width: 520px) { .sides { grid-template-columns: 1fr; } }
 </style>

@@ -1,13 +1,16 @@
 // The demo data layer: same interface as the real one, backed by sample data
 // held in this browser. Edits are kept in localStorage so they survive a
 // reload; "Reset demo" puts everything back.
-import type { Api, Bucket, NewAnnotation, NewComment, NewPractice } from './api';
-import { scoreFormatOf } from './api';
-import type { CardFields, Feedback, StorageRow } from './types';
-import { DEMO_TEACHER, MELODIES, demoScoreSvg, demoSketchSvg, initialDemoState, type DemoState } from './demo-data';
+import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeacher } from './api';
+import { EditConflict, scoreFormatOf } from './api';
+import type { CardFields, CardVersion, Feedback, Profile, StorageRow, Teacher } from './types';
+import { CARD_FIELDS } from './types';
+import {
+  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoScoreSvg, demoSketchSvg, initialDemoState, type DemoState
+} from './demo-data';
 import { wavFor } from './tone';
 
-const KEY = 'cuenote-demo-state-v1';
+const KEY = 'cuenote-demo-state-v2';
 let state: DemoState | null = null;
 const memoryFiles = new Map<string, string>();     // big uploads, this tab only
 const toneUrls = new Map<string, string>();
@@ -20,6 +23,11 @@ function load(): DemoState {
   } catch { /* private mode or blocked storage: start fresh */ }
   state ??= initialDemoState();
   return state;
+}
+
+// Another tab of the demo saved: read the new state on next use.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => { if (e.key === KEY) state = null; });
 }
 
 function save() {
@@ -52,14 +60,27 @@ function lessonStudent(s: DemoState, lessonId: string) {
   return s.lessons.find((l) => l.id === lessonId)?.student_id;
 }
 
+function meIn(s: DemoState): Profile {
+  return s.profiles.find((p) => p.id === DEMO_TEACHER.id) ?? DEMO_TEACHER;
+}
+
+const mine = (s: DemoState) => s.shares.filter((sh) => sh.teacher_id === DEMO_TEACHER.id);
+
+function snapshot(f: Feedback): Partial<CardFields> {
+  return {
+    cue: f.cue, category: f.category, her_words: f.her_words, practice_flag: f.practice_flag,
+    take_id: f.take_id, song_id: f.song_id, bar_start: f.bar_start, bar_end: f.bar_end
+  };
+}
+
 export const demoApi: Api = {
   demo: true,
 
-  async me() { return DEMO_TEACHER; },
+  async me() { return { ...meIn(load()) }; },
 
   async listStudents() {
     const s = load();
-    return s.shares.filter((sh) => sh.status === 'active').map((share) => {
+    return mine(s).filter((sh) => sh.status === 'active').map((share) => {
       const lessons = s.lessons.filter((l) => l.student_id === share.student_id);
       return {
         share,
@@ -89,7 +110,7 @@ export const demoApi: Api = {
 
   async getStudent(studentId) {
     const s = load();
-    const share = s.shares.find((x) => x.student_id === studentId && x.status === 'active');
+    const share = mine(s).find((x) => x.student_id === studentId && x.status === 'active');
     const student = s.profiles.find((p) => p.id === studentId);
     return share && student ? { share, student } : null;
   },
@@ -98,6 +119,28 @@ export const demoApi: Api = {
     const sh = load().shares.find((x) => x.id === shareId);
     if (sh) sh.next_lesson_at = at;
     save();
+  },
+
+  async listTeachers(studentId) {
+    const s = load();
+    return s.shares.filter((sh) => sh.student_id === studentId && sh.status === 'active' && sh.teacher_id)
+      .map((sh) => s.profiles.find((p) => p.id === sh.teacher_id)!)
+      .filter(Boolean)
+      .map((p): Teacher => ({
+        id: p.id, alias: p.alias ?? 'Teacher', color: p.color ?? 'blue', name_public: !!p.name_public,
+        display_name: p.id === DEMO_TEACHER.id || p.name_public ? p.display_name : null
+      }));
+  },
+
+  async updateMe(patch) {
+    await wait();
+    const s = load();
+    const me = meIn(s);
+    if (patch.alias !== undefined && !patch.alias.trim()) throw new Error('Your alias can’t be empty.');
+    Object.assign(me, patch);
+    if (!s.profiles.includes(me)) s.profiles.push(me);
+    save();
+    return { ...me };
   },
 
   async listLessons(studentId) {
@@ -124,24 +167,109 @@ export const demoApi: Api = {
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   },
 
-  async saveCard(feedbackId, changes: Partial<CardFields>) {
+  async listLessonVersions(lessonId) {
+    const s = load();
+    const ids = new Set(s.feedback.filter((f) => f.lesson_id === lessonId).map((f) => f.id));
+    return s.versions.filter((v) => ids.has(v.feedback_id)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  },
+
+  async saveCard(feedbackId, changes: Partial<CardFields>, opts = {}) {
     await wait();
     const s = load();
     const f = s.feedback.find((x) => x.id === feedbackId);
     if (!f) throw new Error('card not found');
+    // The same clash rule as save_card in the database.
+    if (opts.expected) {
+      const cur = f as unknown as Record<string, unknown>;
+      const exp = opts.expected as Record<string, unknown>;
+      const chg = changes as Record<string, unknown>;
+      const clash = CARD_FIELDS.filter((k) => k in chg && k in exp
+        && (cur[k] ?? null) !== (exp[k] ?? null) && (cur[k] ?? null) !== (chg[k] ?? null));
+      if (clash.length) {
+        const last = s.versions.filter((v) => v.feedback_id === f.id).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+        throw new EditConflict(clash, Object.fromEntries(clash.map((k) => [k, cur[k]])), last?.author_id ?? null, f.updated_at);
+      }
+    }
     if (changes.take_id && s.takes.find((t) => t.id === changes.take_id)?.lesson_id !== f.lesson_id) {
       throw new Error('a card can only link to a take from the same lesson');
     }
     Object.assign(f, changes, { updated_at: now() });
     s.versions.push({
       id: id(), feedback_id: f.id, author: 'teacher', author_id: DEMO_TEACHER.id, created_at: now(),
-      payload: {
-        cue: f.cue, category: f.category, her_words: f.her_words, practice_flag: f.practice_flag,
-        take_id: f.take_id, song_id: f.song_id, bar_start: f.bar_start, bar_end: f.bar_end
-      }
+      payload: snapshot(f), restored_from: opts.restoredFrom ?? null
     });
     save();
     return { ...f } as Feedback;
+  },
+
+  async listCheckpoints(lessonId) {
+    return load().checkpoints.filter((c) => c.lesson_id === lessonId)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  },
+
+  async addCheckpoint(lessonId, label) {
+    await wait();
+    const row = { id: id(), lesson_id: lessonId, label, created_by: DEMO_TEACHER.id, created_at: now() };
+    load().checkpoints.push(row);
+    save();
+    return row;
+  },
+
+  async renameCheckpoint(cid, label) {
+    const c = load().checkpoints.find((x) => x.id === cid && x.created_by === DEMO_TEACHER.id);
+    if (c) c.label = label;
+    save();
+  },
+
+  async deleteCheckpoint(cid) {
+    const s = load();
+    s.checkpoints = s.checkpoints.filter((x) => !(x.id === cid && x.created_by === DEMO_TEACHER.id));
+    save();
+  },
+
+  async restoreCheckpoint(cid) {
+    await wait();
+    const s = load();
+    const cp = s.checkpoints.find((x) => x.id === cid);
+    if (!cp) throw new Error('named version not found');
+    let n = 0;
+    for (const f of s.feedback.filter((x) => x.lesson_id === cp.lesson_id)) {
+      const then: CardVersion | undefined = s.versions
+        .filter((v) => v.feedback_id === f.id && v.created_at <= cp.created_at)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+      if (!then) continue;
+      const cur = f as unknown as Record<string, unknown>;
+      const differs = Object.entries(then.payload).some(([k, v]) => (cur[k] ?? null) !== (v ?? null));
+      if (!differs) continue;
+      await this.saveCard(f.id, then.payload, { restoredFrom: then.id });
+      n++;
+    }
+    return n;
+  },
+
+  watchLesson(lessonId, events) {
+    // The demo has no server, so the other teacher's presence is staged:
+    // on Sam's first lesson, Lark is looking at the high F card.
+    const t = setTimeout(() => {
+      const present: PresentTeacher[] = [{ id: DEMO_TEACHER.id, editing: null }];
+      if (lessonId === 'demo-lesson-1') present.push({ id: DEMO_COTEACHER.id, editing: 'demo-fb-3' });
+      events.onPresence(present);
+    }, 300);
+    // Saves made in another tab of the demo arrive like live updates.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== KEY) return;
+      const s = load();
+      for (const f of s.feedback.filter((x) => x.lesson_id === lessonId)) {
+        events.onCard({ ...f });
+        for (const v of s.versions.filter((x) => x.feedback_id === f.id)) events.onVersion(v);
+      }
+      events.onCheckpoints();
+    };
+    window.addEventListener('storage', onStorage);
+    return {
+      setEditing() { /* nobody to tell */ },
+      stop() { clearTimeout(t); window.removeEventListener('storage', onStorage); }
+    };
   },
 
   async listComments(studentId) {

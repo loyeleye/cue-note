@@ -14,6 +14,16 @@
   --wave: #cfc4e6;
   --warn-bg: #fff4d6;
   --warn-fg: #6b4e00;
+  /* One color per teacher, for dots, edges and history. Darker in light mode,
+     lighter in dark mode, so each stays readable on the page. */
+  --t-blue: #2f63c8;   --t-blue-soft: #e3ecfb;
+  --t-teal: #0f7f78;   --t-teal-soft: #dcf2ef;
+  --t-green: #3a7f2e;  --t-green-soft: #e3f1dd;
+  --t-amber: #9a6500;  --t-amber-soft: #fbefd6;
+  --t-coral: #c24a28;  --t-coral-soft: #fbe5dd;
+  --t-rose: #b8336a;   --t-rose-soft: #f9e1eb;
+  --t-violet: #7a45c4; --t-violet-soft: #eee4fa;
+  --t-indigo: #4048b0; --t-indigo-soft: #e4e5f8;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -32,6 +42,14 @@
     --wave: #4d4364;
     --warn-bg: #3a3020;
     --warn-fg: #f0d79a;
+    --t-blue: #8db3f5;   --t-blue-soft: #1e2a40;
+    --t-teal: #6fd2c6;   --t-teal-soft: #15302d;
+    --t-green: #93d07f;  --t-green-soft: #1c2e18;
+    --t-amber: #f0c060;  --t-amber-soft: #352a14;
+    --t-coral: #f5a184;  --t-coral-soft: #3a2119;
+    --t-rose: #f08fb8;   --t-rose-soft: #3a1c29;
+    --t-violet: #c3a2f2; --t-violet-soft: #2c2240;
+    --t-indigo: #a5abf2; --t-indigo-soft: #23253f;
     color-scheme: dark;
   }
 }
