@@ -6,15 +6,15 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Supabase settings come from android/local.properties (never committed):
-//   cuenote.supabaseUrl=https://xxxx.supabase.co
-//   cuenote.supabaseAnonKey=eyJ...
-// or from environment variables of the same names in CI.
+// Supabase settings: local.properties overrides, then environment variables,
+// then the project defaults in android/gradle.properties. The URL and the
+// publishable key are public by design; row-level security protects the data.
 val localProps = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
 }
 fun setting(key: String, env: String) =
-    (localProps.getProperty(key) ?: System.getenv(env) ?: "").replace("\"", "")
+    (localProps.getProperty(key) ?: System.getenv(env) ?: findProperty(key)?.toString() ?: "")
+        .replace("\"", "")
 
 android {
     namespace = "com.cuenote.data"
