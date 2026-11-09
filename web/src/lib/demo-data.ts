@@ -2,13 +2,19 @@
 // their AI originals, notes, practice and a song with a score. Nothing here
 // touches the real database. Dates are relative to today so it looks fresh.
 import type {
-  Annotation, CardVersion, Comment, Feedback, Lesson, PhotoMark, PracticeItem, Profile,
+  Annotation, CardVersion, Checkpoint, Comment, Feedback, Lesson, PhotoMark, PracticeItem, Profile,
   Score, Share, Song, Take
 } from './types';
 import { contourFor, type Note } from './tone';
 import { weekOf as mondayOf } from './format';
 
-export const DEMO_TEACHER: Profile = { id: 'demo-teacher', role: 'teacher', display_name: 'You (demo teacher)' };
+export const DEMO_TEACHER: Profile = {
+  id: 'demo-teacher', role: 'teacher', display_name: 'Demo Teacher', alias: 'Tiger', color: 'violet', name_public: false
+};
+/** A second teacher who also reviews Sam's lessons. Her real name is private. */
+export const DEMO_COTEACHER: Profile = {
+  id: 'demo-ola', role: 'teacher', display_name: 'Ola Mensah', alias: 'Lark', color: 'teal', name_public: false
+};
 const SAM = 'demo-sam';
 const PRIYA = 'demo-priya';
 const L1 = 'demo-lesson-1';
@@ -71,6 +77,7 @@ export interface DemoState {
   takes: Take[];
   feedback: Feedback[];
   versions: CardVersion[];
+  checkpoints: Checkpoint[];
   photos: PhotoMark[];
   comments: Comment[];
   practice: PracticeItem[];
@@ -149,17 +156,27 @@ export function initialDemoState(): DemoState {
     id: 'demo-fb-2-v2', feedback_id: 'demo-fb-2', author: 'teacher', author_id: DEMO_TEACHER.id,
     created_at: ago(3, 9), payload: aiPayload(feedback[1])
   });
+  // And one the other teacher fixed: the AI had it backwards.
+  versions[2].payload = { ...versions[2].payload, cue: 'Reach up for the high F' };
+  versions.push({
+    id: 'demo-fb-3-v2', feedback_id: 'demo-fb-3', author: 'teacher', author_id: DEMO_COTEACHER.id,
+    created_at: ago(2, 19), payload: aiPayload(feedback[2])
+  });
+  feedback[2].updated_at = ago(2, 19);
 
   const thisWeek = mondayOf(new Date());
   return {
     profiles: [
       DEMO_TEACHER,
+      DEMO_COTEACHER,
       { id: SAM, role: 'student', display_name: 'Sam Rivera' },
       { id: PRIYA, role: 'student', display_name: 'Priya Nair' }
     ],
     shares: [
       { id: 'demo-share-sam', student_id: SAM, invite_email: 'you@example.com', teacher_id: DEMO_TEACHER.id,
         status: 'active', next_lesson_at: ago(-3, 17), created_at: ago(30) },
+      { id: 'demo-share-sam-ola', student_id: SAM, invite_email: 'ola@example.com', teacher_id: DEMO_COTEACHER.id,
+        status: 'active', next_lesson_at: null, created_at: ago(25) },
       { id: 'demo-share-priya', student_id: PRIYA, invite_email: 'you@example.com', teacher_id: DEMO_TEACHER.id,
         status: 'active', next_lesson_at: null, created_at: ago(20) },
       { id: 'demo-share-new', student_id: 'demo-new', invite_email: 'you@example.com', teacher_id: null,
@@ -173,6 +190,9 @@ export function initialDemoState(): DemoState {
     takes,
     feedback,
     versions,
+    checkpoints: [
+      { id: 'demo-cp-1', lesson_id: L1, label: "After Lark's review", created_by: DEMO_COTEACHER.id, created_at: ago(2, 20) }
+    ],
     photos: [
       { id: 'demo-photo-1', lesson_id: L1, taken_at_ms: min(14, 40), feedback_id: 'demo-fb-4',
         caption: 'Jaw drops, tongue tip stays behind the bottom teeth', image_path: 'demo-sketch:jaw' }
@@ -182,7 +202,9 @@ export function initialDemoState(): DemoState {
         body: 'Lovely progress on the breath this week. Bars 1 to 4 are nearly there; bar 7 is the one to live with.',
         clip_path: null },
       { id: 'demo-comment-2', student_id: SAM, lesson_id: null, author_id: DEMO_TEACHER.id, created_at: ago(2, 20),
-        body: 'Voice note: how the "ah" on "ben" should sound.', clip_path: 'demo-tone:demo-take-4:her' }
+        body: 'Voice note: how the "ah" on "ben" should sound.', clip_path: 'demo-tone:demo-take-4:her' },
+      { id: 'demo-comment-3', student_id: SAM, lesson_id: L1, author_id: DEMO_COTEACHER.id, created_at: ago(2, 19),
+        body: 'I fixed the high F card: the idea is the opposite of reaching. Think down and over.', clip_path: null }
     ],
     practice: [
       { id: 'demo-practice-1', student_id: SAM, lesson_id: L1, feedback_id: 'demo-fb-1', author_id: DEMO_TEACHER.id,

@@ -10,6 +10,35 @@ export interface Profile {
   id: string;
   role: Role;
   display_name: string;
+  /** What other teachers call this teacher unless name_public is on. */
+  alias?: string;
+  color?: TeacherColor;
+  name_public?: boolean;
+}
+
+export const TEACHER_COLORS = ['blue', 'teal', 'green', 'amber', 'coral', 'rose', 'violet', 'indigo'] as const;
+export type TeacherColor = (typeof TEACHER_COLORS)[number];
+
+/**
+ * One of a student's teachers, as list_teachers() shows them to the viewer.
+ * display_name is null when the viewer may not see it: another teacher who
+ * keeps their real name private.
+ */
+export interface Teacher {
+  id: string;
+  alias: string;
+  color: TeacherColor;
+  name_public: boolean;
+  display_name: string | null;
+}
+
+/** A named version of a whole lesson: a moment in its history. */
+export interface Checkpoint {
+  id: string;
+  lesson_id: string;
+  label: string;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface Share {
@@ -101,6 +130,8 @@ export interface CardVersion {
   author_id: string | null;
   payload: Partial<CardFields>;
   created_at: string;
+  /** Set when this version was made by restoring an older one. */
+  restored_from?: string | null;
 }
 
 export interface PhotoMark {

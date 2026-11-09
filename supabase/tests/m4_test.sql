@@ -165,7 +165,7 @@ reset role;
 do $$ begin
   assert to_regprocedure('public.can_see_student(uuid)') is null, 'FAIL: can_see_student is exposed in public';
   assert to_regprocedure('private.can_see_student(uuid)') is not null, 'FAIL: can_see_student missing from private';
-  assert not has_function_privilege('anon', 'public.save_card(uuid, jsonb)', 'execute'), 'FAIL: anon can call save_card';
+  assert not has_function_privilege('anon', 'public.save_card(uuid, jsonb, jsonb, uuid)', 'execute'), 'FAIL: anon can call save_card';
   assert not has_function_privilege('anon', 'public.storage_used(uuid)', 'execute'), 'FAIL: anon can call storage_used';
   assert not has_table_privilege('authenticated', 'private.app_config', 'select'), 'FAIL: clients can read app_config';
 end $$;

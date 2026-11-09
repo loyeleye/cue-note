@@ -1,12 +1,18 @@
 <script lang="ts">
   // The lesson timeline: every take in order, with its clip, pitch line and
   // the cards she gave about it. Any card opens in the editor in place.
+  // Several teachers can have the lesson open: each card shows who edited it
+  // last, others' saves arrive live, and their faces show at the top.
   import { tick } from 'svelte';
   import { page } from '$app/state';
   import { api, app } from '$lib/app.svelte';
-  import { bars, clock, date, FLAG_LABEL, minutes } from '$lib/format';
-  import type { CardFields, Feedback, Lesson, PhotoMark, Profile, Song, Take } from '$lib/types';
+  import type { LessonWatch, PresentTeacher } from '$lib/api';
+  import { ago, bars, clock, date, FLAG_LABEL, minutes } from '$lib/format';
+  import { colorVar, findTeacher, initials, softVar, teacherLabel } from '$lib/people';
+  import type { CardFields, CardVersion, Checkpoint, Feedback, Lesson, PhotoMark, Profile, Song, Take, Teacher } from '$lib/types';
   import CardEditor from '$lib/components/CardEditor.svelte';
+  import LessonHistory from '$lib/components/LessonHistory.svelte';
+  import Who from '$lib/components/Who.svelte';
   import ClipPlayer from '$lib/components/ClipPlayer.svelte';
   import NotesPanel from '$lib/components/NotesPanel.svelte';
   import PitchPlot from '$lib/components/PitchPlot.svelte';
@@ -23,7 +29,16 @@
   let editing = $state<string | null>(null);
   let refresh = $state(0);
   let flash = $state<string | null>(null);
+  let flashColor = $state<string | null>(null);
   let editor: CardEditor | undefined = $state();
+  let teachers = $state<Teacher[]>([]);
+  let versions = $state<CardVersion[]>([]);
+  let checkpoints = $state<Checkpoint[]>([]);
+  let present = $state<PresentTeacher[]>([]);
+  let watch: LessonWatch | null = null;
+
+  const me = $derived(app.me?.id ?? null);
+  const others = $derived(present.filter((p) => p.id !== me));
 
   $effect(() => {
     if (!app.me) return;
@@ -38,6 +53,8 @@
       api().listTakes(lessonId), api().listFeedback(lessonId), api().listPhotos(lessonId), api().listSongs(l.student_id)
     ]);
     student = (await api().getStudent(l.student_id))?.student ?? null;
+    teachers = await api().listTeachers(l.student_id);
+    await reloadHistory();
     const hash = location.hash.match(/^#card-(.+)$/)?.[1];
     if (hash) {
       await tick();
@@ -46,6 +63,48 @@
       setTimeout(() => (flash = null), 2000);
     }
   }
+
+  async function reloadHistory() {
+    [versions, checkpoints] = await Promise.all([api().listLessonVersions(id), api().listCheckpoints(id)]);
+  }
+
+  function flashCard(cardId: string, color: string | null) {
+    flash = cardId;
+    flashColor = color;
+    setTimeout(() => { if (flash === cardId) { flash = null; flashColor = null; } }, 1800);
+  }
+
+  // Live: cards others save, their new versions, names, and who's here.
+  $effect(() => {
+    if (!lesson) return;
+    const w = api().watchLesson(lesson.id, {
+      onCard(f) {
+        if (cards.some((c) => c.id === f.id)) cards = cards.map((c) => (c.id === f.id ? { ...c, ...f } : c));
+      },
+      onVersion(v) {
+        if (!cards.some((c) => c.id === v.feedback_id) || versions.some((x) => x.id === v.id)) return;
+        versions = [v, ...versions];
+        refresh += 1;
+        if (v.author_id !== me) flashCard(v.feedback_id, colorVar(findTeacher(teachers, v.author_id).color));
+      },
+      onCheckpoints() { api().listCheckpoints(id).then((c) => (checkpoints = c)); },
+      onPresence(list) { present = list; }
+    });
+    watch = w;
+    return () => { w.stop(); watch = null; present = []; };
+  });
+  $effect(() => { watch?.setEditing(editing); });
+
+  /** The newest version of each card. */
+  const latest = $derived.by(() => {
+    const out = new Map<string, CardVersion>();
+    for (const v of versions) {
+      const seen = out.get(v.feedback_id);
+      if (!seen || seen.created_at < v.created_at) out.set(v.feedback_id, v);
+    }
+    return out;
+  });
+  const editorOf = (cardId: string) => others.find((p) => p.editing === cardId);
 
   type Item =
     | { kind: 'take'; at: number; take: Take; index: number; cards: Feedback[] }
@@ -67,13 +126,19 @@
     cards = cards.map((c) => (c.id === f.id ? f : c));
     refresh += 1;
     editing = null;
-    flash = f.id;
-    setTimeout(() => (flash = null), 1600);
+    flashCard(f.id, null);
+    reloadHistory();
   }
 
-  async function restore(f: Feedback, payload: Partial<CardFields>) {
+  async function restore(f: Feedback, payload: Partial<CardFields>, versionId: string) {
     if (editing !== f.id) { editing = f.id; await tick(); }
-    editor?.load(payload);
+    editor?.load(payload, versionId);
+  }
+
+  async function changedHistory() {
+    if (!lesson) return;
+    [cards] = await Promise.all([api().listFeedback(lesson.id), reloadHistory()]);
+    refresh += 1;
   }
 
   const studentCards = $derived(cards.map((c) => ({ ...c, recorded_at: lesson?.recorded_at ?? '' })));
@@ -81,17 +146,33 @@
 
 {#snippet cardView(c: Feedback)}
   {@const photo = photos.find((p) => p.feedback_id === c.id)}
-  <article class="card cue-card" id="card-{c.id}" class:flash={flash === c.id} class:open={editing === c.id}>
+  {@const last = latest.get(c.id)}
+  {@const busy = editorOf(c.id)}
+  {@const busyT = busy ? findTeacher(teachers, busy.id) : null}
+  <article class="card cue-card" id="card-{c.id}" class:flash={flash === c.id} class:open={editing === c.id}
+           class:busy={!!busyT} style:--busy={busyT ? colorVar(busyT.color) : null}
+           style:--flash={flash === c.id && flashColor ? flashColor : null}>
+    {#if busyT}
+      <span class="editing-badge" style:background={softVar(busyT.color)} style:color={colorVar(busyT.color)}>
+        {teacherLabel(busyT, me)} is editing
+      </span>
+    {/if}
     {#if editing === c.id}
       <div class="edit-grid">
-        <CardEditor bind:this={editor} card={c} {takes} {songs} onsaved={saved} oncancel={() => (editing = null)} />
-        <VersionHistory feedbackId={c.id} {takes} {songs} {refresh} onrestore={(p) => restore(c, p)} />
+        <CardEditor bind:this={editor} card={c} {takes} {songs} {teachers} {me}
+                    lastEditor={last?.author === 'teacher' ? last.author_id : null}
+                    onsaved={saved} oncancel={() => (editing = null)} />
+        <VersionHistory feedbackId={c.id} {takes} {songs} {teachers} {checkpoints} {me} {refresh}
+                        onrestore={(p, vid) => restore(c, p, vid)} />
       </div>
     {:else}
       <div class="cue-head">
         <h3>{c.cue || 'Untitled cue'}</h3>
         <button class="ghost small" onclick={() => (editing = c.id)}>Edit</button>
       </div>
+      {#if last?.author === 'teacher'}
+        <p class="edited-by"><span class="muted">Edited by</span> <Who teacher={findTeacher(teachers, last.author_id)} {me} /> <span class="muted">{ago(last.created_at)}</span></p>
+      {/if}
       {#if c.her_words}<blockquote>“{c.her_words}”</blockquote>{/if}
       <div class="chips">
         <span class="chip">{clock(c.span_start_ms)}</span>
@@ -120,7 +201,19 @@
   <p>This lesson isn't shared with you. <a href="/">Back to students</a></p>
 {:else if lesson}
   <a class="back" href="/students/{lesson.student_id}">← {student?.display_name || 'Student'}</a>
-  <h1>Lesson, {date(lesson.recorded_at, { weekday: 'long', month: 'long', day: 'numeric' })}</h1>
+  <div class="title-row">
+    <h1>Lesson, {date(lesson.recorded_at, { weekday: 'long', month: 'long', day: 'numeric' })}</h1>
+    {#if others.length}
+      <div class="present" aria-label="Also viewing this lesson">
+        {#each others as p (p.id)}
+          {@const t = findTeacher(teachers, p.id)}
+          <span class="face" style:background={colorVar(t.color)}
+                title="{teacherLabel(t, me)}{p.editing ? ', editing a card' : ', viewing'}">{initials(t.alias)}</span>
+        {/each}
+        <span class="muted small">{others.length === 1 ? `${findTeacher(teachers, others[0].id).alias} is here` : `${others.length} others here`}</span>
+      </div>
+    {/if}
+  </div>
   <p class="muted">{minutes(lesson.duration_ms)} · {takes.length} takes · {cards.length} cards. Every save keeps the earlier version.</p>
 
   <ol class="timeline">
@@ -152,6 +245,9 @@
     {/each}
   </ol>
 
+  <LessonHistory lessonId={lesson.id} {cards} {versions} {checkpoints} {teachers} {takes} {songs} {me}
+                 onchanged={changedHistory} />
+
   <div class="after">
     <section>
       <h2>Notes on this lesson</h2>
@@ -177,7 +273,15 @@
   .take { display: flex; flex-direction: column; gap: 6px; }
   .take-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .cue-card { display: flex; flex-direction: column; gap: 8px; transition: box-shadow 0.4s; margin-left: 12px; border-left: 3px solid var(--accent); }
-  .cue-card.flash { box-shadow: 0 0 0 3px var(--accent-soft); }
+  .cue-card { position: relative; }
+  .cue-card.flash { box-shadow: 0 0 0 3px var(--flash, var(--accent-soft)); }
+  .cue-card.busy { border-left-color: var(--busy); outline: 2px solid var(--busy); outline-offset: -1px; }
+  .editing-badge { position: absolute; top: -10px; right: 12px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .edited-by { margin: -4px 0 0; font-size: 12px; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .title-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .present { display: flex; align-items: center; gap: 4px; }
+  .face { width: 28px; height: 28px; border-radius: 50%; color: var(--surface); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--surface); }
+  .face + .face { margin-left: -8px; }
   .cue-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
   .cue-head h3 { margin: 0; font-size: 16px; }
   blockquote { margin: 0; color: var(--muted); font-size: 14px; }

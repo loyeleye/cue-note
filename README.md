@@ -8,6 +8,18 @@ The full design is in the project's design doc. This repository is built in
 milestones; **M1 (foundations and recorder)**, **M2 (the on-phone pipeline)** and
 **M4 (teacher dashboard)** are here so far.
 
+### Several teachers on one student
+
+A student can share lessons with more than one teacher. Each teacher has an
+alias and a color (Settings, "How you appear"); other teachers see the alias,
+and the real name only if that teacher makes it public. Students always see
+both, for example "Tiger (Marigold Stewart)". Cards keep a Google Docs style
+history: who saved each version, named versions of the whole lesson, compare
+and restore. Teachers with the same lesson open see each other and each
+other's saves live; if two change the same field, the second is asked which
+to keep. The local seed invites `teacher2@example.com` too, so two dashboards
+can try this side by side.
+
 ## Layout
 
 | Folder      | What it is |

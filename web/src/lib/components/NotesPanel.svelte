@@ -3,8 +3,10 @@
   // notes are attached to that lesson and only that lesson's notes show.
   import { api, app } from '$lib/app.svelte';
   import { dateTime } from '$lib/format';
-  import type { Comment, Lesson } from '$lib/types';
+  import { findTeacher } from '$lib/people';
+  import type { Comment, Lesson, Teacher } from '$lib/types';
   import ClipPlayer from './ClipPlayer.svelte';
+  import Who from './Who.svelte';
   import VoiceRecorder from './VoiceRecorder.svelte';
 
   let { studentId, lessonId = null, lessons = [] }:
@@ -19,7 +21,12 @@
 
   const shown = $derived(lessonId ? notes.filter((n) => n.lesson_id === lessonId) : notes);
 
-  async function reload() { notes = await api().listComments(studentId); }
+  // Who wrote each note, when the student has more than one teacher.
+  let teachers = $state<Teacher[]>([]);
+
+  async function reload() {
+    [notes, teachers] = await Promise.all([api().listComments(studentId), api().listTeachers(studentId)]);
+  }
   $effect(() => { void studentId; reload(); });
 
   async function add(e: SubmitEvent) {
@@ -70,6 +77,7 @@
     {#each shown as n (n.id)}
       <li class="card">
         <div class="meta">
+          {#if teachers.length > 1}<Who teacher={findTeacher(teachers, n.author_id)} me={app.me?.id} /><span>·</span>{/if}
           <span>{dateTime(n.created_at)}</span>
           {#if !lessonId && n.lesson_id}<span>· {lessonName(n.lesson_id)}</span>{/if}
           {#if n.author_id === app.me?.id}
