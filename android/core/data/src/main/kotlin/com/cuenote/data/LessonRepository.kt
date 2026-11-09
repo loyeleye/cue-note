@@ -51,6 +51,13 @@ class LessonRepository(
 
     fun progress(id: String) = PipelineScheduler.progress(context, id)
 
+    /** True once the speech models are on the phone. */
+    fun modelsReady() = com.cuenote.ml.ModelFiles.missing(PipelineScheduler.modelsDir(context), PipelineScheduler.MODELS).isEmpty()
+
+    fun downloadModels() = com.cuenote.data.pipeline.ModelDownloadWorker.start(context)
+
+    fun modelDownload() = com.cuenote.data.pipeline.ModelDownloadWorker.progress(context)
+
     suspend fun failed(id: String) = dao.finish(id, "failed", 0, 0, 0, 0, 0, "")
 
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {

@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.work.WorkInfo
 import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
 import com.cuenote.audio.RecordingState
@@ -54,6 +55,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun modelStatus(ready: Boolean, download: Pair<WorkInfo.State, Int>?): String = when {
+    ready -> "Speech models are on the phone. Lessons can be processed offline."
+    download?.first == WorkInfo.State.RUNNING -> "Downloading speech models… ${download.second}%"
+    download?.first == WorkInfo.State.ENQUEUED -> "Speech models will download when the phone is online."
+    download?.first == WorkInfo.State.FAILED -> "The download failed. Try again on Wi-Fi."
+    else -> "Download the speech models on Wi-Fi before your first lesson, or they download when it is first processed."
+}
+
 private val runtimePermissions = buildList {
     add(Manifest.permission.RECORD_AUDIO)
     if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
@@ -66,6 +75,7 @@ private fun AppNav(app: CueNoteApp) {
     val lessons by app.lessons.lessons.collectAsStateWithLifecycle(emptyList())
     val email by app.auth.signedInEmail.collectAsStateWithLifecycle(null)
     val recState by RecordingSession.state.collectAsStateWithLifecycle()
+    val download by app.lessons.modelDownload().collectAsStateWithLifecycle(null)
 
     // Ask for the microphone (and notification) permission, then go on.
     val afterPermission = remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -96,6 +106,10 @@ private fun AppNav(app: CueNoteApp) {
                 },
                 onDelete = { l -> scope.launch { app.lessons.delete(l.id) } },
                 onOpen = { l -> nav.navigate("lesson/${l.id}") },
+                modelStatus = modelStatus(app.lessons.modelsReady(), download),
+                onDownloadModels = if (app.lessons.modelsReady() || download?.first == WorkInfo.State.RUNNING ||
+                    download?.first == WorkInfo.State.ENQUEUED
+                ) null else ({ app.lessons.downloadModels() }),
             )
         }
         composable("lesson/{id}") { entry ->

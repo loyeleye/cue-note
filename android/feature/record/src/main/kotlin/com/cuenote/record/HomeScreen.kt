@@ -39,6 +39,9 @@ fun HomeScreen(
     onExport: (LessonEntity) -> Unit,
     onDelete: (LessonEntity) -> Unit,
     onOpen: (LessonEntity) -> Unit = {},
+    /** null hides the row; otherwise what to say about the speech models. */
+    modelStatus: String? = null,
+    onDownloadModels: (() -> Unit)? = null,
 ) {
     Scaffold(
         topBar = {
@@ -59,6 +62,15 @@ fun HomeScreen(
                 Button(onClick = onStartLesson, modifier = Modifier.fillMaxWidth()) { Text("Start a lesson") }
                 Spacer(Modifier.padding(4.dp))
                 OutlinedButton(onClick = onSetupCheck, modifier = Modifier.fillMaxWidth()) { Text("Run the setup check") }
+            }
+            if (modelStatus != null) {
+                Spacer(Modifier.padding(4.dp))
+                if (onDownloadModels != null) {
+                    OutlinedButton(onClick = onDownloadModels, modifier = Modifier.fillMaxWidth()) {
+                        Text("Download speech models (about 150 MB)")
+                    }
+                }
+                Text(modelStatus, style = MaterialTheme.typography.bodySmall)
             }
             Spacer(Modifier.padding(8.dp))
             Text("Recorded lessons", style = MaterialTheme.typography.titleMedium)
