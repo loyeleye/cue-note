@@ -13,6 +13,8 @@ jobs:
   android:
     name: Android build and unit tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # to publish the release
     defaults:
       run:
         working-directory: android
@@ -54,7 +56,23 @@ jobs:
       - name: Golden-set report
         if: always()
         run: cat core/pipeline/build/golden-report/*.md >> "$GITHUB_STEP_SUMMARY" || true
+      # One fixed signing key, so each APK installs over the last without
+      # wiping the phone's lessons. Absent (e.g. on forks), the build falls
+      # back to a throwaway debug key.
+      - name: Restore the signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/cuenote.jks"
+            echo "CUENOTE_KEYSTORE=$RUNNER_TEMP/cuenote.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; this APK can't update an installed one"
+          fi
       - name: Build debug APK
+        env:
+          CUENOTE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CUENOTE_BUILD_NUMBER: ${{ github.run_number }}
         run: ./gradlew --no-configuration-cache assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -62,6 +80,18 @@ jobs:
           name: cue-note-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
+      # Every build of main becomes a GitHub Release. Obtainium on the phone
+      # watches the releases and installs each new one.
+      - name: Publish a release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.CUENOTE_KEYSTORE != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: 0.2.${{ github.run_number }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/cue-note-$VERSION.apk"
+          gh release create "v$VERSION" "$RUNNER_TEMP/cue-note-$VERSION.apk" \
+            --title "Cue Note $VERSION" \
+            --notes "Built from ${GITHUB_SHA::7}: $(git log -1 --format=%s)"
 
   web:
     name: Teacher dashboard check and build
