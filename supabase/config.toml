@@ -42,3 +42,7 @@ otp_expiry = 3600
 # pass = "env(RESEND_API_KEY)"
 # admin_email = "login@your-domain"
 # sender_name = "Cue Note"
+
+# The database wakes notify with no JWT (see the function's header comment).
+[functions.notify]
+verify_jwt = false

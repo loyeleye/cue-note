@@ -11,7 +11,9 @@
     "gen:types": "supabase gen types typescript --local > src/lib/database.types.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.119.0"
+    "@supabase/supabase-js": "^2.119.0",
+    "pdfjs-dist": "^6.5.438",
+    "wavesurfer.js": "^8.0.5"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.11",
