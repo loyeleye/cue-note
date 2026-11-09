@@ -1,38 +1,75 @@
 <script lang="ts">
+  import '../app.css';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
+  import { app, leaveDemo, startApp } from '$lib/app.svelte';
+  import { resetDemo } from '$lib/api-demo';
+  import { supabase } from '$lib/supabase';
+
   let { children } = $props();
+  onMount(startApp);
+
+  async function exitDemo() {
+    await leaveDemo();
+    goto('/');
+  }
+
+  function reset() {
+    if (!confirm('Put the sample data back the way it started?')) return;
+    resetDemo();
+    location.reload();
+  }
+
+  const signedIn = $derived(app.ready && !!app.me);
+  const onAuthPage = $derived(page.url.pathname.startsWith('/auth'));
 </script>
 
+{#if app.demo}
+  <div class="demo-banner" role="note">
+    <span><strong>Demo mode.</strong> Made-up students and lessons; nothing here touches real data.</span>
+    <span class="demo-actions">
+      <button class="link" onclick={reset}>Reset demo</button>
+      <button class="link" onclick={exitDemo}>Leave demo</button>
+    </span>
+  </div>
+{/if}
+
+<header>
+  <a class="brand" href="/">Cue Note</a>
+  {#if signedIn}
+    <nav>
+      <a href="/" aria-current={page.url.pathname === '/' ? 'page' : undefined}>Students</a>
+      <a href="/settings" aria-current={page.url.pathname === '/settings' ? 'page' : undefined}>Settings</a>
+      {#if !app.demo}<button class="link" onclick={() => supabase.auth.signOut()}>Sign out</button>{/if}
+    </nav>
+  {/if}
+</header>
+
 <main>
-  {@render children()}
+  {#if !app.ready && !onAuthPage}
+    <p class="muted">Loading…</p>
+  {:else if !app.me && !onAuthPage && page.url.pathname !== '/'}
+    <p>Sign in to see this page. <a href="/">Go to sign-in</a></p>
+  {:else}
+    {@render children()}
+  {/if}
 </main>
 
 <style>
-  :global(:root) {
-    --bg: #fbfaf7;
-    --fg: #1d1b18;
-    --muted: #6b665e;
-    --accent: #6d4aa8;
-    --border: #e3dfd6;
-    color-scheme: light dark;
+  .demo-banner {
+    background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; padding: 8px 16px;
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   }
-  @media (prefers-color-scheme: dark) {
-    :global(:root) {
-      --bg: #161513;
-      --fg: #ece8e1;
-      --muted: #a39d93;
-      --accent: #b79cf0;
-      --border: #34312c;
-    }
+  .demo-actions { display: flex; gap: 14px; }
+  .demo-banner .link { color: inherit; }
+  header {
+    position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; gap: 12px;
   }
-  :global(body) {
-    margin: 0;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  }
-  main {
-    max-width: 640px;
-    margin: 0 auto;
-    padding: 24px 16px;
-  }
+  .brand { font-weight: 700; font-size: 17px; color: var(--fg); text-decoration: none; letter-spacing: -0.01em; }
+  nav { display: flex; gap: 16px; align-items: center; font-size: 14px; }
+  nav a { color: var(--muted); text-decoration: none; }
+  nav a[aria-current='page'] { color: var(--fg); font-weight: 600; }
+  main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 64px; }
 </style>

@@ -1,0 +1,27 @@
+name: Deploy edge functions
+
+# Deploys supabase/functions/* to the hosted project when they change on main.
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/functions/**", "supabase/config.toml"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: tgytbytwofiymsvajdkd
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1
+      # verify_jwt for each function comes from supabase/config.toml.
+      - name: Deploy
+        run: supabase functions deploy --project-ref "$PROJECT_REF"
