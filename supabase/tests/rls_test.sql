@@ -11,8 +11,9 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-00000000000d', 'val@example.com', '{}');
 
 do $$ begin
-  assert (select role from public.profile where id = '00000000-0000-0000-0000-00000000000b') = 'teacher',
-    'sign-up metadata should make Tia a teacher';
+  -- Sign-up metadata is user-controlled, so {"role":"teacher"} must not count.
+  assert (select role from public.profile where id = '00000000-0000-0000-0000-00000000000b') = 'student',
+    'FAIL: sign-up metadata made Tia a teacher';
   assert (select role from public.profile where id = '00000000-0000-0000-0000-00000000000a') = 'student',
     'default role should be student';
 end $$;
@@ -29,6 +30,8 @@ insert into public.photo_mark (id, lesson_id, taken_at_ms)
 values ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 5000);
 insert into public.teacher_student_share (student_id, invite_email)
 values (auth.uid(), 'TIA@example.com');
+insert into public.teacher_student_share (student_id, invite_email)
+values (auth.uid(), 'sam@example.com');
 
 do $$ begin
   begin
@@ -53,6 +56,23 @@ do $$ begin
     values (auth.uid(), 'uma@example.com', '00000000-0000-0000-0000-00000000000c', 'active');
     raise exception 'FAIL: Sam activated a share without the teacher';
   exception when insufficient_privilege then null; end;
+
+  begin
+    perform public.accept_share((select id from public.teacher_student_share
+                                  where invite_email = 'sam@example.com'));
+    raise exception 'FAIL: Sam accepted his own invite and became a teacher';
+  exception when raise_exception then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+  assert (select role from public.profile where id = auth.uid()) = 'student',
+    'FAIL: Sam is no longer a student';
+  delete from public.teacher_student_share where invite_email = 'sam@example.com';
+
+  begin
+    perform private.lesson_student('10000000-0000-0000-0000-000000000001');
+  exception when others then
+    raise exception 'FAIL: policies cannot reach the private helpers: %', sqlerrm;
+  end;
 end $$;
 reset role;
 
@@ -76,6 +96,8 @@ select public.accept_share((select id from public.teacher_student_share limit 1)
 
 -- ---------------------------------------------------------------- Tia after accepting
 do $$ begin
+  assert (select role from public.profile where id = auth.uid()) = 'teacher',
+    'FAIL: accepting an invite did not make Tia a teacher';
   assert (select count(*) from public.lesson) = 1, 'FAIL: Tia cannot see Sam''s lesson';
   assert (select count(*) from public.take) = 1, 'FAIL: Tia cannot see Sam''s take';
   assert (select display_name from public.profile where id = '00000000-0000-0000-0000-00000000000a') = 'Sam',
@@ -164,6 +186,8 @@ do $$ begin
   exception when raise_exception then
     if sqlerrm like 'FAIL%' then raise; end if;
   end;
+  assert (select role from public.profile where id = auth.uid()) = 'student',
+    'FAIL: Uma became a teacher without an invite';
 end $$;
 reset role;
 
@@ -197,6 +221,23 @@ do $$ begin
     perform count(*) from public.lesson;
     raise exception 'FAIL: anon can query lessons';
   exception when insufficient_privilege then null; end;
+  begin
+    perform private.is_teacher_of('00000000-0000-0000-0000-00000000000a');
+    raise exception 'FAIL: anon can call the private helpers';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.accept_share(gen_random_uuid());
+    raise exception 'FAIL: anon can call accept_share';
+  exception when insufficient_privilege then null; end;
+end $$;
+
+-- Nothing that leaks data is left as a callable function in public.
+reset role;
+do $$ begin
+  assert not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                     where n.nspname = 'public'
+                       and p.proname in ('is_teacher_of', 'lesson_student', 'feedback_student')),
+    'FAIL: an access helper is still in the public schema';
 end $$;
 reset role;
 
