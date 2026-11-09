@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Supabase settings: local.properties overrides, then environment variables,
@@ -48,6 +49,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.auth)
+    implementation(libs.supabase.postgrest)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)

@@ -9,6 +9,7 @@ import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -20,7 +21,7 @@ import kotlinx.coroutines.flow.map
  * Signing in is optional in M1: recording works fully offline. It becomes
  * required in M3, when clips start uploading.
  */
-class AuthRepository private constructor(private val client: SupabaseClient?) {
+class AuthRepository private constructor(internal val client: SupabaseClient?) {
 
     val isConfigured: Boolean get() = client != null
 
@@ -56,6 +57,7 @@ class AuthRepository private constructor(private val client: SupabaseClient?) {
                     scheme = "cuenote"
                     host = "auth-callback"
                 }
+                install(Postgrest)
             }
             return AuthRepository(client)
         }

@@ -210,6 +210,14 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 set role authenticated;
 do $$ begin
   assert (select count(*) from public.lesson) = 0, 'FAIL: Tia still sees lessons after revoke';
+  -- She can still see the revoked row, but must not be able to switch it back on.
+  begin
+    update public.teacher_student_share set status = 'active';
+    raise exception 'FAIL: Tia undid Sam''s revoke';
+  exception when raise_exception then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+  assert (select count(*) from public.lesson) = 0, 'FAIL: Tia sees lessons again after revoke';
 end $$;
 reset role;
 
