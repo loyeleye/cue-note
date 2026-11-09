@@ -23,7 +23,7 @@ import com.cuenote.data.AuthRepository
 import kotlinx.coroutines.launch
 
 @Composable
-fun SignInScreen(auth: AuthRepository, signedInEmail: String?, onBack: () -> Unit) {
+fun SignInScreen(auth: AuthRepository, signedInEmail: String?, linkStatus: String?, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var email by rememberSaveable { mutableStateOf("") }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
@@ -31,6 +31,11 @@ fun SignInScreen(auth: AuthRepository, signedInEmail: String?, onBack: () -> Uni
     Column(Modifier.padding(16.dp)) {
         Text("Sign in", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.padding(4.dp))
+        if (signedInEmail == null) linkStatus?.let {
+            Text(it, color = if (it.startsWith("Sign-in failed") || it.startsWith("That link")) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.padding(4.dp))
+        }
         when {
             !auth.isConfigured -> Text(
                 "Sign-in isn't set up in this build yet. Recording works without it; uploads start in a later version.",
@@ -50,6 +55,7 @@ fun SignInScreen(auth: AuthRepository, signedInEmail: String?, onBack: () -> Uni
                 Button(
                     enabled = email.contains('@'),
                     onClick = {
+                        auth.clearLinkStatus()
                         scope.launch {
                             message = runCatching { auth.sendMagicLink(email) }
                                 .fold({ "Check your email for the sign-in link." }, { "Couldn't send: ${it.message}" })

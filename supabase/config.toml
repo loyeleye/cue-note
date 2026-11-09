@@ -46,3 +46,13 @@ otp_expiry = 3600
 # The database wakes notify with no JWT (see the function's header comment).
 [functions.notify]
 verify_jwt = false
+
+# Branded emails. The hosted project uses the same HTML: paste each file into
+# Authentication -> Emails -> Templates in the dashboard.
+[auth.email.template.confirmation]
+subject = "Sign in to Cue Note"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your Cue Note sign-in link"
+content_path = "./supabase/templates/magic_link.html"
