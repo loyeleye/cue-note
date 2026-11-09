@@ -1,9 +1,18 @@
 package com.cuenote.record
 
 import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,10 +23,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,10 +42,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -41,8 +56,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
 import com.cuenote.audio.RecordingState
-import kotlinx.coroutines.delay
 import java.io.File
+import kotlinx.coroutines.delay
 
 /**
  * The lesson screen: dark and minimal, with mark, photo and stop. It runs no
@@ -81,36 +96,61 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
 
     val rec = state as? RecordingState.Recording
     Column(
-        Modifier.fillMaxSize().background(Color.Black).padding(24.dp),
+        Modifier.fillMaxSize().background(StageBg).padding(24.dp),
         verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(formatDuration(elapsed), color = Color.White, fontSize = 48.sp)
-            Text(rec?.micName ?: "Starting…", color = Color.Gray)
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            RecordingBadge(live = rec != null)
+            Text(
+                formatDuration(elapsed),
+                color = StageText,
+                fontSize = 64.sp,
+                fontWeight = FontWeight.Light,
+                style = TextStyle(fontFeatureSettings = "tnum"),
+            )
+            Text(rec?.micName ?: "Starting…", color = StageMuted)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 LiveDot("You", levels?.student?.rmsDb)
                 LiveDot("Teacher", levels?.teacher?.rmsDb)
             }
-            if ((rec?.gaps ?: 0) > 0) Text("${rec!!.gaps} audio gaps so far", color = Color(0xFFFFB4AB))
-            Text("${rec?.marks ?: 0} marks · ${rec?.photos ?: 0} photos", color = Color.Gray)
+            if ((rec?.gaps ?: 0) > 0) Text("${rec!!.gaps} audio gaps so far", color = StageWarn)
+            Text("${rec?.marks ?: 0} marks · ${rec?.photos ?: 0} photos", color = StageMuted)
         }
 
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            BigButton("Mark", Color(0xFF3A3A3A)) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                RecordingSession.mark()
-            }
-            BigButton("Photo", Color(0xFF3A3A3A)) {
-                val at = RecordingSession.elapsedMs()
-                val dir = File(lessonDir, "photos").apply { mkdirs() }
-                val name = "photo_%06d.jpg".format(at / 1000)
-                val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.files", File(dir, name))
-                pendingPhoto = at to name
-                camera.launch(uri)
-            }
-            BigButton("Stop", Color(0xFF8C1D18)) { confirmStop = true }
+            // Mark is the button you reach for mid-phrase, so it is the biggest and brightest.
+            Button(
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    RecordingSession.mark()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = StageBrass, contentColor = StageBrassInk),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+            ) { Text("Mark this moment", fontSize = 24.sp, fontWeight = FontWeight.SemiBold) }
+            Button(
+                onClick = {
+                    val at = RecordingSession.elapsedMs()
+                    val dir = File(lessonDir, "photos").apply { mkdirs() }
+                    val name = "photo_%06d.jpg".format(at / 1000)
+                    val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.files", File(dir, name))
+                    pendingPhoto = at to name
+                    camera.launch(uri)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = StageRaised, contentColor = StageText),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth().height(72.dp),
+            ) { Text("Photo", fontSize = 20.sp) }
+            // Stop is quieter and asks first, so a stray tap can't end the lesson.
+            OutlinedButton(
+                onClick = { confirmStop = true },
+                border = BorderStroke(1.5.dp, StageWarn),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = StageWarn),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth().height(60.dp),
+            ) { Text("Stop", fontSize = 18.sp) }
         }
     }
 
@@ -127,21 +167,53 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
     }
 }
 
+/** "Recording" with a slow brass pulse, like a breath; still when the phone asks for less motion. */
+@Composable
+private fun RecordingBadge(live: Boolean) {
+    val context = LocalContext.current
+    val calm = remember {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    val pulse by rememberInfiniteTransition(label = "breath").animateFloat(
+        initialValue = 1f,
+        targetValue = 0.35f,
+        animationSpec = infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "breath",
+    )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(12.dp)
+                .alpha(if (live && !calm) pulse else 1f)
+                .background(if (live) StageBrass else StageMuted, CircleShape),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(if (live) "Recording" else "Getting ready", color = StageMuted, fontSize = 14.sp)
+    }
+}
+
+/** A voice's mic: a filled dot and "hearing" when it picks up sound, a ring and "quiet" when not. */
 @Composable
 private fun LiveDot(label: String, db: Double?) {
     val alive = db != null && db > -55
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(12.dp).background(if (alive) Color(0xFF6DD58C) else Color(0xFF555555), CircleShape))
+        Box(
+            Modifier.size(12.dp)
+                .border(2.dp, if (alive) StageBrass else StageMuted, CircleShape)
+                .background(if (alive) StageBrass else Color.Transparent, CircleShape),
+        )
         Spacer(Modifier.size(6.dp))
-        Text(label, color = Color.Gray)
+        Text(label, color = StageText)
+        Spacer(Modifier.size(4.dp))
+        Text(if (alive) "hearing" else "quiet", color = StageMuted, fontSize = 13.sp)
     }
 }
 
-@Composable
-private fun BigButton(text: String, color: Color, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color.White),
-        modifier = Modifier.fillMaxWidth().height(72.dp),
-    ) { Text(text, fontSize = 22.sp) }
-}
+// The recording screen is always dark (the phone sits on a stand all lesson),
+// in the app's "stage" colours.
+private val StageBg = Color(0xFF1B1620)
+private val StageRaised = Color(0xFF2E2735)
+private val StageText = Color(0xFFEEE8F2)
+private val StageMuted = Color(0xFFACA2B5)
+private val StageBrass = Color(0xFFE0A94A)
+private val StageBrassInk = Color(0xFF2A1D05)
+private val StageWarn = Color(0xFFF2A49B)

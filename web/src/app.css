@@ -1,54 +1,76 @@
 /* Shared look for the dashboard. Colours are tokens so dark mode is one swap. */
+/* Shared look for the dashboard ("Rehearsal Room": plum, brass, paper).
+   Colours are tokens so dark mode is one swap. The same values live in the
+   Android theme (android/core/ui) and the sign-in emails; change them together.
+   Plum is for anything you tap. Brass marks "the moment that matters" and is
+   only ever a fill or a mark, never text: use --brass-ink for brass words. */
 :root {
-  --bg: #fbfaf7;
+  --font-display: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+  --font-body: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bg: #f7f3ec;
   --surface: #ffffff;
-  --fg: #1d1b18;
-  --muted: #6b665e;
-  --accent: #6d4aa8;
-  --accent-strong: #4b2f80;
-  --accent-soft: #efe8fa;
+  --fg: #231c2b;
+  --muted: #645a6d;
+  --accent: #5b3a8c;
+  --accent-strong: #3e2566;
+  --accent-soft: #eee6f7;
   --on-accent: #ffffff;
-  --border: #e3dfd6;
-  --chip: #f1eee8;
+  --border: #e4dccf;
+  /* Outlines of buttons and fields: 3:1 against the page so they read as controls. */
+  --control-border: #8c74b4;
+  --chip: #f1ece3;
+  --chip-fg: #4a4152;
+  --brass: #e0a94a;
+  --brass-soft: #f6e9cf;
+  --brass-ink: #7a5512;
   --danger: #b3261e;
-  --wave: #cfc4e6;
+  --wave: #d6c8ea;
   --warn-bg: #fff4d6;
   --warn-fg: #6b4e00;
+  --shadow: 0 1px 2px rgba(35, 28, 43, 0.05), 0 4px 14px rgba(35, 28, 43, 0.05);
   /* One color per teacher, for dots, edges and history. Darker in light mode,
-     lighter in dark mode, so each stays readable on the page. */
+     lighter in dark mode, so each stays readable on the page. None of them is
+     plum or brass, so a teacher's colour never looks like a button.
+     "violet" is the stored name for what now shows as slate. */
   --t-blue: #2f63c8;   --t-blue-soft: #e3ecfb;
   --t-teal: #0f7f78;   --t-teal-soft: #dcf2ef;
   --t-green: #3a7f2e;  --t-green-soft: #e3f1dd;
   --t-amber: #9a6500;  --t-amber-soft: #fbefd6;
   --t-coral: #c24a28;  --t-coral-soft: #fbe5dd;
   --t-rose: #b8336a;   --t-rose-soft: #f9e1eb;
-  --t-violet: #7a45c4; --t-violet-soft: #eee4fa;
+  --t-violet: #546778; --t-violet-soft: #e3e8ee;
   --t-indigo: #4048b0; --t-indigo-soft: #e4e5f8;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161513;
-    --surface: #1f1e1b;
-    --fg: #ece8e1;
-    --muted: #a39d93;
-    --accent: #b79cf0;
-    --accent-strong: #d6c6f7;
-    --accent-soft: #2f2742;
+    --bg: #1b1620;
+    --surface: #241e2a;
+    --fg: #eee8f2;
+    --muted: #aca2b5;
+    --accent: #c4a8f0;
+    --accent-strong: #dccbf7;
+    --accent-soft: #352a46;
     --on-accent: #1b1428;
-    --border: #34312c;
-    --chip: #2a2824;
+    --border: #3a3242;
+    --control-border: #7d6a99;
+    --chip: #2e2735;
+    --chip-fg: #d3cad9;
+    --brass: #e8b65a;
+    --brass-soft: #3a2e18;
+    --brass-ink: #f0c978;
     --danger: #f2a49b;
     --wave: #4d4364;
     --warn-bg: #3a3020;
     --warn-fg: #f0d79a;
+    --shadow: none;
     --t-blue: #8db3f5;   --t-blue-soft: #1e2a40;
     --t-teal: #6fd2c6;   --t-teal-soft: #15302d;
     --t-green: #93d07f;  --t-green-soft: #1c2e18;
     --t-amber: #f0c060;  --t-amber-soft: #352a14;
     --t-coral: #f5a184;  --t-coral-soft: #3a2119;
     --t-rose: #f08fb8;   --t-rose-soft: #3a1c29;
-    --t-violet: #c3a2f2; --t-violet-soft: #2c2240;
+    --t-violet: #a9b8c8; --t-violet-soft: #232a31;
     --t-indigo: #a5abf2; --t-indigo-soft: #23253f;
     color-scheme: dark;
   }
@@ -58,35 +80,40 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.45;
 }
 a { color: var(--accent); }
-h1 { font-size: 24px; margin: 0 0 4px; }
-h2 { font-size: 18px; margin: 24px 0 10px; }
-h3 { font-size: 16px; margin: 0 0 8px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.005em; }
+h1 { font-size: 30px; line-height: 1.15; margin: 0 0 6px; }
+h2 { font-size: 20px; margin: 28px 0 10px; }
+h3 { font-size: 17px; margin: 0 0 8px; }
 input, select, textarea, button { font: inherit; }
 input, select, textarea {
-  padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+  padding: 9px 11px; border-radius: 10px; border: 1px solid var(--control-border);
   background: var(--surface); color: var(--fg); min-width: 0;
 }
 textarea { resize: vertical; width: 100%; }
 input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 1px;
 }
-button { cursor: pointer; border-radius: 8px; }
+button { cursor: pointer; border-radius: 10px; }
 button:disabled { opacity: 0.55; cursor: default; }
-.primary { background: var(--accent); color: var(--on-accent); border: none; padding: 9px 14px; font-weight: 600; }
-.ghost { background: transparent; color: var(--fg); border: 1px solid var(--border); padding: 8px 12px; display: inline-flex; align-items: center; gap: 6px; }
+.primary { background: var(--accent); color: var(--on-accent); border: none; padding: 10px 16px; font-weight: 600; }
+.primary:hover:not(:disabled) { background: var(--accent-strong); }
+.ghost { background: var(--surface); color: var(--accent-strong); border: 1.5px solid var(--control-border); padding: 8px 12px; display: inline-flex; align-items: center; gap: 6px; }
 .small { font-size: 13px; }
 .primary.small, .ghost.small { padding: 5px 10px; }
 .link { background: none; border: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: 13px; }
 .link.danger { color: var(--danger); }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
 .muted { color: var(--muted); }
-.chip { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
-.chip.accent { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.chip { display: inline-block; font-size: 12.5px; padding: 3px 9px; border-radius: 999px; background: var(--chip); color: var(--chip-fg); }
+/* "Practice this" and friends: a plum outline, so it can't be mistaken for a teacher's colour. */
+.chip.accent { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; box-shadow: inset 0 0 0 1px var(--control-border); }
+/* The teacher's own words, like a note pencilled in the margin. */
+.quote { font-family: var(--font-display); font-style: italic; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .back { font-size: 14px; text-decoration: none; }
 .back:hover { text-decoration: underline; }

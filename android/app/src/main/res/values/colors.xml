@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brand colours ("Rehearsal Room"). The Compose theme in ui/CueNoteTheme.kt and
+     the dashboard's web/src/app.css use the same values; change them together. -->
+<resources>
+    <color name="cue_plum">#FF5B3A8C</color>
+    <color name="cue_paper">#FFF7F3EC</color>
+    <color name="cue_stage">#FF1B1620</color>
+    <color name="cue_on_logo">#FFF7F3EC</color>
+    <color name="cue_brass">#FFE0A94A</color>
+</resources>
