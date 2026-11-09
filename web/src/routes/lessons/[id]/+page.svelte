@@ -135,6 +135,18 @@
     editor?.load(payload, versionId);
   }
 
+  let claimError = $state('');
+  async function claim(mine: boolean) {
+    if (!lesson) return;
+    claimError = '';
+    try {
+      await api().claimLesson(lesson.id, mine);
+      lesson = await api().getLesson(lesson.id);
+    } catch (e) {
+      claimError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   async function changedHistory() {
     if (!lesson) return;
     [cards] = await Promise.all([api().listFeedback(lesson.id), reloadHistory()]);
@@ -215,6 +227,18 @@
     {/if}
   </div>
   <p class="muted">{minutes(lesson.duration_ms)} · {takes.length} takes · {cards.length} cards. Every save keeps the earlier version.</p>
+  {#if teachers.length > 1}
+    <p class="taught">
+      {#if lesson.taught_by}
+        <span class="muted">Taught by</span> <Who teacher={findTeacher(teachers, lesson.taught_by)} {me} />
+        {#if lesson.taught_by === me}<button class="link" onclick={() => claim(false)}>Not my lesson</button>{/if}
+      {:else}
+        <span class="muted">Teacher not set.</span>
+        <button class="link" onclick={() => claim(true)}>This was my lesson</button>
+      {/if}
+      {#if claimError}<span class="error small" role="alert">{claimError}</span>{/if}
+    </p>
+  {/if}
 
   <ol class="timeline">
     {#each timeline as item (item.kind + (item.kind === 'take' ? item.take.id : item.kind === 'card' ? item.card.id : item.photo.id))}
@@ -278,6 +302,8 @@
   .cue-card.busy { border-left-color: var(--busy); outline: 2px solid var(--busy); outline-offset: -1px; }
   .editing-badge { position: absolute; top: -10px; right: 12px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
   .edited-by { margin: -4px 0 0; font-size: 12px; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .taught { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 13px; margin: 4px 0 0; }
+  .taught .error { color: var(--danger); }
   .title-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
   .present { display: flex; align-items: center; gap: 4px; }
   .face { width: 28px; height: 28px; border-radius: 50%; color: var(--surface); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--surface); }

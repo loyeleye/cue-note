@@ -49,6 +49,10 @@ export interface Share {
   status: 'pending' | 'active' | 'revoked';
   next_lesson_at: string | null;
   created_at: string;
+  /** The teacher's own choice: list only the lessons they taught. */
+  show_only_taught?: boolean;
+  /** Set by the student: this teacher can open only the lessons they taught. */
+  restricted_to_taught?: boolean;
 }
 
 /** A student she teaches, with what the list needs to show. */
@@ -65,6 +69,8 @@ export interface Lesson {
   recorded_at: string;
   duration_ms: number | null;
   pipeline_state: string;
+  /** The teacher who taught it, picked on the phone or claimed later. */
+  taught_by?: string | null;
 }
 
 /**

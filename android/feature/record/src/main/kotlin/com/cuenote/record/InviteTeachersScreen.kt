@@ -18,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -125,7 +126,12 @@ fun InviteTeachersScreen(
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(teachers.orEmpty(), key = { it.shareId }) { t ->
-                    TeacherRow(t, enabled = !busy, onRevoke = { confirmRevoke = t })
+                    TeacherRow(
+                        t,
+                        enabled = !busy,
+                        onRevoke = { confirmRevoke = t },
+                        onRestrict = { on -> run { shares.setRestricted(t, on); null } },
+                    )
                 }
             }
         }
@@ -153,19 +159,37 @@ fun InviteTeachersScreen(
 }
 
 @Composable
-private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit) {
+private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit, onRestrict: (Boolean) -> Unit) {
     Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(t.title, style = MaterialTheme.typography.titleSmall)
-                if (t.title != t.email) Text(t.email, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    if (t.active) "Active: can see your lessons" else "Pending: waiting for them to accept",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (t.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(t.title, style = MaterialTheme.typography.titleSmall)
+                    if (t.title != t.email) Text(t.email, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        when {
+                            !t.active -> "Pending: waiting for them to accept"
+                            t.restrictedToTaught -> "Active: sees only the lessons they teach"
+                            else -> "Active: can see all your lessons"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (t.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(enabled = enabled, onClick = onRevoke) { Text(if (t.active) "Remove" else "Cancel") }
             }
-            TextButton(enabled = enabled, onClick = onRevoke) { Text(if (t.active) "Remove" else "Cancel") }
+            if (t.active) {
+                // Lessons are linked to a teacher by "Who's teaching today?"
+                // before recording; this limits this teacher to those.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Only lessons they teach",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = t.restrictedToTaught, enabled = enabled, onCheckedChange = onRestrict)
+                }
+            }
         }
     }
 }

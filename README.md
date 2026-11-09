@@ -20,6 +20,14 @@ other's saves live; if two change the same field, the second is asked which
 to keep. The local seed invites `teacher2@example.com` too, so two dashboards
 can try this side by side.
 
+Before recording, the phone asks "Who's teaching today?" when the student has
+more than one teacher. A teacher can switch on "Only my lessons" for a student
+on the dashboard to hide the others' lessons, notes and practice, and can mark
+an older lesson as theirs. The student can go further from "Your teachers" on
+the phone: "Only lessons they teach" limits that teacher, and the database
+enforces it. Until lessons upload (M3), the phone keeps who taught each one
+locally.
+
 ## Layout
 
 | Folder      | What it is |

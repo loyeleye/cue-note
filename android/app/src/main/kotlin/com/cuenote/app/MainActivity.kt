@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -28,6 +29,7 @@ import androidx.work.WorkInfo
 import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
 import com.cuenote.audio.RecordingState
+import com.cuenote.data.InvitedTeacher
 import com.cuenote.lesson.LessonScreen
 import com.cuenote.lesson.TimelineScreen
 import com.cuenote.record.ConsentScreen
@@ -144,12 +146,22 @@ private fun AppNav(app: CueNoteApp) {
         }
         composable("setup") { SetupCheckScreen(onDone = { nav.popBackStack() }) }
         composable("consent") {
+            // The student's teachers, for "Who's teaching today?". Offline or
+            // signed out, the question is skipped and no teacher is set.
+            var teachers by remember { mutableStateOf<List<InvitedTeacher>>(emptyList()) }
+            LaunchedEffect(email) {
+                if (email != null) teachers = runCatching { app.shares.list() }.getOrDefault(emptyList())
+            }
             ConsentScreen(
                 store = app.consent,
+                teachers = teachers,
+                lastPicked = app.lessonTeachers.lastPicked,
                 onCancel = { nav.popBackStack() },
-                onConsented = { consentAt ->
+                onConsented = { consentAt, teacherId ->
                     scope.launch {
                         val lesson = app.lessons.create(consentAt)
+                        app.lessonTeachers.set(lesson.id, teacherId)
+                        if (teacherId != null) app.lessonTeachers.lastPicked = teacherId
                         RecordingService.start(app, lesson.id, app.lessons.lessonDir(lesson.id))
                         nav.navigate("recording/${lesson.id}") { popUpTo("home") }
                     }

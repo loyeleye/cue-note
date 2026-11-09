@@ -84,6 +84,14 @@ export const supabaseApi: Api = {
     check(await supabase.from('teacher_student_share').update({ next_lesson_at: at }).eq('id', shareId));
   },
 
+  async setShowOnlyTaught(shareId, on) {
+    check(await supabase.from('teacher_student_share').update({ show_only_taught: on }).eq('id', shareId));
+  },
+
+  async claimLesson(lessonId, mine) {
+    check(await supabase.rpc('claim_lesson', { lesson: lessonId, mine }));
+  },
+
   async listTeachers(studentId) {
     return check(await supabase.rpc('list_teachers', { student: studentId })) as Teacher[];
   },
@@ -94,12 +102,12 @@ export const supabaseApi: Api = {
   },
 
   async listLessons(studentId) {
-    return check(await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state')
+    return check(await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state, taught_by')
       .eq('student_id', studentId).order('recorded_at', { ascending: false })) as Lesson[];
   },
 
   async getLesson(lessonId) {
-    return (await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state')
+    return (await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state, taught_by')
       .eq('id', lessonId).maybeSingle()).data as Lesson | null;
   },
 
