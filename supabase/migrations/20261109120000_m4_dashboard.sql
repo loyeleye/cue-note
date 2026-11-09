@@ -1,4 +1,7 @@
 -- Cue Note: M4 teacher dashboard
+-- Runs after 20261109000003, which moved the RLS helpers (is_teacher_of,
+-- lesson_student, feedback_student) into the private schema. New helpers that
+-- only policies use go there too; the RPCs the dashboard calls stay in public.
 -- Adds sheet music (song, score, score_annotation), one-call card saving,
 -- push-notification plumbing, a storage-used report, and the scores bucket.
 -- Nothing here changes an existing column; it only adds.
@@ -58,40 +61,46 @@ alter table public.take
 alter table public.feedback
   add column song_id uuid references public.song (id) on delete set null;
 
-create function public.song_student(s uuid) returns uuid
+create function private.song_student(s uuid) returns uuid
 language sql stable security definer set search_path = '' as $$
   select student_id from public.song where id = s
 $$;
 
-create function public.score_student(sc uuid) returns uuid
+create function private.score_student(sc uuid) returns uuid
 language sql stable security definer set search_path = '' as $$
   select g.student_id from public.score c join public.song g on g.id = c.song_id where c.id = sc
 $$;
 
 -- True for the student and for a teacher with an active share.
-create function public.can_see_student(student uuid) returns boolean
+create function private.can_see_student(student uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select student = auth.uid() or public.is_teacher_of(student)
+  select student = auth.uid() or private.is_teacher_of(student)
 $$;
+
+-- Policies run as the signed-in user, so that role needs to call the helpers.
+revoke execute on function private.song_student(uuid), private.score_student(uuid),
+  private.can_see_student(uuid) from public, anon;
+grant execute on function private.song_student(uuid), private.score_student(uuid),
+  private.can_see_student(uuid) to authenticated;
 
 alter table public.song             enable row level security;
 alter table public.score            enable row level security;
 alter table public.score_annotation enable row level security;
 
 create policy song_access on public.song for all to authenticated
-  using (public.can_see_student(student_id))
-  with check (public.can_see_student(student_id));
+  using (private.can_see_student(student_id))
+  with check (private.can_see_student(student_id));
 
 create policy score_access on public.score for all to authenticated
-  using (public.can_see_student(public.song_student(song_id)))
-  with check (public.can_see_student(public.song_student(song_id)));
+  using (private.can_see_student(private.song_student(song_id)))
+  with check (private.can_see_student(private.song_student(song_id)));
 
 create policy annotation_select on public.score_annotation for select to authenticated
-  using (public.can_see_student(public.score_student(score_id)));
+  using (private.can_see_student(private.score_student(score_id)));
 -- Each person writes and removes only their own marks.
 create policy annotation_write on public.score_annotation for all to authenticated
-  using (author_id = auth.uid() and public.can_see_student(public.score_student(score_id)))
-  with check (author_id = auth.uid() and public.can_see_student(public.score_student(score_id)));
+  using (author_id = auth.uid() and private.can_see_student(private.score_student(score_id)))
+  with check (author_id = auth.uid() and private.can_see_student(private.score_student(score_id)));
 
 -- ---------------------------------------------------------------------------
 -- save_card: one call that updates the card and appends its new version, so
@@ -168,10 +177,10 @@ create index notification_outbox_pending on public.notification_outbox (created_
 alter table public.notification_outbox enable row level security;
 revoke all on public.notification_outbox from anon, authenticated;
 
--- Where the notify function lives. Kept in a private schema clients can't reach.
-create schema if not exists private;
-revoke all on schema private from public, anon, authenticated;
+-- Where the notify function lives. The private schema isn't exposed by the
+-- API, and no client role gets rights on this table.
 create table private.app_config (key text primary key, value text not null);
+revoke all on private.app_config from public, anon, authenticated;
 insert into private.app_config (key, value) values
   ('notify_url', 'https://tgytbytwofiymsvajdkd.supabase.co/functions/v1/notify');
 
@@ -206,6 +215,7 @@ begin
   end if;
   return new;
 end $$;
+revoke execute on function public.queue_card_push() from public, anon, authenticated;
 create trigger card_version_push after insert on public.card_version
   for each row execute function public.queue_card_push();
 
@@ -216,7 +226,7 @@ create function public.storage_used(student uuid)
 returns table (category text, files bigint, bytes bigint)
 language plpgsql stable security definer set search_path = '' as $$
 begin
-  if not public.can_see_student(student) then
+  if not private.can_see_student(student) then
     raise exception 'not your student';
   end if;
   return query
@@ -241,13 +251,17 @@ insert into storage.buckets (id, name, public) values ('scores', 'scores', false
 on conflict (id) do nothing;
 
 create policy storage_scores_access on storage.objects for all to authenticated
-  using (bucket_id = 'scores' and public.can_see_student(((storage.foldername(name))[1])::uuid))
-  with check (bucket_id = 'scores' and public.can_see_student(((storage.foldername(name))[1])::uuid));
+  using (bucket_id = 'scores' and private.can_see_student(((storage.foldername(name))[1])::uuid))
+  with check (bucket_id = 'scores' and private.can_see_student(((storage.foldername(name))[1])::uuid));
 
 create policy storage_teacher_voice_note_delete on storage.objects for delete to authenticated
   using (bucket_id = 'clips'
          and (storage.foldername(name))[2] = 'teacher-notes'
          and owner_id = auth.uid()::text
-         and public.is_teacher_of(((storage.foldername(name))[1])::uuid));
+         and private.is_teacher_of(((storage.foldername(name))[1])::uuid));
 
 revoke all on public.song, public.score, public.score_annotation, public.device_token from anon;
+
+-- The dashboard's RPCs: signed-in users only.
+revoke execute on function public.save_card(uuid, jsonb), public.storage_used(uuid) from public, anon;
+grant execute on function public.save_card(uuid, jsonb), public.storage_used(uuid) to authenticated;

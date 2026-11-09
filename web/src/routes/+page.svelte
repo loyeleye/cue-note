@@ -1,6 +1,6 @@
 <script lang="ts">
   // Home: the sign-in form, or the students who shared with her.
-  import { api, app, enterDemo } from '$lib/app.svelte';
+  import { api, app, enterDemo, refreshMe } from '$lib/app.svelte';
   import { isConfigured, supabase } from '$lib/supabase';
   import { date, ago } from '$lib/format';
   import type { Share, StudentSummary } from '$lib/types';
@@ -14,14 +14,17 @@
 
   async function reload() {
     try {
-      [students, invites] = await Promise.all([api().listStudents(), api().listInvites()]);
+      // A new account is a student until it accepts an invite, so look for
+      // invites whatever the role; only a teacher has students to list.
+      invites = await api().listInvites();
+      students = app.me?.role === 'teacher' ? await api().listStudents() : [];
     } catch (e) {
       error = (e as Error).message;
     }
   }
 
   $effect(() => {
-    if (app.me?.role === 'teacher') reload();
+    if (app.me) reload();
   });
 
   async function sendLink(e: SubmitEvent) {
@@ -43,6 +46,7 @@
   async function accept(id: string) {
     try {
       await api().acceptInvite(id);
+      await refreshMe();     // accepting an invite is what makes this a teacher account
       await reload();
     } catch (e) {
       error = (e as Error).message;
@@ -66,9 +70,25 @@
     {/if}
     <p class="demo">No lessons yet? <button class="link" onclick={enterDemo}>Try the demo</button> with sample students and lessons.</p>
   </section>
+{:else if app.me.role !== 'teacher' && invites.length}
+  <h1>Welcome to Cue Note</h1>
+  <p>A student has invited you to see their lessons. Accepting makes this a teacher account.</p>
+  {#if error}<p class="error" role="alert">{error}</p>{/if}
+  <section class="invites">
+    {#each invites as inv (inv.id)}
+      <div class="card invite">
+        <span>Invite to {inv.invite_email} <span class="muted">({date(inv.created_at)})</span></span>
+        <button class="primary small" onclick={() => accept(inv.id)}>Accept invite</button>
+      </div>
+    {/each}
+  </section>
 {:else if app.me.role !== 'teacher'}
   <h1>This dashboard is for teachers</h1>
-  <p class="muted">You're signed in with a student account ({app.email}). Students use the Cue Note phone app.</p>
+  <p class="muted">
+    You're signed in as {app.email}, which isn't a teacher account yet. An account becomes a teacher
+    account when it accepts a student's invite: ask your student to invite this email address from
+    the Cue Note phone app, then come back here.
+  </p>
 {:else}
   <h1>Students</h1>
   <p class="muted">Newest lesson first.</p>
