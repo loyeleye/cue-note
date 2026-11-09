@@ -46,8 +46,8 @@ jobs:
           for v in $VERSIONS; do
             [[ "$v" =~ ^[0-9]{14}$ ]] || { echo "not a migration version: $v"; exit 1; }
           done
-          supabase migration repair --status applied $VERSIONS
+          supabase migration repair --linked --status applied $VERSIONS
       - name: Show what will run
-        run: supabase db push --dry-run
+        run: supabase db push --linked --dry-run
       - name: Apply migrations
-        run: supabase db push
+        run: supabase db push --linked

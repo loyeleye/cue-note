@@ -9,7 +9,7 @@ schemas = ["public", "storage"]
 
 [db]
 port = 54322
-major_version = 16
+major_version = 17   # hosted Supabase projects run Postgres 17
 
 [storage]
 enabled = true
