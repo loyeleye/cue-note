@@ -1,0 +1,44 @@
+# Supabase CLI settings for local development (`supabase start`).
+# The hosted project's auth settings are set in its dashboard to match.
+project_id = "cue-note"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+
+[db]
+port = 54322
+major_version = 16
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+# The teacher dashboard; the Android app signs in through its deep link.
+site_url = "http://localhost:5173"
+additional_redirect_urls = [
+  "http://localhost:5173/auth/callback",
+  "cuenote://auth-callback",
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+
+[auth.email]
+# Magic links only: no passwords.
+enable_signup = true
+enable_confirmations = false
+otp_expiry = 3600
+
+# Production email goes through Resend as custom SMTP. Locally, Supabase's
+# built-in Inbucket catches the emails instead (http://localhost:54324).
+# [auth.email.smtp]
+# enabled = true
+# host = "smtp.resend.com"
+# port = 465
+# user = "resend"
+# pass = "env(RESEND_API_KEY)"
+# admin_email = "login@your-domain"
+# sender_name = "Cue Note"
