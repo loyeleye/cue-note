@@ -37,3 +37,7 @@ insert into public.card_version (feedback_id, author, payload)
 select id, 'ai', jsonb_build_object('cue', cue, 'category', category, 'her_words', her_words,
                                     'practice_flag', practice_flag, 'take_id', take_id)
   from public.feedback where lesson_id = '5a000000-0000-4000-8000-0000000000a1';
+
+-- A second teacher, so two dashboards can review the same lesson side by side.
+insert into public.teacher_student_share (student_id, invite_email)
+values ('5a000000-0000-4000-8000-000000000001', 'teacher2@example.com');
