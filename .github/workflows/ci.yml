@@ -23,6 +23,15 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      # GitHub's release CDN, which serves Gradle itself, sometimes answers
+      # 504. Fetch the wrapper's Gradle with retries before building.
+      - name: Download Gradle
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && exit 0
+            echo "Gradle download failed (attempt $i), retrying"; sleep $((i * 15))
+          done
+          exit 1
       - name: Unit tests
         run: ./gradlew --no-configuration-cache :core:signal:test testDebugUnitTest
       - name: Build debug APK
