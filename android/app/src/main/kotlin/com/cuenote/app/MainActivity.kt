@@ -35,6 +35,7 @@ import com.cuenote.record.InviteTeachersScreen
 import com.cuenote.record.RecordingScreen
 import com.cuenote.record.SetupCheckScreen
 import com.cuenote.record.SignInScreen
+import com.cuenote.record.WhoIsWhoScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -92,6 +93,9 @@ private fun AppNav(app: CueNoteApp) {
     LaunchedEffect(linkStatus) {
         if (linkStatus != null && nav.currentDestination?.route != "signin") nav.navigate("signin")
     }
+
+    // Consent given, waiting on the who's-on-which-mic step: (consentAt, teacherId).
+    val pendingLesson = remember { mutableStateOf<Pair<Long, String?>?>(null) }
 
     NavHost(nav, startDestination = "home") {
         composable("home") {
@@ -155,6 +159,18 @@ private fun AppNav(app: CueNoteApp) {
                 lastPicked = app.lessonTeachers.lastPicked,
                 onCancel = { nav.popBackStack() },
                 onConsented = { consentAt, teacherId ->
+                    pendingLesson.value = consentAt to teacherId
+                    nav.navigate("whoiswho")
+                },
+            )
+        }
+        // Before each lesson: find out which mic the student has today.
+        composable("whoiswho") {
+            WhoIsWhoScreen(
+                onCancel = { nav.popBackStack("home", false) },
+                onReady = {
+                    val (consentAt, teacherId) = pendingLesson.value ?: return@WhoIsWhoScreen
+                    pendingLesson.value = null
                     scope.launch {
                         val lesson = app.lessons.create(consentAt)
                         app.lessonTeachers.set(lesson.id, teacherId)

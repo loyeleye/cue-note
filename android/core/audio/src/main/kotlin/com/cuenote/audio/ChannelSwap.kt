@@ -3,10 +3,10 @@ package com.cuenote.audio
 import android.content.Context
 
 /**
- * Remembers whether the student's transmitter arrives on the right input
- * instead of the left. The setup check sets it when it hears the student on
- * the right, and every recording after that switches the channels back, so
- * the saved audio always has the student on the left.
+ * Whether the student's transmitter arrives on the right input instead of the
+ * left. The "who's on which mic" step sets it before each lesson (the
+ * transmitters are handed out at random), and the recording that follows
+ * switches the channels back, so saved audio always has the student on the left.
  */
 object ChannelSwap {
     private const val PREFS = "cuenote_audio"

@@ -53,7 +53,9 @@ data class SetupUiState(
 }
 
 class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) {
-    private val recorder = LessonRecorder(app)
+    // Start from the raw inputs: the mics are handed out at random, so the
+    // student step decides the order fresh every time.
+    private val recorder = LessonRecorder(app).apply { switchChannels = false }
     private val rules = SetupCheck()
     private val captured = mutableMapOf<SetupStep, StereoLevels>()
     private var job: Job? = null

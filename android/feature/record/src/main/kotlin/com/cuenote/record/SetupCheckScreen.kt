@@ -50,8 +50,8 @@ fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) 
         LiveMeters(live, s.channelsSwitched)
         if (s.switchedThisCheck) {
             Text(
-                "The student was heard on the other channel, so Cue Note switched the channels for you. " +
-                    "Lessons will record correctly and nobody needs to swap transmitters. The teacher step checks it worked.",
+                "The student is on the right mic, so Cue Note switched the channels for you. " +
+                    "Nobody needs to swap transmitters. The teacher step checks it worked.",
                 color = Color(0xFF2E7D32),
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -107,12 +107,17 @@ fun LiveMeters(levels: StereoLevels?, switched: Boolean = false) {
 
 @Composable
 private fun Meter(label: String, db: Double?) {
-    // Map -60..0 dBFS onto the bar.
-    val fraction = ((db ?: -60.0) + 60.0).coerceIn(0.0, 60.0) / 60.0
     Row {
         Text(label, Modifier.width(130.dp))
-        LinearProgressIndicator(progress = { fraction.toFloat() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        LiveMeterBar(db, Modifier.padding(top = 8.dp))
     }
+}
+
+/** One live level bar, mapping -60..0 dBFS onto its width. */
+@Composable
+fun LiveMeterBar(db: Double?, modifier: Modifier = Modifier) {
+    val fraction = ((db ?: -60.0) + 60.0).coerceIn(0.0, 60.0) / 60.0
+    LinearProgressIndicator(progress = { fraction.toFloat() }, modifier = modifier.fillMaxWidth())
 }
 
 @Composable
