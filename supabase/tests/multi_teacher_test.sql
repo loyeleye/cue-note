@@ -255,4 +255,31 @@ do $$ begin
   assert not has_function_privilege('anon', 'public.restore_checkpoint(uuid)', 'execute'), 'FAIL: anon can restore';
 end $$;
 
+-- ---------------------------------------------------------------- Revoke
+-- Sam removes Ola: she drops out of the teacher list and the lesson channel,
+-- and can't switch the share back on.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","email":"sam@example.com"}', false);
+set role authenticated;
+update public.teacher_student_share set status = 'revoked' where id = '30000000-0000-0000-0000-000000000002';
+do $$ begin
+  assert (select count(*) from public.list_teachers(auth.uid())) = 1, 'FAIL: a removed teacher is still listed';
+end $$;
+reset role;
+select set_config('realtime.topic', 'lesson:10000000-0000-0000-0000-000000000001', false);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000e","email":"ola@example.com"}', false);
+set role authenticated;
+do $$ begin
+  assert (select count(*) from public.list_teachers('00000000-0000-0000-0000-00000000000a')) = 0,
+    'FAIL: a removed teacher still lists Sam''s teachers';
+  assert not private.lesson_topic_teacher(realtime.topic()), 'FAIL: a removed teacher can join the lesson channel';
+  assert (select count(*) from public.lesson_checkpoint) = 0, 'FAIL: a removed teacher still sees named versions';
+  begin
+    update public.teacher_student_share set status = 'active' where id = '30000000-0000-0000-0000-000000000002';
+    raise exception 'FAIL: a removed teacher switched the share back on';
+  exception when raise_exception then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+end $$;
+reset role;
+
 \echo 'All multi-teacher tests passed.'
