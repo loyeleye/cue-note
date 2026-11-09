@@ -9,6 +9,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -54,12 +56,42 @@ interface LessonDao {
     suspend fun delete(id: String)
 }
 
-@Database(entities = [LessonEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [
+        LessonEntity::class, SegmentEntity::class, TakeEntity::class, FeedbackEntity::class,
+        TranscriptLineEntity::class, PipelineStageEntity::class,
+    ],
+    version = 2,
+    exportSchema = true,
+)
 abstract class LessonDatabase : RoomDatabase() {
     abstract fun lessons(): LessonDao
+    abstract fun pipeline(): PipelineDao
 
     companion object {
-        fun create(context: Context): LessonDatabase =
-            Room.databaseBuilder(context, LessonDatabase::class.java, "cuenote.db").build()
+        @Volatile private var instance: LessonDatabase? = null
+
+        /** One database for the app and its background workers. */
+        fun get(context: Context): LessonDatabase = instance ?: synchronized(this) {
+            instance ?: Room.databaseBuilder(context.applicationContext, LessonDatabase::class.java, "cuenote.db")
+                .addMigrations(MIGRATION_1_2)
+                .build().also { instance = it }
+        }
+
+        /** M2 adds the pipeline's tables; existing lessons are kept. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_2_SQL.forEach(db::execSQL)
+            }
+        }
     }
 }
+
+/** Copied from schemas/com.cuenote.data.LessonDatabase/2.json (Room checks they match). */
+internal val MIGRATION_1_2_SQL = listOf(
+    "CREATE TABLE IF NOT EXISTS `segment` (`lessonId` TEXT NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `label` TEXT NOT NULL, PRIMARY KEY(`lessonId`, `startMs`))",
+    "CREATE TABLE IF NOT EXISTS `take` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `pitchContour` TEXT NOT NULL, `pitchConfidence` TEXT NOT NULL, `withPiano` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+    "CREATE TABLE IF NOT EXISTS `feedback` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `takeId` TEXT, `spanStartMs` INTEGER NOT NULL, `spanEndMs` INTEGER NOT NULL, `linkConfidence` REAL NOT NULL, `linkReason` TEXT NOT NULL, `demos` TEXT NOT NULL, `words` TEXT NOT NULL, PRIMARY KEY(`id`))",
+    "CREATE TABLE IF NOT EXISTS `transcript_line` (`lessonId` TEXT NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `speaker` TEXT NOT NULL, `text` TEXT NOT NULL, PRIMARY KEY(`lessonId`, `startMs`, `speaker`))",
+    "CREATE TABLE IF NOT EXISTS `pipeline_stage` (`lessonId` TEXT NOT NULL, `stage` TEXT NOT NULL, `status` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `finishedAt` INTEGER NOT NULL, `detail` TEXT NOT NULL, PRIMARY KEY(`lessonId`, `stage`))",
+)

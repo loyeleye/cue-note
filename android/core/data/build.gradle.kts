@@ -31,10 +31,17 @@ android {
     }
 }
 
+// Room writes each database version's schema here; the migration test checks against it.
+ksp { arg("room.schemaLocation", "$projectDir/schemas") }
+
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
     api(project(":core:audio"))
+    api(project(":core:pipeline"))
+    api(project(":core:ml-android"))
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.core.ktx)
     api(libs.androidx.room.runtime) // LessonDatabase is a RoomDatabase, used by :app
     implementation(libs.androidx.room.ktx)
@@ -43,4 +50,5 @@ dependencies {
     implementation(libs.supabase.auth)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.kotlinx.coroutines.android)
+    testImplementation(libs.junit)
 }

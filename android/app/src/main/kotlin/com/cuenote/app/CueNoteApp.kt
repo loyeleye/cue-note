@@ -25,7 +25,7 @@ class CueNoteApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        lessons = LessonRepository(this, LessonDatabase.create(this).lessons())
+        lessons = LessonDatabase.get(this).let { db -> LessonRepository(this, db.lessons(), db.pipeline()) }
         consent = ConsentStore(this)
         auth = AuthRepository.create()
 

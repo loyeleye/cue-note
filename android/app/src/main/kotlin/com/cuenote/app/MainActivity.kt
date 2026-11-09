@@ -26,6 +26,8 @@ import androidx.navigation.compose.rememberNavController
 import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
 import com.cuenote.audio.RecordingState
+import com.cuenote.lesson.LessonScreen
+import com.cuenote.lesson.TimelineScreen
 import com.cuenote.record.ConsentScreen
 import com.cuenote.record.HomeScreen
 import com.cuenote.record.RecordingScreen
@@ -93,6 +95,27 @@ private fun AppNav(app: CueNoteApp) {
                     }
                 },
                 onDelete = { l -> scope.launch { app.lessons.delete(l.id) } },
+                onOpen = { l -> nav.navigate("lesson/${l.id}") },
+            )
+        }
+        composable("lesson/{id}") { entry ->
+            val id = entry.arguments?.getString("id")!!
+            lessons.firstOrNull { it.id == id }?.let { lesson ->
+                LessonScreen(
+                    lesson = lesson,
+                    repo = app.lessons,
+                    onOpenTimeline = { nav.navigate("timeline/$id") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+        }
+        composable("timeline/{id}") { entry ->
+            val id = entry.arguments?.getString("id")!!
+            TimelineScreen(
+                lessonDir = app.lessons.lessonDir(id),
+                // re-running only redraws the timeline (finished stages are kept), now scored against the labels
+                onLabelsSaved = { app.lessons.process(id) },
+                onBack = { nav.popBackStack() },
             )
         }
         composable("setup") { SetupCheckScreen(onDone = { nav.popBackStack() }) }

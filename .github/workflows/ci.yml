@@ -32,8 +32,28 @@ jobs:
             echo "Gradle download failed (attempt $i), retrying"; sleep $((i * 15))
           done
           exit 1
-      - name: Unit tests
-        run: ./gradlew --no-configuration-cache :core:signal:test testDebugUnitTest
+      # The pipeline tests run the real Silero voice detector, so build
+      # whisper.cpp for the runner and fetch the small model files (cached).
+      - name: Build the native speech library for the runner
+        run: core/ml/host-build.sh
+      - name: Cache speech models
+        uses: actions/cache@v4
+        with:
+          path: ~/cuenote-models
+          key: cuenote-models-silero-v5.1.2-tiny.en
+      - name: Download speech models
+        run: |
+          mkdir -p ~/cuenote-models && cd ~/cuenote-models
+          get() { [ -f "$1" ] || curl -fsSL --retry 4 -o "$1" "$2"; }
+          get ggml-silero-v5.1.2.bin https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin
+          get ggml-tiny.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
+      - name: Unit tests and the golden set
+        env:
+          CUENOTE_MODELS: /home/runner/cuenote-models
+        run: ./gradlew --no-configuration-cache :core:signal:test :core:ml:test :core:pipeline:test testDebugUnitTest
+      - name: Golden-set report
+        if: always()
+        run: cat core/pipeline/build/golden-report/*.md >> "$GITHUB_STEP_SUMMARY" || true
       - name: Build debug APK
         run: ./gradlew --no-configuration-cache assembleDebug
       - name: Upload APK
