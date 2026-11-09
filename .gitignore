@@ -1,0 +1,25 @@
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+captures/
+*.keystore
+!debug.keystore
+
+# Web
+node_modules/
+.svelte-kit/
+web/build/
+.env
+.env.*
+!.env.example
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# OS
+.DS_Store
