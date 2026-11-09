@@ -38,7 +38,15 @@ jobs:
         run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
       - name: Record hand-applied migrations
         if: ${{ github.event.inputs.mark_applied != '' }}
-        run: supabase migration repair --status applied ${{ github.event.inputs.mark_applied }}
+        env:
+          VERSIONS: ${{ github.event.inputs.mark_applied }}
+        # Passed through an env var, never pasted into the script, so the
+        # input can't inject shell commands.
+        run: |
+          for v in $VERSIONS; do
+            [[ "$v" =~ ^[0-9]{14}$ ]] || { echo "not a migration version: $v"; exit 1; }
+          done
+          supabase migration repair --status applied $VERSIONS
       - name: Show what will run
         run: supabase db push --dry-run
       - name: Apply migrations
