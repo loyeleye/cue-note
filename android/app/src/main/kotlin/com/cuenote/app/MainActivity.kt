@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,7 +43,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        app.auth.handleDeepLink(intent)
+        // On a rotation the old link is redelivered; its code is already spent.
+        if (savedInstanceState == null) app.auth.handleDeepLink(intent)
         setContent {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
                 Surface { AppNav(app) }
@@ -75,6 +77,7 @@ private fun AppNav(app: CueNoteApp) {
     val scope = rememberCoroutineScope()
     val lessons by app.lessons.lessons.collectAsStateWithLifecycle(emptyList())
     val email by app.auth.signedInEmail.collectAsStateWithLifecycle(null)
+    val linkStatus by app.auth.linkStatus.collectAsStateWithLifecycle()
     val recState by RecordingSession.state.collectAsStateWithLifecycle()
     val download by app.lessons.modelDownload().collectAsStateWithLifecycle(null)
 
@@ -85,6 +88,11 @@ private fun AppNav(app: CueNoteApp) {
         else Toast.makeText(app, "Cue Note needs the microphone to record lessons.", Toast.LENGTH_LONG).show()
     }
     fun withPermission(then: () -> Unit) { afterPermission.value = then; permissions.launch(runtimePermissions) }
+
+    // A sign-in link that fails or is still exchanging shows on the sign-in screen.
+    LaunchedEffect(linkStatus) {
+        if (linkStatus != null && nav.currentDestination?.route != "signin") nav.navigate("signin")
+    }
 
     NavHost(nav, startDestination = "home") {
         composable("home") {
@@ -160,6 +168,6 @@ private fun AppNav(app: CueNoteApp) {
                 onBack = { nav.popBackStack() },
             )
         }
-        composable("signin") { SignInScreen(app.auth, email, onBack = { nav.popBackStack() }) }
+        composable("signin") { SignInScreen(app.auth, email, linkStatus, onBack = { nav.popBackStack() }) }
     }
 }
