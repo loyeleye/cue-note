@@ -1,0 +1,45 @@
+name: Deploy database
+
+# Applies new files in supabase/migrations/ to the hosted Supabase project
+# whenever they land on main. Supabase records each applied migration in its
+# own history table, so every file runs exactly once.
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch:
+    inputs:
+      mark_applied:
+        description: >
+          Only for migrations already run by hand in the SQL editor: their
+          version numbers (space separated), to record them as applied
+          without running them again.
+        required: false
+        default: ""
+
+# Never run two deploys against the database at once.
+concurrency:
+  group: deploy-db
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: tgytbytwofiymsvajdkd
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1
+      - name: Link the project
+        run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - name: Record hand-applied migrations
+        if: ${{ github.event.inputs.mark_applied != '' }}
+        run: supabase migration repair --status applied ${{ github.event.inputs.mark_applied }}
+      - name: Show what will run
+        run: supabase db push --dry-run
+      - name: Apply migrations
+        run: supabase db push
