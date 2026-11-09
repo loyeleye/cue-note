@@ -28,9 +28,9 @@
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${location.origin}/auth/callback`,
-        // A new account made from the dashboard is a teacher account.
-        data: { role: 'teacher' }
+        // Every new account starts as a student. It becomes a teacher
+        // account when it accepts a student's invite (accept_share).
+        emailRedirectTo: `${location.origin}/auth/callback`
       }
     });
     sending = false;
