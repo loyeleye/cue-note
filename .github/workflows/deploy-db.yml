@@ -26,16 +26,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      PROJECT_REF: tgytbytwofiymsvajdkd
+      # The database's direct address is IPv6-only and GitHub runners only
+      # have IPv4, so connect through Supabase's session pooler (port 5432),
+      # which has an IPv4 address. The host is not secret; the password is.
+      POOLER_HOST: aws-1-us-west-2.pooler.supabase.com
+      DB_USER: postgres.tgytbytwofiymsvajdkd
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
           version: 2.122.1
-      - name: Link the project
-        run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - name: Build the connection string
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          # URL-encode the password so symbols in it can't break the URL.
+          pw=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')
+          echo "::add-mask::$pw"
+          echo "DB_URL=postgresql://${DB_USER}:${pw}@${POOLER_HOST}:5432/postgres" >> "$GITHUB_ENV"
       - name: Record hand-applied migrations
         if: ${{ github.event.inputs.mark_applied != '' }}
         env:
@@ -46,8 +54,8 @@ jobs:
           for v in $VERSIONS; do
             [[ "$v" =~ ^[0-9]{14}$ ]] || { echo "not a migration version: $v"; exit 1; }
           done
-          supabase migration repair --linked --status applied $VERSIONS
+          supabase migration repair --db-url "$DB_URL" --status applied $VERSIONS
       - name: Show what will run
-        run: supabase db push --linked --dry-run
+        run: supabase db push --db-url "$DB_URL" --dry-run
       - name: Apply migrations
-        run: supabase db push --linked
+        run: supabase db push --db-url "$DB_URL"
