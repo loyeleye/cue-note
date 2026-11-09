@@ -20,7 +20,7 @@ android {
     namespace = "com.cuenote.data"
     compileSdk = 35
     defaultConfig {
-        minSdk = 29
+        minSdk = 30
         buildConfigField("String", "SUPABASE_URL", "\"${setting("cuenote.supabaseUrl", "CUENOTE_SUPABASE_URL")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${setting("cuenote.supabaseAnonKey", "CUENOTE_SUPABASE_ANON_KEY")}\"")
     }
@@ -31,7 +31,7 @@ android {
     }
 }
 
-kotlin { jvmToolchain(17) }
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
     api(project(":core:audio"))

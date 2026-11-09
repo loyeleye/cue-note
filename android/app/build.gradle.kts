@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.cuenote.app"
-        minSdk = 29
+        minSdk = 30
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0-m1"
@@ -28,7 +28,7 @@ android {
     }
 }
 
-kotlin { jvmToolchain(17) }
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
     implementation(project(":core:data"))

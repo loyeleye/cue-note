@@ -4,8 +4,13 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
 }
 
+// Bytecode for Java 17, built with whatever JDK 17+ is installed.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 kotlin {
-    jvmToolchain(17)
+    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 }
 
 dependencies {

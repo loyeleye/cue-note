@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "com.cuenote.record"
     compileSdk = 35
-    defaultConfig { minSdk = 29 }
+    defaultConfig { minSdk = 30 }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -15,7 +15,7 @@ android {
     }
 }
 
-kotlin { jvmToolchain(17) }
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
     implementation(project(":core:data"))
