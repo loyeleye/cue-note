@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cue Note mark: a note with a brass breath mark. Same drawing as web/static/favicon.svg. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="56"
+        android:pivotY="52"
+        android:scaleX="0.88"
+        android:scaleY="0.88"
+        android:translateX="-5.5">
+        <!-- Stem -->
+        <path
+            android:pathData="M58,34 L58,69"
+            android:strokeColor="@color/cue_on_logo"
+            android:strokeWidth="5"
+            android:strokeLineCap="round" />
+        <!-- Note head, tilted like a printed one -->
+        <group android:pivotX="50" android:pivotY="70" android:rotation="-20">
+            <path
+                android:fillColor="@color/cue_on_logo"
+                android:pathData="M39,70 A11,8.5 0 1,0 61,70 A11,8.5 0 1,0 39,70 Z" />
+        </group>
+        <!-- Breath mark (the cue): a comma, clear of the stem -->
+        <path
+            android:fillColor="@color/cue_brass"
+            android:pathData="M68,33 A6,6 0 1,0 80,33 A6,6 0 1,0 68,33 Z" />
+        <path
+            android:pathData="M79.6,34.5 C79.8,40 76.5,44.5 70.5,46.5"
+            android:strokeColor="@color/cue_brass"
+            android:strokeWidth="4"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

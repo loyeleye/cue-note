@@ -6,7 +6,7 @@ import type { Teacher, TeacherColor } from './types';
 
 export const COLOR_LABEL: Record<TeacherColor, string> = {
   blue: 'Blue', teal: 'Teal', green: 'Green', amber: 'Amber',
-  coral: 'Coral', rose: 'Rose', violet: 'Violet', indigo: 'Indigo'
+  coral: 'Coral', rose: 'Rose', violet: 'Slate', indigo: 'Indigo'
 };
 
 /** A CSS color for a teacher; the tokens live in app.css for both themes. */

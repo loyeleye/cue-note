@@ -33,8 +33,8 @@
         barWidth: 2,
         barGap: 1,
         barRadius: 2,
-        waveColor: css.getPropertyValue('--wave').trim() || '#c9bfe0',
-        progressColor: css.getPropertyValue('--accent').trim() || '#6d4aa8',
+        waveColor: css.getPropertyValue('--wave').trim() || '#d6c8ea',
+        progressColor: css.getPropertyValue('--accent').trim() || '#5b3a8c',
         cursorWidth: 0
       });
       ws.on('ready', (d) => (duration = d));

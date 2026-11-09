@@ -9,11 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.work.WorkInfo
 import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
+import com.cuenote.app.ui.CueNoteTheme
 import com.cuenote.audio.RecordingState
 import com.cuenote.data.InvitedTeacher
 import com.cuenote.lesson.LessonScreen
@@ -48,7 +45,7 @@ class MainActivity : ComponentActivity() {
         // On a rotation the old link is redelivered; its code is already spent.
         if (savedInstanceState == null) app.auth.handleDeepLink(intent)
         setContent {
-            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
+            CueNoteTheme {
                 Surface { AppNav(app) }
             }
         }

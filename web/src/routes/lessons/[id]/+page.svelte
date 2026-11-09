@@ -185,7 +185,7 @@
       {#if last?.author === 'teacher'}
         <p class="edited-by"><span class="muted">Edited by</span> <Who teacher={findTeacher(teachers, last.author_id)} {me} /> <span class="muted">{ago(last.created_at)}</span></p>
       {/if}
-      {#if c.her_words}<blockquote>“{c.her_words}”</blockquote>{/if}
+      {#if c.her_words}<blockquote class="quote">“{c.her_words}”</blockquote>{/if}
       <div class="chips">
         <span class="chip">{clock(c.span_start_ms)}</span>
         {#if c.category}<span class="chip">{c.category}</span>{/if}
@@ -310,7 +310,7 @@
   .face + .face { margin-left: -8px; }
   .cue-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
   .cue-head h3 { margin: 0; font-size: 16px; }
-  blockquote { margin: 0; color: var(--muted); font-size: 14px; }
+  blockquote { margin: 0; color: var(--chip-fg); font-size: 15.5px; line-height: 1.45; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .her-clip { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
   .edit-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }

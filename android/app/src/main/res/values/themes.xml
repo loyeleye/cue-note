@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The window behind Compose, so launching shows paper (or stage, at night)
+     instead of a white flash. Everything else is styled in Compose. -->
+<resources>
+    <style name="Theme.CueNote" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/cue_paper</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

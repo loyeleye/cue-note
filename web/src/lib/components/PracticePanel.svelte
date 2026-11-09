@@ -83,7 +83,7 @@
 
 <form class="card add" onsubmit={add}>
   <label for="practice-body-{studentId}" class="visually-hidden">Practice item</label>
-  <textarea id="practice-body-{studentId}" rows="2" bind:value={body} placeholder="What to practise, and how"></textarea>
+  <textarea id="practice-body-{studentId}" rows="2" bind:value={body} placeholder="What to practice, and how"></textarea>
   <div class="row">
     <label>
       <span>Week</span>

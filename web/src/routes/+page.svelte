@@ -55,7 +55,9 @@
 </script>
 
 {#if !app.me}
-  <section class="hero">
+  <section class="hero card">
+    <img class="hero-mark" src="/favicon.svg" alt="" width="56" height="56" />
+    <p class="eyebrow">Your voice lessons, remembered</p>
     <h1>Cue Note for teachers</h1>
     <p>Correct your students' lesson cards, leave notes and set this week's practice. We'll email you a link; no password needed.</p>
     {#if isConfigured}
@@ -133,7 +135,9 @@
 {/if}
 
 <style>
-  .hero { max-width: 460px; margin: 24px auto; }
+  .hero { max-width: 460px; margin: 40px auto; padding: 32px 28px; }
+  .hero-mark { border-radius: 14px; display: block; margin-bottom: 18px; }
+  .eyebrow { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   .hero form { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
   .demo { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); }
   .demo .link { font-size: inherit; }

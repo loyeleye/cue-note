@@ -275,10 +275,10 @@
   .bar-pin {
     position: absolute; transform: translate(-50%, -100%); padding: 1px 5px; min-width: 20px;
     font-size: 11px; font-weight: 700; line-height: 16px; border-radius: 9px; cursor: pointer;
-    background: rgba(109, 74, 168, 0.14); color: #4b2f80; border: 1px solid rgba(109, 74, 168, 0.5);
+    background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-strong); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
   }
-  .bar-pin.has-cues { background: #6d4aa8; color: white; }
-  .bar-pin.selected { outline: 3px solid #e0a32e; }
+  .bar-pin.has-cues { background: var(--accent); color: var(--on-accent); }
+  .bar-pin.selected { outline: 3px solid var(--brass); }
   .count { margin-left: 3px; font-weight: 600; opacity: 0.85; }
   .count::before { content: '·'; margin-right: 2px; }
   .ann { position: absolute; transform: translate(-50%, -50%); pointer-events: none; color: #b0352b; white-space: nowrap; }

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import '@fontsource-variable/fraunces/opsz.css';
+  import '@fontsource-variable/fraunces/opsz-italic.css';
+  import '@fontsource-variable/inter';
   import '../app.css';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -36,7 +39,7 @@
 {/if}
 
 <header>
-  <a class="brand" href="/">Cue Note</a>
+  <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28" />Cue Note</a>
   {#if signedIn}
     <nav>
       <a href="/" aria-current={page.url.pathname === '/' ? 'page' : undefined}>Students</a>
@@ -67,9 +70,12 @@
     position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; gap: 12px;
   }
-  .brand { font-weight: 700; font-size: 17px; color: var(--fg); text-decoration: none; letter-spacing: -0.01em; }
+  .brand { font-family: var(--font-display); font-weight: 600; font-size: 21px; color: var(--fg); text-decoration: none; display: inline-flex; align-items: center; gap: 9px; }
+  .brand img { border-radius: 7px; }
   nav { display: flex; gap: 16px; align-items: center; font-size: 14px; }
   nav a { color: var(--muted); text-decoration: none; }
-  nav a[aria-current='page'] { color: var(--fg); font-weight: 600; }
+  nav a { padding: 6px 2px; border-bottom: 2px solid transparent; }
+  nav a:hover { color: var(--fg); }
+  nav a[aria-current='page'] { color: var(--fg); font-weight: 600; border-bottom-color: var(--brass); }
   main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 64px; }
 </style>
