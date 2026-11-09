@@ -12,11 +12,30 @@ android {
         applicationId = "com.cuenote.app"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0-m2"
+        // CI sets the build number so every APK it publishes is a newer
+        // version Android (and Obtainium) will install as an update.
+        val build = System.getenv("CUENOTE_BUILD_NUMBER")?.toIntOrNull()
+        versionCode = build ?: 2
+        versionName = if (build != null) "0.2.$build" else "0.2.0-dev"
+    }
+
+    // CI signs with one fixed key (from GitHub secrets) so each new APK
+    // installs over the last one and keeps the lessons on the phone.
+    // Local builds use the usual per-machine debug key.
+    val keystore = System.getenv("CUENOTE_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
+    val stable = keystore?.let {
+        signingConfigs.create("stable") {
+            storeFile = it
+            storePassword = System.getenv("CUENOTE_KEYSTORE_PASSWORD")
+            keyAlias = "cuenote"
+            keyPassword = System.getenv("CUENOTE_KEYSTORE_PASSWORD")
+        }
     }
 
     buildTypes {
+        debug {
+            if (stable != null) signingConfig = stable
+        }
         release {
             isMinifyEnabled = false
         }
