@@ -31,6 +31,7 @@ import com.cuenote.lesson.LessonScreen
 import com.cuenote.lesson.TimelineScreen
 import com.cuenote.record.ConsentScreen
 import com.cuenote.record.HomeScreen
+import com.cuenote.record.InviteTeachersScreen
 import com.cuenote.record.RecordingScreen
 import com.cuenote.record.SetupCheckScreen
 import com.cuenote.record.SignInScreen
@@ -97,6 +98,7 @@ private fun AppNav(app: CueNoteApp) {
                 },
                 onSetupCheck = { withPermission { nav.navigate("setup") } },
                 onSignIn = { nav.navigate("signin") },
+                onTeachers = { nav.navigate("teachers") },
                 onExport = { l ->
                     scope.launch {
                         val msg = runCatching { app.lessons.exportToDownloads(l.id) }
@@ -149,6 +151,14 @@ private fun AppNav(app: CueNoteApp) {
         composable("recording/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             RecordingScreen(lessonDir = app.lessons.lessonDir(id), onFinished = { nav.popBackStack("home", false) })
+        }
+        composable("teachers") {
+            InviteTeachersScreen(
+                shares = app.shares,
+                signedIn = email != null,
+                onSignIn = { nav.navigate("signin") },
+                onBack = { nav.popBackStack() },
+            )
         }
         composable("signin") { SignInScreen(app.auth, email, onBack = { nav.popBackStack() }) }
     }

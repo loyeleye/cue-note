@@ -36,6 +36,7 @@ fun HomeScreen(
     onReturnToRecording: () -> Unit,
     onSetupCheck: () -> Unit,
     onSignIn: () -> Unit,
+    onTeachers: () -> Unit = {},
     onExport: (LessonEntity) -> Unit,
     onDelete: (LessonEntity) -> Unit,
     onOpen: (LessonEntity) -> Unit = {},
@@ -62,6 +63,8 @@ fun HomeScreen(
                 Button(onClick = onStartLesson, modifier = Modifier.fillMaxWidth()) { Text("Start a lesson") }
                 Spacer(Modifier.padding(4.dp))
                 OutlinedButton(onClick = onSetupCheck, modifier = Modifier.fillMaxWidth()) { Text("Run the setup check") }
+                Spacer(Modifier.padding(4.dp))
+                OutlinedButton(onClick = onTeachers, modifier = Modifier.fillMaxWidth()) { Text("Invite a teacher") }
             }
             if (modelStatus != null) {
                 Spacer(Modifier.padding(4.dp))
