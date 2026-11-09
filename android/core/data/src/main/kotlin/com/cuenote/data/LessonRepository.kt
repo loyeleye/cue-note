@@ -5,12 +5,17 @@ import android.content.Context
 import android.os.Environment
 import android.provider.MediaStore
 import com.cuenote.audio.RecordingSummary
+import com.cuenote.data.pipeline.PipelineScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-class LessonRepository(private val context: Context, private val dao: LessonDao) {
+class LessonRepository(
+    private val context: Context,
+    private val dao: LessonDao,
+    val pipelineDao: PipelineDao? = null,
+) {
 
     val lessons = dao.observeAll()
 
@@ -32,15 +37,25 @@ class LessonRepository(private val context: Context, private val dao: LessonDao)
         return lesson
     }
 
-    suspend fun finish(s: RecordingSummary) = dao.finish(
-        id = s.lessonId, state = "recorded", durationMs = s.durationMs, chunks = s.chunkCount,
-        gaps = s.gapCount, marks = s.markCount, photos = s.photoCount, mic = s.micName,
-    )
+    /** Saves a finished recording and queues it for processing the next time the phone charges. */
+    suspend fun finish(s: RecordingSummary) {
+        dao.finish(
+            id = s.lessonId, state = "recorded", durationMs = s.durationMs, chunks = s.chunkCount,
+            gaps = s.gapCount, marks = s.markCount, photos = s.photoCount, mic = s.micName,
+        )
+        if (s.chunkCount > 0) PipelineScheduler.enqueue(context, s.lessonId)
+    }
+
+    /** Runs the pipeline now instead of waiting for the charger; [again] starts it over. */
+    fun process(id: String, again: Boolean = false) = PipelineScheduler.enqueue(context, id, now = true, again = again)
+
+    fun progress(id: String) = PipelineScheduler.progress(context, id)
 
     suspend fun failed(id: String) = dao.finish(id, "failed", 0, 0, 0, 0, 0, "")
 
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         lessonDir(id).deleteRecursively()
+        pipelineDao?.clearAll(id)
         dao.delete(id)
     }
 

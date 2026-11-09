@@ -38,6 +38,7 @@ fun HomeScreen(
     onSignIn: () -> Unit,
     onExport: (LessonEntity) -> Unit,
     onDelete: (LessonEntity) -> Unit,
+    onOpen: (LessonEntity) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -65,15 +66,20 @@ fun HomeScreen(
                 Text("None yet. Run the setup check, then start a lesson.", style = MaterialTheme.typography.bodyMedium)
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(lessons, key = { it.id }) { LessonRow(it, onExport, onDelete) }
+                items(lessons, key = { it.id }) { LessonRow(it, onExport, onDelete, onOpen) }
             }
         }
     }
 }
 
 @Composable
-private fun LessonRow(l: LessonEntity, onExport: (LessonEntity) -> Unit, onDelete: (LessonEntity) -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+private fun LessonRow(
+    l: LessonEntity,
+    onExport: (LessonEntity) -> Unit,
+    onDelete: (LessonEntity) -> Unit,
+    onOpen: (LessonEntity) -> Unit,
+) {
+    Card(onClick = { onOpen(l) }, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(DateFormat.getDateTimeInstance().format(Date(l.recordedAt)), style = MaterialTheme.typography.titleSmall)
             Text(
@@ -81,7 +87,8 @@ private fun LessonRow(l: LessonEntity, onExport: (LessonEntity) -> Unit, onDelet
                     "${l.markCount} marks · ${l.photoCount} photos",
             )
             val gapText = if (l.gapCount == 0) "No gaps" else "${l.gapCount} gaps (audio was dropped)"
-            Text("$gapText · ${l.micName.ifBlank { l.pipelineState }}", style = MaterialTheme.typography.bodySmall)
+            Text("$gapText · ${l.micName.ifBlank { "unknown mic" }}", style = MaterialTheme.typography.bodySmall)
+            Text(pipelineText(l.pipelineState), style = MaterialTheme.typography.bodySmall)
             Row {
                 TextButton(onClick = { onExport(l) }) { Text("Export to Downloads") }
                 Spacer(Modifier.width(8.dp))
@@ -89,6 +96,15 @@ private fun LessonRow(l: LessonEntity, onExport: (LessonEntity) -> Unit, onDelet
             }
         }
     }
+}
+
+private fun pipelineText(state: String) = when (state) {
+    "recording" -> "Recording"
+    "recorded" -> "Waiting to process (starts when charging; tap to open)"
+    "processing" -> "Processing…"
+    "processed" -> "Processed: tap to see takes and feedback"
+    "failed" -> "Processing failed: tap for details"
+    else -> state
 }
 
 fun formatDuration(ms: Long): String {

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson timeline</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#1d1b18; --muted:#6c675f; --line:#e3dfd6; --panel:#fff;
+          --ss:#2f6fdb; --sp:#8fb3f0; --ts:#d9532b; --tsing:#b0369b; --piano:#3d9a5b; --truth:#111; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg:#16151a; --fg:#ecebe6; --muted:#a39f97; --line:#34323a; --panel:#1f1e24; --truth:#f2f2f2; } }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:12px 16px; border-bottom:1px solid var(--line); }
+  h1 { font-size:17px; margin:0 0 4px; }
+  .muted { color:var(--muted); }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:8px 16px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:2; }
+  button, select, label.btn { font:inherit; padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--fg); cursor:pointer; }
+  button.on { outline:2px solid var(--ss); }
+  #wrap { position:relative; overflow-x:auto; overflow-y:hidden; border-bottom:1px solid var(--line); }
+  canvas { display:block; }
+  .legend span { display:inline-flex; align-items:center; gap:4px; margin-right:12px; }
+  .legend i { width:12px; height:12px; border-radius:2px; display:inline-block; }
+  main { padding:12px 16px; max-width:1100px; }
+  table { border-collapse:collapse; width:100%; }
+  td, th { text-align:left; vertical-align:top; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .score b { font-size:18px; }
+  .mistakes li { color:var(--muted); }
+  .help { font-size:13px; color:var(--muted); }
+  .t-student { color:var(--ss); } .t-teacher { color:var(--ts); }
+  a.time { cursor:pointer; text-decoration:underline dotted; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lesson timeline <span id="lid" class="muted"></span></h1>
+  <div id="meta" class="muted"></div>
+  <div class="legend muted" style="margin-top:6px">
+    <span><i style="background:var(--ss)"></i>Student singing</span>
+    <span><i style="background:var(--sp)"></i>Student speaking</span>
+    <span><i style="background:var(--ts)"></i>Teacher speaking</span>
+    <span><i style="background:var(--tsing)"></i>Teacher singing</span>
+    <span><i style="background:var(--piano)"></i>Piano only</span>
+  </div>
+</header>
+<div class="bar">
+  <button id="play">▶ Play</button>
+  <span id="now" class="muted">0:00</span>
+  <button id="zin">Zoom in</button><button id="zout">Zoom out</button>
+  <button id="labelMode">Label right answers</button>
+  <span id="labelTools" hidden>
+    <button id="copyFound" title="Start the right answers from what the pipeline found, then fix them">Start from found</button>
+    <button id="save">Save labels.json</button>
+    <label class="btn">Open labels.json<input id="load" type="file" accept=".json" hidden></label>
+  </span>
+</div>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<main>
+  <p id="labelHelp" class="help" hidden>
+    Labelling: drag across the <b>Right answers</b> row to mark a span, then press <b>T</b> (take), <b>F</b> (feedback) or <b>D</b> (her demo).
+    Click a feedback span, then a take span, to say which take it is about; click a feedback span and press <b>N</b> for "no take".
+    Click a span and press <b>Delete</b> to remove it. Drag a span's edge to move it. Click anywhere else to play from there.
+  </p>
+  <section id="scoreBox"></section>
+  <h2 style="font-size:15px">Stages</h2>
+  <table id="stages"></table>
+  <h2 style="font-size:15px">Takes and their feedback</h2>
+  <table id="cards"></table>
+</main>
+<script>
+const D = /*__DATA__*/null;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const clock = ms => { const s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const dec = b => Uint8Array.from(atob(b), c => c.charCodeAt(0));
+const F = { sDb: dec(D.sDb), tDb: dec(D.tDb), sP: dec(D.sPitch), tP: dec(D.tPitch), sC: dec(D.sConf), tC: dec(D.tConf), sV: dec(D.sVad), tV: dec(D.tVad) };
+const COLORS = { student_sing: '--ss', student_speak: '--sp', teacher_speak: '--ts', teacher_sing: '--tsing', piano: '--piano' };
+
+$('lid').textContent = D.lessonId;
+$('meta').textContent = `${clock(D.durationMs)} long · voice detector: ${D.vad} · speech to text: ${D.transcriber} · ` +
+  `${D.takes.length} takes · ${D.feedback.length} feedback blocks · ${D.feedback.filter(f => f.takeId).length} linked`;
+
+// ---------------- right answers (labels) ----------------
+let labels = D.labels || { lessonId: D.lessonId, takes: [], feedback: [], demos: [], notes: '' };
+let labelMode = false, selected = null, dragging = null, pendingSpan = null;
+
+// ---------------- layout ----------------
+const LANES = [
+  ['ruler', 18], ['labels', 22], ['takes', 22], ['feedback', 22], ['truth', 30],
+  ['student', 70], ['teacher', 70], ['transcript', 44], ['events', 18],
+];
+const NAMES = { labels: 'What it heard', takes: 'Takes found', feedback: 'Feedback found', truth: 'Right answers',
+  student: 'Student mic', teacher: 'Teacher mic', transcript: 'Words', events: 'Marks, photos' };
+const GUTTER = 108;
+let pxPerSec = 12;
+const cv = $('cv'), ctx = cv.getContext('2d'), wrap = $('wrap');
+const laneTop = {}; let H = 0; for (const [n, h] of LANES) { laneTop[n] = H; H += h + 4; }
+const laneH = Object.fromEntries(LANES);
+const x = ms => GUTTER + ms / 1000 * pxPerSec;
+const msAt = px => Math.max(0, (px - GUTTER) / pxPerSec * 1000);
+
+function resize() {
+  const w = Math.max(wrap.clientWidth, GUTTER + D.durationMs / 1000 * pxPerSec + 40);
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = H * dpr; cv.style.width = w + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+function span(lane, a, b, color, text, outline) {
+  const y = laneTop[lane] + 2, h = laneH[lane] - 4;
+  ctx.fillStyle = color; ctx.fillRect(x(a), y, Math.max(1, x(b) - x(a)), h);
+  if (outline) { ctx.strokeStyle = css('--truth'); ctx.lineWidth = 2; ctx.strokeRect(x(a), y, x(b) - x(a), h); }
+  if (text && x(b) - x(a) > 24) { ctx.fillStyle = '#fff'; ctx.font = '11px system-ui'; ctx.fillText(text, x(a) + 3, y + h - 6); }
+}
+
+function draw() {
+  const W = cv.width / (window.devicePixelRatio || 1);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = css('--bg'); ctx.fillRect(0, 0, W, H);
+  // lane names
+  ctx.font = '11px system-ui'; ctx.fillStyle = css('--muted');
+  for (const [n] of LANES) if (NAMES[n]) ctx.fillText(NAMES[n], 4, laneTop[n] + 14);
+  // ruler
+  const step = pxPerSec > 40 ? 5 : pxPerSec > 8 ? 30 : 60;
+  ctx.strokeStyle = css('--line');
+  for (let s = 0; s * 1000 <= D.durationMs; s += step) {
+    ctx.beginPath(); ctx.moveTo(x(s * 1000), 0); ctx.lineTo(x(s * 1000), H); ctx.stroke();
+    ctx.fillStyle = css('--muted'); ctx.fillText(clock(s * 1000), x(s * 1000) + 2, 12);
+  }
+  for (const s of D.segments) span('labels', s.startMs, s.endMs, css(COLORS[s.label]));
+  D.takes.forEach((t, i) => span('takes', t.startMs, t.endMs, css('--ss'), 'Take ' + (i + 1) + (t.withPiano ? ' ♪' : '')));
+  const takeIndex = Object.fromEntries(D.takes.map((t, i) => [t.id, i]));
+  D.feedback.forEach((f, i) => {
+    span('feedback', f.startMs, f.endMs, css('--ts'), f.takeId ? '→ ' + (takeIndex[f.takeId] + 1) : '—');
+    for (const d of f.demos) span('feedback', d.startMs, d.endMs, css('--tsing'));
+    if (f.takeId) { // link line back to its take
+      const t = D.takes[takeIndex[f.takeId]];
+      ctx.strokeStyle = css('--ts'); ctx.lineWidth = 1; ctx.beginPath();
+      ctx.moveTo(x(f.startMs), laneTop.feedback + 4); ctx.lineTo(x(t.endMs), laneTop.takes + 18); ctx.stroke();
+    }
+  });
+  // right answers
+  ctx.fillStyle = css('--line'); ctx.fillRect(GUTTER, laneTop.truth, W, laneH.truth);
+  labels.takes.forEach((t, i) => span('truth', t.startMs, t.endMs, css('--ss'), 'Take ' + (i + 1), selected && selected.kind === 'take' && selected.i === i));
+  labels.feedback.forEach((f, i) => span('truth', f.startMs, f.endMs, css('--ts'), f.take == null ? '—' : '→ ' + (f.take + 1), selected && selected.kind === 'feedback' && selected.i === i));
+  labels.demos.forEach((d, i) => span('truth', d.startMs, d.endMs, css('--tsing'), 'demo', selected && selected.kind === 'demo' && selected.i === i));
+  if (pendingSpan) span('truth', pendingSpan[0], pendingSpan[1], 'rgba(120,120,120,.5)', 'T / F / D ?');
+  // mics: loudness (grey fill), voice probability (thin), pitch (dots, faint when unclear)
+  mic('student', F.sDb, F.sP, F.sC, F.sV, css('--ss'));
+  mic('teacher', F.tDb, F.tP, F.tC, F.tV, css('--ts'));
+  // words
+  ctx.font = '11px system-ui';
+  for (const l of D.transcript) {
+    ctx.fillStyle = l.speaker === 'teacher' ? css('--ts') : css('--ss');
+    const y = laneTop.transcript + (l.speaker === 'teacher' ? 14 : 34);
+    ctx.save(); ctx.beginPath(); ctx.rect(x(l.startMs), y - 12, Math.max(60, x(l.endMs) - x(l.startMs)), 16); ctx.clip();
+    ctx.fillText(l.text, x(l.startMs), y); ctx.restore();
+  }
+  for (const e of D.events) {
+    ctx.fillStyle = e.kind === 'photo' ? css('--tsing') : css('--fg');
+    ctx.fillText(e.kind === 'photo' ? '📷' : '★', x(e.atMs) - 5, laneTop.events + 13);
+  }
+  for (const [at, miss] of D.gaps) { ctx.fillStyle = 'rgba(220,0,0,.35)'; ctx.fillRect(x(at), 0, Math.max(2, miss / 1000 * pxPerSec), H); }
+  // playhead
+  ctx.strokeStyle = css('--fg'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x(playMs), 0); ctx.lineTo(x(playMs), H); ctx.stroke();
+}
+
+function mic(lane, db, pitch, conf, vad, color) {
+  const top = laneTop[lane], h = laneH[lane];
+  const a = Math.max(0, Math.floor(msAt(wrap.scrollLeft) / D.frameMs)), b = Math.min(db.length, Math.ceil(msAt(wrap.scrollLeft + wrap.clientWidth) / D.frameMs) + 1);
+  const fw = D.frameMs / 1000 * pxPerSec;
+  for (let i = a; i < b; i++) {
+    const lvl = Math.max(0, db[i] - 50) / 70;     // -70..0 dBFS
+    ctx.fillStyle = 'rgba(128,128,128,.35)'; ctx.fillRect(x(i * D.frameMs), top + h - lvl * h, Math.max(1, fw), lvl * h);
+    if (vad[i] > 50) { ctx.fillStyle = color; ctx.fillRect(x(i * D.frameMs), top + h - 3, Math.max(1, fw), 3); }
+    if (pitch[i] > 0 && conf[i] > 30) {
+      const midi = pitch[i] / 2 + 24, y = top + h - (midi - 36) / 48 * h;   // C2..C6
+      ctx.globalAlpha = conf[i] >= 60 ? 1 : 0.25; ctx.fillStyle = color;
+      ctx.fillRect(x(i * D.frameMs), y - 1, Math.max(1.5, fw), 2.5); ctx.globalAlpha = 1;
+    }
+  }
+}
+
+// ---------------- audio ----------------
+let audio = null, playing = false, playMs = 0, chunkStarts = [];
+{ let acc = 0; for (const ms of D.chunkMs) { chunkStarts.push(acc); acc += ms; } }
+function playFrom(ms) {
+  stop(); playMs = ms;
+  let k = chunkStarts.findLastIndex(s => s <= ms); if (k < 0) return;
+  const startChunk = (k) => {
+    audio = new Audio(D.chunks[k]);
+    audio.currentTime = (playMs - chunkStarts[k]) / 1000;
+    audio.onended = () => { if (k + 1 < D.chunks.length) { playMs = chunkStarts[k + 1]; startChunk(k + 1); } else stop(); };
+    audio.ontimeupdate = () => { playMs = chunkStarts[k] + audio.currentTime * 1000; $('now').textContent = clock(playMs); draw(); };
+    audio.play().catch(() => { $('now').textContent = 'audio files not found next to this page'; });
+  };
+  startChunk(k); playing = true; $('play').textContent = '❚❚ Pause';
+}
+function stop() { if (audio) { audio.pause(); audio.onended = null; audio = null; } playing = false; $('play').textContent = '▶ Play'; }
+$('play').onclick = () => playing ? stop() : playFrom(playMs);
+
+// ---------------- interaction ----------------
+$('zin').onclick = () => zoom(2); $('zout').onclick = () => zoom(0.5);
+function zoom(k) { const mid = msAt(wrap.scrollLeft + wrap.clientWidth / 2); pxPerSec = Math.min(400, Math.max(1, pxPerSec * k)); resize(); wrap.scrollLeft = x(mid) - wrap.clientWidth / 2; }
+wrap.addEventListener('scroll', draw);
+window.addEventListener('resize', resize);
+$('labelMode').onclick = () => { labelMode = !labelMode; $('labelMode').classList.toggle('on', labelMode); $('labelTools').hidden = !labelMode; $('labelHelp').hidden = !labelMode; };
+
+function hit(ms) {
+  for (const kind of ['demo', 'feedback', 'take']) {
+    const arr = kind === 'take' ? labels.takes : kind === 'feedback' ? labels.feedback : labels.demos;
+    for (let i = 0; i < arr.length; i++) if (ms >= arr[i].startMs && ms <= arr[i].endMs) return { kind, i, arr };
+  }
+  return null;
+}
+function pos(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+cv.addEventListener('pointerdown', e => {
+  const [px, py] = pos(e), ms = msAt(px);
+  const inTruth = py >= laneTop.truth && py <= laneTop.truth + laneH.truth;
+  if (!labelMode || !inTruth) { if (px > GUTTER) playFrom(ms); return; }
+  const h = hit(ms);
+  if (h) {
+    const s = h.arr[h.i], edge = 6 / pxPerSec * 1000;
+    if (Math.abs(ms - s.startMs) < edge) { dragging = { h, side: 'startMs' }; }
+    else if (Math.abs(ms - s.endMs) < edge) { dragging = { h, side: 'endMs' }; }
+    else if (selected && selected.kind === 'feedback' && h.kind === 'take') { labels.feedback[selected.i].take = h.i; selected = null; }
+    else selected = { kind: h.kind, i: h.i };
+  } else { pendingSpan = [ms, ms]; dragging = { pending: true }; selected = null; }
+  cv.setPointerCapture(e.pointerId); draw();
+});
+cv.addEventListener('pointermove', e => {
+  if (!dragging) return; const ms = Math.round(msAt(pos(e)[0]));
+  if (dragging.pending) pendingSpan[1] = ms; else dragging.h.arr[dragging.h.i][dragging.side] = ms;
+  draw();
+});
+cv.addEventListener('pointerup', () => {
+  if (dragging && dragging.pending && pendingSpan) { pendingSpan.sort((a, b) => a - b); if (pendingSpan[1] - pendingSpan[0] < 200) pendingSpan = null; }
+  dragging = null; draw();
+});
+window.addEventListener('keydown', e => {
+  if (!labelMode) return; const k = e.key.toLowerCase();
+  if (pendingSpan && 'tfd'.includes(k)) {
+    const s = { startMs: Math.round(pendingSpan[0]), endMs: Math.round(pendingSpan[1]) };
+    if (k === 't') { labels.takes.push(s); labels.takes.sort((a, b) => a.startMs - b.startMs); }
+    if (k === 'f') labels.feedback.push({ ...s, take: null });
+    if (k === 'd') labels.demos.push(s);
+    labels.feedback.sort((a, b) => a.startMs - b.startMs); pendingSpan = null;
+  } else if (selected && (k === 'delete' || k === 'backspace')) {
+    const arr = selected.kind === 'take' ? labels.takes : selected.kind === 'feedback' ? labels.feedback : labels.demos;
+    arr.splice(selected.i, 1);
+    if (selected.kind === 'take') for (const f of labels.feedback) { if (f.take === selected.i) f.take = null; else if (f.take > selected.i) f.take--; }
+    selected = null;
+  } else if (selected && selected.kind === 'feedback' && k === 'n') { labels.feedback[selected.i].take = null; }
+  else return;
+  e.preventDefault(); draw();
+});
+$('copyFound').onclick = () => {
+  if (labels.takes.length && !confirm('Replace your right answers with what the pipeline found?')) return;
+  const idx = Object.fromEntries(D.takes.map((t, i) => [t.id, i]));
+  labels = { lessonId: D.lessonId, notes: labels.notes || '',
+    takes: D.takes.map(t => ({ startMs: t.startMs, endMs: t.endMs })),
+    feedback: D.feedback.map(f => ({ startMs: f.startMs, endMs: f.endMs, take: f.takeId ? idx[f.takeId] : null })),
+    demos: D.feedback.flatMap(f => f.demos.map(d => ({ startMs: d.startMs, endMs: d.endMs }))) };
+  draw();
+};
+$('save').onclick = () => {
+  const text = JSON.stringify(labels, null, 1);
+  if (window.CueNote && window.CueNote.saveLabels) { window.CueNote.saveLabels(text); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = 'labels.json'; a.click();
+};
+$('load').onchange = async e => { const f = e.target.files[0]; if (f) { labels = JSON.parse(await f.text()); labels.demos ||= []; draw(); } };
+
+// ---------------- tables ----------------
+function renderTables() {
+  if (D.score) {
+    const s = D.score, pct = v => Math.round(v * 100) + '%';
+    $('scoreBox').innerHTML = `<h2 style="font-size:15px">Score against the right answers</h2>
+      <p class="score">Links right: <b>${pct(s.linkAccuracy)}</b> (${s.linkCorrect} of ${s.linkTotal}) ·
+      Takes found: <b>${pct(s.takeRecall)}</b> · Takes that were real: <b>${pct(s.takePrecision)}</b> ·
+      Take edges off by ${(s.takeBoundaryErrorMs / 1000).toFixed(1)} s on average
+      ${s.labelAccuracy != null ? ' · Moments labelled right: <b>' + pct(s.labelAccuracy) + '</b>' : ''}</p>
+      ${s.mistakes.length ? '<ul class="mistakes">' + s.mistakes.map(m => `<li>${m}</li>`).join('') + '</ul>' : ''}`;
+  }
+  $('stages').innerHTML = '<tr><th>Stage</th><th>Result</th><th>Took</th><th></th></tr>' + D.state.stages.map(s =>
+    `<tr><td>${s.stage}</td><td>${s.status}</td><td>${((s.finishedAt - s.startedAt) / 1000).toFixed(1)} s</td><td class="muted">${s.detail}</td></tr>`).join('');
+  const words = (a, b) => D.transcript.filter(l => l.startMs < b && l.endMs > a)
+    .map(l => `<div class="t-${l.speaker}">${l.speaker === 'teacher' ? 'Teacher' : 'Student'}: ${l.text}</div>`).join('');
+  const time = ms => `<a class="time" onclick="playFrom(${ms})">${clock(ms)}</a>`;
+  const rows = [];
+  const opening = D.feedback.filter(f => !f.takeId);
+  for (const f of opening) rows.push(`<tr><td>Not about a take</td><td>${time(f.startMs)}</td><td>${words(f.startMs, f.endMs) || '<span class="muted">(no words)</span>'}<div class="muted">${f.linkReason}</div></td></tr>`);
+  D.takes.forEach((t, i) => {
+    const fbs = D.feedback.filter(f => f.takeId === t.id);
+    rows.push(`<tr><td><b>Take ${i + 1}</b>${t.withPiano ? ' ♪' : ''}<div class="muted">${((t.endMs - t.startMs) / 1000).toFixed(1)} s</div></td><td>${time(t.startMs)}</td><td>` +
+      (fbs.map(f => `<div style="margin-bottom:6px">${words(f.startMs, f.endMs) || '<span class="muted">(no words)</span>'}` +
+        f.demos.map(d => `<div class="muted">Demo at ${time(d.startMs)}${d.takeId ? `, models ${clock(d.phraseStartMs)}–${clock(d.phraseEndMs)} of take ${(D.takes.findIndex(x => x.id === d.takeId)) + 1}` : ''}</div>`).join('') +
+        `<div class="muted">${f.linkReason}, confidence ${Math.round(f.linkConfidence * 100)}%</div></div>`).join('') || '<span class="muted">No feedback</span>') + '</td></tr>');
+  });
+  $('cards').innerHTML = '<tr><th>Take</th><th>At</th><th>Feedback</th></tr>' + rows.join('');
+}
+renderTables();
+resize();
+</script>
+</body>
+</html>
