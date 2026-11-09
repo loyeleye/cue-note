@@ -88,6 +88,10 @@ export interface Api {
   acceptInvite(shareId: string): Promise<void>;
   getStudent(studentId: string): Promise<{ student: Profile; share: Share } | null>;
   setNextLesson(shareId: string, at: string | null): Promise<void>;
+  /** The teacher's "only my lessons" view setting for one student. */
+  setShowOnlyTaught(shareId: string, on: boolean): Promise<void>;
+  /** "This was my lesson" (mine = true), or take that mark off. */
+  claimLesson(lessonId: string, mine: boolean): Promise<void>;
   /** Every teacher of this student, named as this viewer may see them. */
   listTeachers(studentId: string): Promise<Teacher[]>;
   updateMe(patch: IdentityPatch): Promise<Profile>;

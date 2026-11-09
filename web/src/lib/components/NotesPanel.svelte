@@ -9,8 +9,13 @@
   import Who from './Who.svelte';
   import VoiceRecorder from './VoiceRecorder.svelte';
 
-  let { studentId, lessonId = null, lessons = [] }:
-    { studentId: string; lessonId?: string | null; lessons?: Lesson[] } = $props();
+  let { studentId, lessonId = null, lessons = [], keep = () => true }: {
+    studentId: string;
+    lessonId?: string | null;
+    lessons?: Lesson[];
+    /** Hides notes, for a teacher who shows only their own lessons. */
+    keep?: (n: Comment) => boolean;
+  } = $props();
 
   let notes = $state<Comment[]>([]);
   let body = $state('');
@@ -19,7 +24,7 @@
   let error = $state('');
   let recorder: VoiceRecorder | undefined = $state();
 
-  const shown = $derived(lessonId ? notes.filter((n) => n.lesson_id === lessonId) : notes);
+  const shown = $derived((lessonId ? notes.filter((n) => n.lesson_id === lessonId) : notes).filter((n) => keep(n)));
 
   // Who wrote each note, when the student has more than one teacher.
   let teachers = $state<Teacher[]>([]);

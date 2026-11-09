@@ -183,9 +183,10 @@ export function initialDemoState(): DemoState {
         status: 'pending', next_lesson_at: null, created_at: ago(1) }
     ],
     lessons: [
-      { id: L1, student_id: SAM, recorded_at: ago(4), duration_ms: min(52), pipeline_state: 'cards_ready' },
-      { id: L2, student_id: SAM, recorded_at: ago(11), duration_ms: min(48), pipeline_state: 'cards_ready' },
-      { id: L3, student_id: PRIYA, recorded_at: ago(6, 10), duration_ms: min(30), pipeline_state: 'cards_ready' }
+      { id: L1, student_id: SAM, recorded_at: ago(4), duration_ms: min(52), pipeline_state: 'cards_ready', taught_by: DEMO_TEACHER.id },
+      // Lark taught this one; "Only my lessons" hides it.
+      { id: L2, student_id: SAM, recorded_at: ago(11), duration_ms: min(48), pipeline_state: 'cards_ready', taught_by: DEMO_COTEACHER.id },
+      { id: L3, student_id: PRIYA, recorded_at: ago(6, 10), duration_ms: min(30), pipeline_state: 'cards_ready', taught_by: null }
     ],
     takes,
     feedback,

@@ -6,8 +6,13 @@
   import { weekLabel, weekOf } from '$lib/format';
   import type { Feedback, PracticeItem } from '$lib/types';
 
-  let { studentId, cards = [], lessonId = null }:
-    { studentId: string; cards?: Feedback[]; lessonId?: string | null } = $props();
+  let { studentId, cards = [], lessonId = null, keep = () => true }: {
+    studentId: string;
+    cards?: Feedback[];
+    lessonId?: string | null;
+    /** Hides items, for a teacher who shows only their own lessons. */
+    keep?: (p: PracticeItem) => boolean;
+  } = $props();
 
   let items = $state<PracticeItem[]>([]);
   let body = $state('');
@@ -25,7 +30,7 @@
 
   const groups = $derived.by(() => {
     const by = new Map<string, PracticeItem[]>();
-    for (const it of items) {
+    for (const it of items.filter((i) => keep(i))) {
       const k = it.due_week ?? '';
       by.set(k, [...(by.get(k) ?? []), it]);
     }

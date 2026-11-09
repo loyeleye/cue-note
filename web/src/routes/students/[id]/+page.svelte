@@ -4,9 +4,11 @@
   import { page } from '$app/state';
   import { api, app } from '$lib/app.svelte';
   import { date, minutes } from '$lib/format';
-  import type { Feedback, Lesson, Profile, Share, Song } from '$lib/types';
+  import { findTeacher } from '$lib/people';
+  import type { Comment, Feedback, Lesson, PracticeItem, Profile, Share, Song, Teacher } from '$lib/types';
   import NotesPanel from '$lib/components/NotesPanel.svelte';
   import PracticePanel from '$lib/components/PracticePanel.svelte';
+  import Who from '$lib/components/Who.svelte';
 
   const id = $derived(page.params.id!);
   const TABS = ['lessons', 'songs', 'notes', 'practice'] as const;
@@ -21,16 +23,20 @@
   let newTitle = $state('');
   let newComposer = $state('');
   let nextLesson = $state('');
+  let teachers = $state<Teacher[]>([]);
+  let onlyMine = $state(false);
 
   $effect(() => {
     if (!app.me) return;
     const sid = id;
     api().getStudent(sid).then((s) => {
       student = s;
+      onlyMine = !!s?.share.show_only_taught;
       nextLesson = s?.share.next_lesson_at ? toLocalInput(s.share.next_lesson_at) : '';
     });
     api().listLessons(sid).then((l) => (lessons = l));
     api().listSongs(sid).then((s) => (songs = s));
+    api().listTeachers(sid).then((t) => (teachers = t));
     api().listStudentFeedback(sid).then((c) => {
       cards = c;
       const counts: Record<string, { total: number; edited: number }> = {};
@@ -41,6 +47,25 @@
       cardCounts = counts;
     });
   });
+
+  const me = $derived(app.me?.id ?? null);
+  // With "Only my lessons", lessons someone else taught drop out, along with
+  // their cards and the notes and practice that belong to them. Lessons whose
+  // teacher isn't known yet stay, so they can be claimed.
+  const mineOrUnknown = (l: Lesson) => !l.taught_by || l.taught_by === me;
+  const shownLessons = $derived(onlyMine ? lessons.filter(mineOrUnknown) : lessons);
+  const hiddenCount = $derived(lessons.length - shownLessons.length);
+  const shownIds = $derived(new Set(shownLessons.map((l) => l.id)));
+  const shownCards = $derived(onlyMine ? cards.filter((c) => shownIds.has(c.lesson_id)) : cards);
+  const keepNote = (n: Comment | PracticeItem) =>
+    !onlyMine || n.author_id === me || (n.lesson_id != null && shownIds.has(n.lesson_id));
+  const coTeachers = $derived(teachers.length > 1);
+
+  async function toggleOnlyMine() {
+    if (!student) return;
+    onlyMine = !onlyMine;
+    await api().setShowOnlyTaught(student.share.id, onlyMine);
+  }
 
   function toLocalInput(iso: string) {
     const d = new Date(iso);
@@ -78,6 +103,18 @@
     </label>
   </div>
 
+  {#if student.share.restricted_to_taught}
+    <p class="limit">{student.student.display_name || 'This student'} shares only the lessons you teach with you.</p>
+  {:else if coTeachers}
+    <label class="only-mine">
+      <input type="checkbox" checked={onlyMine} onchange={toggleOnlyMine} />
+      <span>Only my lessons</span>
+      <span class="muted small">
+        {#if onlyMine && hiddenCount}{hiddenCount} {hiddenCount === 1 ? 'lesson' : 'lessons'} by other teachers hidden, with their notes and practice{:else}Hide lessons other teachers taught{/if}
+      </span>
+    </label>
+  {/if}
+
   <nav class="tabs" aria-label="Student sections">
     {#each TABS as t (t)}
       <a href="#{t}" aria-current={tab === t ? 'page' : undefined}>{t[0].toUpperCase() + t.slice(1)}</a>
@@ -85,18 +122,22 @@
   </nav>
 
   {#if tab === 'lessons'}
-    {#if !lessons.length}
-      <p class="muted">No lessons yet. They appear here once the phone has processed a recording.</p>
+    {#if !shownLessons.length}
+      <p class="muted">{lessons.length ? 'None of the lessons are yours. Switch off “Only my lessons” to see them all.' : 'No lessons yet. They appear here once the phone has processed a recording.'}</p>
     {:else}
       <ul class="list">
-        {#each lessons as l (l.id)}
+        {#each shownLessons as l (l.id)}
           <li>
             <a class="card row" href="/lessons/{l.id}">
               <span>
                 <strong>{date(l.recorded_at, { weekday: 'long', month: 'long', day: 'numeric' })}</strong>
                 <span class="muted"> · {minutes(l.duration_ms)}</span>
               </span>
-              <span class="muted small">
+              <span class="muted small meta">
+                {#if coTeachers}
+                  {#if l.taught_by}<Who teacher={findTeacher(teachers, l.taught_by)} {me} />{:else}<span>Teacher not set</span>{/if}
+                  <span>·</span>
+                {/if}
                 {cardCounts[l.id]?.total ?? 0} cards · {STATE_LABEL[l.pipeline_state] ?? l.pipeline_state}
               </span>
             </a>
@@ -110,7 +151,7 @@
         <li>
           <a class="card row" href="/songs/{s.id}">
             <span><strong>{s.title}</strong>{#if s.composer}<span class="muted"> · {s.composer}</span>{/if}</span>
-            <span class="muted small">{cards.filter((c) => c.song_id === s.id).length} cues</span>
+            <span class="muted small">{shownCards.filter((c) => c.song_id === s.id).length} cues</span>
           </a>
         </li>
       {:else}
@@ -126,9 +167,9 @@
       </div>
     </form>
   {:else if tab === 'notes'}
-    <NotesPanel studentId={id} {lessons} />
+    <NotesPanel studentId={id} {lessons} keep={keepNote} />
   {:else}
-    <PracticePanel studentId={id} {cards} />
+    <PracticePanel studentId={id} cards={shownCards} keep={keepNote} />
   {/if}
 {:else}
   <p class="muted">Loading…</p>
@@ -144,6 +185,10 @@
   .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; text-decoration: none; color: inherit; }
   .row:hover { border-color: var(--accent); }
   .small { font-size: 13px; }
+  .meta { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .only-mine { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; font-weight: 600; font-size: 14px; }
+  .only-mine .muted { font-weight: 400; }
+  .limit { margin: 12px 0 0; font-size: 13px; background: var(--chip); border-radius: 8px; padding: 8px 10px; }
   .add-song { margin-top: 16px; }
   .fields { display: flex; gap: 8px; flex-wrap: wrap; }
   .fields input { flex: 1 1 180px; }

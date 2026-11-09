@@ -10,7 +10,7 @@ import {
 } from './demo-data';
 import { wavFor } from './tone';
 
-const KEY = 'cuenote-demo-state-v2';
+const KEY = 'cuenote-demo-state-v3';
 let state: DemoState | null = null;
 const memoryFiles = new Map<string, string>();     // big uploads, this tab only
 const toneUrls = new Map<string, string>();
@@ -118,6 +118,25 @@ export const demoApi: Api = {
   async setNextLesson(shareId, at) {
     const sh = load().shares.find((x) => x.id === shareId);
     if (sh) sh.next_lesson_at = at;
+    save();
+  },
+
+  async setShowOnlyTaught(shareId, on) {
+    const sh = mine(load()).find((x) => x.id === shareId);
+    if (sh) sh.show_only_taught = on;
+    save();
+  },
+
+  async claimLesson(lessonId, isMine) {
+    await wait();
+    const l = load().lessons.find((x) => x.id === lessonId);
+    if (!l) throw new Error('lesson not found');
+    if (isMine) {
+      if (l.taught_by && l.taught_by !== DEMO_TEACHER.id) throw new Error('another teacher is already marked on this lesson');
+      l.taught_by = DEMO_TEACHER.id;
+    } else if (l.taught_by === DEMO_TEACHER.id) {
+      l.taught_by = null;
+    }
     save();
   },
 
