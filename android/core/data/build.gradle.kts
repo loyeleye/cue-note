@@ -36,7 +36,7 @@ kotlin { jvmToolchain(17) }
 dependencies {
     api(project(":core:audio"))
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.room.runtime)
+    api(libs.androidx.room.runtime) // LessonDatabase is a RoomDatabase, used by :app
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(platform(libs.supabase.bom))
