@@ -29,7 +29,9 @@ import com.cuenote.audio.RecordingState
 import com.cuenote.data.InvitedTeacher
 import com.cuenote.lesson.LessonScreen
 import com.cuenote.lesson.TimelineScreen
+import com.cuenote.posture.PostureSetup
 import com.cuenote.record.ConsentScreen
+import com.cuenote.record.FramingCheckScreen
 import com.cuenote.record.HomeScreen
 import com.cuenote.record.InviteTeachersScreen
 import com.cuenote.record.RecordingScreen
@@ -89,13 +91,34 @@ private fun AppNav(app: CueNoteApp) {
     }
     fun withPermission(then: () -> Unit) { afterPermission.value = then; permissions.launch(runtimePermissions) }
 
+    // The camera is asked for only when a lesson tracks posture. Without it, the lesson records audio only.
+    val afterCamera = remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) Toast.makeText(app, "No camera, so this lesson records audio only.", Toast.LENGTH_LONG).show()
+        afterCamera.value?.invoke(granted)
+    }
+
     // A sign-in link that fails or is still exchanging shows on the sign-in screen.
     LaunchedEffect(linkStatus) {
         if (linkStatus != null && nav.currentDestination?.route != "signin") nav.navigate("signin")
     }
 
-    // Consent given, waiting on the who's-on-which-mic step: (consentAt, teacherId).
-    val pendingLesson = remember { mutableStateOf<Pair<Long, String?>?>(null) }
+    // Consent given, waiting on the who's-on-which-mic step (and the framing check, with posture).
+    val pendingLesson = remember { mutableStateOf<PendingLesson?>(null) }
+
+    fun startLesson(posture: PostureSetup?) {
+        val p = pendingLesson.value ?: return
+        pendingLesson.value = null
+        scope.launch {
+            val lesson = app.lessons.create(p.consentAt)
+            app.lessonTeachers.set(lesson.id, p.teacherId)
+            if (p.teacherId != null) app.lessonTeachers.lastPicked = p.teacherId
+            val dir = app.lessons.lessonDir(lesson.id)
+            RecordingService.start(app, lesson.id, dir)
+            if (posture != null) app.posture.begin(lesson.id, dir, posture)
+            nav.navigate("recording/${lesson.id}") { popUpTo("home") }
+        }
+    }
 
     NavHost(nav, startDestination = "home") {
         composable("home") {
@@ -158,9 +181,17 @@ private fun AppNav(app: CueNoteApp) {
                 teachers = teachers,
                 lastPicked = app.lessonTeachers.lastPicked,
                 onCancel = { nav.popBackStack() },
-                onConsented = { consentAt, teacherId ->
-                    pendingLesson.value = consentAt to teacherId
-                    nav.navigate("whoiswho")
+                onConsented = { consentAt, teacherId, posture ->
+                    if (!posture) {
+                        pendingLesson.value = PendingLesson(consentAt, teacherId, posture = false)
+                        nav.navigate("whoiswho")
+                    } else {
+                        afterCamera.value = { granted ->
+                            pendingLesson.value = PendingLesson(consentAt, teacherId, posture = granted)
+                            nav.navigate("whoiswho")
+                        }
+                        cameraPermission.launch(Manifest.permission.CAMERA)
+                    }
                 },
             )
         }
@@ -169,16 +200,17 @@ private fun AppNav(app: CueNoteApp) {
             WhoIsWhoScreen(
                 onCancel = { nav.popBackStack("home", false) },
                 onReady = {
-                    val (consentAt, teacherId) = pendingLesson.value ?: return@WhoIsWhoScreen
-                    pendingLesson.value = null
-                    scope.launch {
-                        val lesson = app.lessons.create(consentAt)
-                        app.lessonTeachers.set(lesson.id, teacherId)
-                        if (teacherId != null) app.lessonTeachers.lastPicked = teacherId
-                        RecordingService.start(app, lesson.id, app.lessons.lessonDir(lesson.id))
-                        nav.navigate("recording/${lesson.id}") { popUpTo("home") }
-                    }
+                    if (pendingLesson.value?.posture == true) nav.navigate("framing") { popUpTo("consent") }
+                    else startLesson(null)
                 },
+            )
+        }
+        // With posture: make sure the camera can see the student at their singing spot.
+        composable("framing") {
+            FramingCheckScreen(
+                onReady = { setup -> startLesson(setup) },
+                onSkip = { startLesson(null) },
+                onCancel = { pendingLesson.value = null; nav.popBackStack("home", false) },
             )
         }
         composable("recording/{id}") { entry ->
@@ -196,3 +228,5 @@ private fun AppNav(app: CueNoteApp) {
         composable("signin") { SignInScreen(app.auth, email, linkStatus, onBack = { nav.popBackStack() }) }
     }
 }
+
+private data class PendingLesson(val consentAt: Long, val teacherId: String?, val posture: Boolean)

@@ -25,15 +25,19 @@ class CueNoteApp : Application() {
     lateinit var auth: AuthRepository private set
     lateinit var shares: ShareRepository private set
     lateinit var lessonTeachers: LessonTeacherStore private set
+    lateinit var posture: PostureLink private set
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
+        // The posture camera runs in its own process; it needs none of this.
+        if (getProcessName().endsWith(":posture")) return
         lessons = LessonDatabase.get(this).let { db -> LessonRepository(this, db.lessons(), db.pipeline()) }
         consent = ConsentStore(this)
         auth = AuthRepository.create()
         shares = ShareRepository(auth)
         lessonTeachers = LessonTeacherStore(this)
+        posture = PostureLink(this, scope)
 
         scope.launch {
             RecordingSession.state.collect { s ->

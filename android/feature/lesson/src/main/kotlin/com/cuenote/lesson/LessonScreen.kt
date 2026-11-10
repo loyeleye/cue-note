@@ -84,6 +84,7 @@ fun LessonScreen(
                 }
                 if (hasTimeline) TextButton(onClick = onOpenTimeline) { Text("Open the debug timeline") }
             }
+            postureSection(File(lesson.dirPath))
             if (stages.isNotEmpty()) item { Text("Stages", style = MaterialTheme.typography.titleMedium) }
             items(stages, key = { "s-" + it.stage }) { s ->
                 Text("${s.stage}: ${s.status} in ${(s.finishedAt - s.startedAt) / 1000} s. ${s.detail}", style = MaterialTheme.typography.bodySmall)

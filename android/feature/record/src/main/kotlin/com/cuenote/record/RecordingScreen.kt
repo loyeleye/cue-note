@@ -117,6 +117,7 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
             }
             if ((rec?.gaps ?: 0) > 0) Text("${rec!!.gaps} audio gaps so far", color = StageWarn)
             Text("${rec?.marks ?: 0} marks · ${rec?.photos ?: 0} photos", color = StageMuted)
+            PostureLine()
         }
 
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
