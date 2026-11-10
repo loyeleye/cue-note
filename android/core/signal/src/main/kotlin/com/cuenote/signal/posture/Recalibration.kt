@@ -71,7 +71,7 @@ class BaselineSettler(private val previous: PostureMetrics, private val holdMs: 
     private val held = mutableListOf<PostureMetrics>()
 
     fun onFrame(tMs: Long, pose: Pose?): PostureMetrics? {
-        val m = pose?.let(PostureMetrics::of)
+        val m = pose?.let { PostureMetrics.of(it, previous.view) }
         // Head and shoulders clearly seen and facing the phone. Off center is fine: the camera may now point elsewhere.
         val good = m != null && !m.turnedAwayFrom(previous, keep = 0.7f)
         if (!good) { sinceMs = -1; held.clear(); return null }

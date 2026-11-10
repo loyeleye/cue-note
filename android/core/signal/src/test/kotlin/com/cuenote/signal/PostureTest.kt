@@ -345,3 +345,81 @@ class VoiceLineTest {
         FramingAdvice.entries.forEach { assertEquals(it.line.text, it.spoken) }
     }
 }
+
+/** A student side-on to a portrait camera, facing the right of the picture, left side nearest. */
+object SidePoses {
+    fun side(dx: Float = 0f, earAhead: Float = 0f, shoulderRise: Float = 0f, chinUp: Float = 0f): com.cuenote.signal.posture.Pose {
+        val l = MutableList(com.cuenote.signal.posture.Pose.COUNT) { com.cuenote.signal.posture.Landmark(0.5f + dx, 0.6f, 0f, 0.2f) }
+        fun put(i: Int, x: Float, y: Float, v: Float = 0.95f) { l[i] = com.cuenote.signal.posture.Landmark(x + dx, y, 0f, v) }
+        val P = com.cuenote.signal.posture.Pose
+        put(P.NOSE, 0.56f + earAhead, 0.31f - chinUp) // a forward head carries the whole head forward
+        put(P.LEFT_EAR, 0.50f + earAhead, 0.30f)
+        put(P.LEFT_SHOULDER, 0.50f, 0.45f - shoulderRise)
+        put(P.LEFT_HIP, 0.50f, 0.75f)
+        put(P.RIGHT_EAR, 0.51f + earAhead, 0.30f, 0.2f)
+        put(P.RIGHT_SHOULDER, 0.52f, 0.45f - shoulderRise, 0.3f)
+        put(P.RIGHT_HIP, 0.51f, 0.75f, 0.3f)
+        return com.cuenote.signal.posture.Pose(l, aspect = 0.75f)
+    }
+}
+
+class SideViewTest {
+    private val view = com.cuenote.signal.posture.PostureView.SIDE
+    private val baseline = PostureMetrics.of(SidePoses.side(), view)!!
+
+    private fun flagsFor(pose: Pose): List<PostureFlag> {
+        val d = PostureFlagDetector(baseline)
+        var t = 0L
+        val out = mutableListOf<PostureFlagDetector.Event>()
+        while (t < 3_000) { out += d.onFrame(t, PostureMetrics.of(pose, view)); t += 200 }
+        return out.filterIsInstance<PostureFlagDetector.Event.Started>().map { it.flag }
+    }
+
+    @Test fun `side-on, the front view can't measure but the side view can`() {
+        assertNull(PostureMetrics.of(SidePoses.side()))
+        assertNotNull(PostureMetrics.of(SidePoses.side(), view))
+    }
+
+    @Test fun `standing as at the check flags nothing`() = assertTrue(flagsFor(SidePoses.side()).isEmpty())
+
+    @Test fun `the ear moving ahead of the shoulder is chin forward`() =
+        assertEquals(listOf(PostureFlag.CHIN_FORWARD), flagsFor(SidePoses.side(earAhead = 0.04f)))
+
+    @Test fun `raised shoulders are seen side-on too`() =
+        assertEquals(listOf(PostureFlag.SHOULDERS_RAISED), flagsFor(SidePoses.side(shoulderRise = 0.04f)))
+
+    @Test fun `the chin lifting is flagged as lifted or dropped`() =
+        assertEquals(listOf(PostureFlag.CHIN_PITCH), flagsFor(SidePoses.side(chinUp = 0.03f)))
+
+    @Test fun `turning to face the phone mid-lesson isn't judged`() {
+        val facing = Poses.standing() // now square to the phone
+        assertTrue(flagsFor(facing).isEmpty())
+    }
+
+    @Test fun `framing side-on`() {
+        assertEquals(FramingAdvice.IN_FRAME, FramingRules.judge(SidePoses.side(), view))
+        assertEquals(FramingAdvice.TURN_SIDE, FramingRules.judge(Poses.standing(), view))
+        // facing the picture's right and too far left: walk forward
+        assertEquals(FramingAdvice.STEP_FORWARD, FramingRules.judge(SidePoses.side(dx = -0.3f), view))
+        assertEquals(FramingAdvice.STEP_BACKWARD, FramingRules.judge(SidePoses.side(dx = 0.3f), view))
+        assertEquals(FramingAdvice.SIDE_NOT_SEEN, FramingRules.judge(null, view))
+    }
+
+    @Test fun `a side framing check finishes with a side baseline`() {
+        val check = FramingCheck(view)
+        var done: FramingCheck.Step.Done? = null
+        var t = 0L
+        while (t <= 3_000 && done == null) { done = check.onFrame(t, SidePoses.side()) as? FramingCheck.Step.Done; t += 200 }
+        assertEquals(view, done!!.baseline.view)
+        assertEquals(0.5f, done.centerX, 0.02f)
+    }
+
+    @Test fun `a side baseline survives the trip to the camera service`() {
+        assertEquals(baseline, decodePostureMetrics(baseline.encode()))
+    }
+
+    @Test fun `the picker follows a side-on student`() {
+        val picker = StudentPicker(0.5f, 0.45f)
+        assertNotNull(picker.pick(listOf(SidePoses.side()), 0))
+    }
+}

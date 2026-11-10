@@ -86,6 +86,12 @@ adds a camera step after "Who's on which mic?":
 3. **Flags.** *Chin forward* (jutting out or lifting), *shoulders raised* and
    *head tilt*, each compared with the baseline and only after holding for
    about 1.5 seconds. Each flag saves one still snapshot.
+   The framing check offers **Front** or **Side**. Side-on, the phone
+   measures from the near ear, shoulder and hip: *chin forward* is the ear
+   moving ahead of the shoulder (the most reliable view for it), *shoulders
+   raised* the ear-to-shoulder height, and *chin lifted or dropped* the head
+   tipping up or down in place of head tilt. The side-on prompts say
+   forward, backward, nearer and farther instead of left and right.
 4. **When things move.** Moments when the student is turned away from the
    phone aren't judged. If the phone is picked up or moved (the motion sensor
    notices), posture pauses, and once it's still again it quietly takes a

@@ -12,6 +12,13 @@ enum class FramingAdvice(val line: VoiceLine) {
     STEP_BACK(VoiceLine.STEP_BACK),
     STEP_CLOSER(VoiceLine.STEP_CLOSER),
     IN_FRAME(VoiceLine.IN_FRAME),
+    // Side-on: "left" and "right" would mean toward or away from the phone, so these speak in forward, back, nearer, farther.
+    SIDE_NOT_SEEN(VoiceLine.SIDE_NOT_SEEN),
+    TURN_SIDE(VoiceLine.TURN_SIDE),
+    STEP_FORWARD(VoiceLine.STEP_FORWARD),
+    STEP_BACKWARD(VoiceLine.STEP_BACKWARD),
+    MOVE_AWAY(VoiceLine.MOVE_AWAY),
+    MOVE_NEARER(VoiceLine.MOVE_NEARER),
     ;
 
     val spoken: String get() = line.text
@@ -27,6 +34,9 @@ object FramingRules {
     /** Keep the top of the head (well above the nose) and the shoulders inside the picture. */
     const val HEAD_MARGIN = 0.05f
     const val BOTTOM_MARGIN = 0.97f
+
+    fun judge(pose: Pose?, view: PostureView): FramingAdvice =
+        if (view == PostureView.SIDE) SideView.judge(pose) else judge(pose)
 
     fun judge(pose: Pose?): FramingAdvice {
         if (pose == null) return FramingAdvice.NOT_SEEN
@@ -56,6 +66,7 @@ object FramingRules {
  * posture seen then as the student's baseline) or gives up after [timeoutMs].
  */
 class FramingCheck(
+    private val view: PostureView = PostureView.FRONT,
     private val holdMs: Long = 2_000,
     private val timeoutMs: Long = 30_000,
     /** Say the same advice again if nothing changes for this long. */
@@ -75,21 +86,22 @@ class FramingCheck(
     private var finished = false
     private var candidate: FramingAdvice? = null
     private var candidateFrames = 0
-    var advice: FramingAdvice = FramingAdvice.NOT_SEEN
+    var advice: FramingAdvice = if (view == PostureView.SIDE) FramingAdvice.SIDE_NOT_SEEN else FramingAdvice.NOT_SEEN
         private set
 
     fun onFrame(tMs: Long, pose: Pose?): Step? {
         if (finished) return null
         if (startMs < 0) startMs = tMs
-        val a = FramingRules.judge(pose)
+        val a = FramingRules.judge(pose, view)
         advice = a
-        val metrics = pose?.let(PostureMetrics::of)
+        val metrics = pose?.let { PostureMetrics.of(it, view) }
         if (a == FramingAdvice.IN_FRAME && metrics != null) {
             if (inFrameSinceMs < 0) { inFrameSinceMs = tMs; held.clear() }
             held += metrics
             if (tMs - inFrameSinceMs >= holdMs) {
                 finished = true
-                return Step.Done(PostureMetrics.median(held)!!, pose.shoulderCenterX, pose.shoulderCenterY)
+                val (cx, cy) = pose.bodyCenter ?: (pose.shoulderCenterX to pose.shoulderCenterY)
+                return Step.Done(PostureMetrics.median(held)!!, cx, cy)
             }
         } else {
             inFrameSinceMs = -1

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -46,6 +47,7 @@ import com.cuenote.posture.Speaker
 import com.cuenote.posture.withCameraProvider
 import com.cuenote.signal.posture.FramingAdvice
 import com.cuenote.signal.posture.FramingCheck
+import com.cuenote.signal.posture.PostureView
 import com.cuenote.signal.posture.StudentPicker
 import com.cuenote.signal.posture.VoiceLine
 import com.cuenote.signal.posture.rotationFromGravity
@@ -74,6 +76,7 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
     val lifecycle = LocalLifecycleOwner.current
     var state by remember { mutableStateOf<Framing>(Framing.Idle) }
     var front by remember { mutableStateOf(true) }
+    var stance by remember { mutableStateOf(PostureView.FRONT) }
     var attempt by remember { mutableIntStateOf(0) }
     // Which way up the phone is, from gravity, so a phone mounted sideways
     // still gives the pose model upright pictures, even with auto-rotate off.
@@ -113,7 +116,7 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     // A fresh check for each attempt; the frame thread reads whichever is current.
     val run = remember { java.util.concurrent.atomic.AtomicReference(FramingCheck() to StudentPicker(null, null)) }
-    LaunchedEffect(attempt) { run.set(FramingCheck() to StudentPicker(null, null)) }
+    LaunchedEffect(attempt) { run.set(FramingCheck(stance) to StudentPicker(null, null)) }
     val checking = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     val frames = remember {
         PoseFrames(fps = 5) { bmp, ms ->
@@ -168,7 +171,7 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
             is Framing.Countdown -> {
                 if (s.seconds == COUNTDOWN) tts.say(VoiceLine.COUNTDOWN_INTRO)
                 delay(1_000)
-                state = if (s.seconds > 1) Framing.Countdown(s.seconds - 1) else Framing.Checking(FramingAdvice.NOT_SEEN)
+                state = if (s.seconds > 1) Framing.Countdown(s.seconds - 1) else Framing.Checking(if (stance == PostureView.SIDE) FramingAdvice.SIDE_NOT_SEEN else FramingAdvice.NOT_SEEN)
                 if (state is Framing.Checking) checking.set(true)
             }
             is Framing.Done -> { delay(1_500); onReady(s.setup) }
@@ -192,6 +195,18 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
         big?.let { Text(it, fontSize = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
         when (state) {
             Framing.Idle, Framing.TimedOut -> {
+                // Side-on is best for a forward head; facing the phone shows a head tilt.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Student stands", Modifier.weight(1f))
+                    PostureView.entries.forEach { v ->
+                        FilterChip(selected = stance == v, onClick = { stance = v }, label = { Text(v.label) })
+                    }
+                }
+                Text(
+                    if (stance == PostureView.SIDE) "Side-on: watches chin forward, raised shoulders, and the chin lifting or dropping."
+                    else "Facing the phone: watches chin forward, raised shoulders, and head tilt.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Front camera", Modifier.weight(1f))
                     Switch(checked = front, onCheckedChange = { front = it })
