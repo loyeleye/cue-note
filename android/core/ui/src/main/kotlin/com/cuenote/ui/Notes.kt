@@ -219,6 +219,7 @@ fun Masthead(before: String, accent: String, after: String = "", staff: Boolean 
                 append(after)
             },
             style = MaterialTheme.typography.headlineLarge.copy(fontSize = 30.sp, lineHeight = 34.sp),
+            color = MaterialTheme.colorScheme.onBackground,
         )
         if (staff) {
             Spacer(Modifier.height(6.dp))
@@ -274,11 +275,13 @@ fun TicketRow(
             .clip(RoundedCornerShape(14.dp))
             .background(m.surfaceContainerLowest)
             .border(1.dp, m.outlineVariant, RoundedCornerShape(14.dp))
+            .then(if (faded) Modifier.drawWithContent { drawContent(); drawRect(m.background.copy(alpha = 0.4f)) } else Modifier)
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .then(if (faded) Modifier.drawWithContent { drawContent(); drawRect(m.background.copy(alpha = 0.4f)) } else Modifier),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
-        content = content,
-    )
+    ) {
+        // Readable on its own, whatever surface it sits on.
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides m.onSurface) { content() }
+    }
 }

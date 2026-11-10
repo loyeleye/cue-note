@@ -43,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -86,9 +87,29 @@ fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) 
     val s by vm.state.collectAsStateWithLifecycle()
     // Kept as a State: the bars read it every frame without recomposing the screen.
     val live = vm.liveLevels.collectAsStateWithLifecycle()
+    SetupCheckContent(
+        s, live, onDone,
+        onStart = vm::runStep, onRetry = vm::retry, onSkipPiano = vm::skipPiano,
+        onQuietCheck = vm::setQuietCheck, onSwitchChannels = vm::switchChannelsManually,
+    )
+}
+
+/** The soundcheck itself, from its state alone (so it can be previewed). */
+@Composable
+fun SetupCheckContent(
+    s: SetupUiState,
+    live: State<StereoLevels?>,
+    onDone: () -> Unit,
+    onStart: () -> Unit,
+    onRetry: () -> Unit,
+    onSkipPiano: () -> Unit,
+    onQuietCheck: (Boolean) -> Unit,
+    onSwitchChannels: () -> Unit,
+) {
     val m = MaterialTheme.colorScheme
     val total = SetupStep.entries.size
 
+    Surface(Modifier.fillMaxSize(), color = m.background) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -146,7 +167,7 @@ fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) 
         } else {
             val reduced = rememberReducedMotion()
             if (reduced) {
-                NowCard(s, s.step, live, vm::runStep, vm::retry)
+                NowCard(s, s.step, live, onStart, onRetry)
             } else {
                 AnimatedContent(
                     targetState = s.step,
@@ -155,11 +176,11 @@ fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) 
                             .togetherWith(fadeOut(tween(200)))
                     },
                     label = "step",
-                ) { step -> NowCard(s, step, live, vm::runStep, vm::retry) }
+                ) { step -> NowCard(s, step, live, onStart, onRetry) }
             }
             UpNext(s.step)
             if (s.step.ordinal >= SetupStep.PIANO_ALONE.ordinal && s.phase != StepPhase.LISTENING) {
-                TextButton(onClick = vm::skipPiano) { Text("No piano today? Skip this one") }
+                TextButton(onClick = onSkipPiano) { Text("No piano today? Skip this one") }
             }
         }
 
@@ -170,17 +191,18 @@ fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) 
                 Text("Quiet soundcheck", style = MaterialTheme.typography.titleSmall)
                 Text("No chime between steps", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
-            Switch(checked = s.quietCheck, onCheckedChange = vm::setQuietCheck)
+            Switch(checked = s.quietCheck, onCheckedChange = onQuietCheck)
         }
 
         TextButton(
-            onClick = vm::switchChannelsManually,
+            onClick = onSwitchChannels,
             enabled = s.phase == StepPhase.IDLE || s.phase == StepPhase.FAILED || s.done,
         ) { Text("Switch student and teacher channels") }
         if (!s.done) {
             TextButton(onClick = onDone) { Text("Skip the check for today") }
         }
         Spacer(Modifier.height(8.dp))
+    }
     }
 }
 
@@ -223,7 +245,7 @@ private fun DoneRow(s: SetupUiState) {
     TicketRow {
         Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = m.primary)
         Column(Modifier.weight(1f)) {
-            Text(if (done.size == 1) "Done: ${done[0].title.lowerFirst()}" else "${done.size} steps done", style = MaterialTheme.typography.titleSmall)
+            Text(if (done.size == 1) "Done: ${done[0].title}" else "${done.size} steps done", style = MaterialTheme.typography.titleSmall)
             if (done.size > 1) {
                 Text(done.joinToString(" · ") { it.title }, color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, maxLines = 1)
             }
