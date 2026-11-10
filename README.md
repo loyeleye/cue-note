@@ -6,7 +6,8 @@ cards; the teacher corrects those cards and sets practice from a web dashboard.
 
 The full design is in the project's design doc. This repository is built in
 milestones; **M1 (foundations and recorder)**, **M2 (the on-phone pipeline)**,
-**M3 (cards)** and **M4 (teacher dashboard)** are here so far.
+**M3 (cards)**, **M4 (teacher dashboard)** and the posture part of **M5** are
+here so far.
 
 ### Several teachers on one student
 
@@ -43,6 +44,7 @@ enforces it. The phone sends who taught each lesson when it uploads it.
 | `:core:audio`     | USB mic selection and the foreground recording service (48 kHz stereo, 30 s chunks, screen off). |
 | `:core:ml`        | Pure Kotlin wrappers for the models, behind two interfaces: voice detection (Silero) and speech to text (whisper.cpp), plus the model downloader. The C++ bridge lives in `src/main/cpp`. |
 | `:core:ml-android`| Builds that C++ (whisper.cpp v1.8.7 and its Silero) for the phone with the NDK. |
+| `:core:posture`   | Posture tracking: the camera service (its own process, so it can never stop the audio) running MediaPipe Pose, and the camera frames the framing check shares. The rules (framing, flags, singing, back-off) are pure Kotlin in `:core:signal`. |
 | `:core:pipeline`  | Pure Kotlin: the after-lesson pipeline (pitch, five-label segmenter, takes and feedback, transcription, linker), the debug timeline page, the golden-set scorer, synthetic lessons and a laptop runner. |
 | `:core:data`      | Room database of lessons and pipeline results, consent, magic-link sign-in (supabase-kt), the background processing job. |
 | `:feature:record` | Home, consent, setup check, recording and sign-in screens. |
@@ -64,6 +66,41 @@ not clip, and that the student's soft singing stays above the piano.
 Each lesson is saved on the phone as `lessons/<id>/audio/chunk_00000.wav, …`,
 `events.tsv` (marks, photos, gaps, mic changes) and `summary.tsv`. **Export to
 Downloads** copies a lesson to `Downloads/CueNote/<id>/` for moving to a laptop.
+
+### Posture (optional, per lesson)
+
+Ticking **Track posture this lesson** on the consent screen (off by default)
+adds a camera step after "Who's on which mic?":
+
+1. **Framing check.** Put the phone where it stays for the lesson and tap
+   *Start the check*. The student walks to their singing spot during a
+   five-second countdown, and the phone talks them into place ("step a little
+   to your left", "come a step closer"). After two seconds in frame it says
+   "You're all set" and starts recording. How the student stands then is the
+   baseline for the flags. After 30 seconds it gives up and offers *Try again*
+   or *Record without posture*.
+2. **During the lesson.** A camera service runs MediaPipe Pose on the phone at
+   about 5 frames a second, only while the student's mic shows singing (it
+   switches off after 8 seconds of quiet). It tracks only the student, even
+   if the teacher is in view. The screen stays on, dimmed right down.
+3. **Flags.** *Chin forward* (jutting out or lifting), *shoulders raised* and
+   *head tilt*, each compared with the baseline and only after holding for
+   about 1.5 seconds. Each flag saves one still snapshot.
+4. **Audio always wins.** Posture pauses when the phone gets warm (Android's
+   thermal status "moderate" or worse, until it has cooled for a minute) and
+   for 3 minutes after any audio gap; after two gaps it stays off for the
+   lesson. It runs in its own process, so a camera crash can't stop the
+   recording.
+
+Files, in `lessons/<id>/posture/`: `pose.tsv` (the student's 33 body points
+per frame), `events.tsv` (camera on and off, pauses, flags) and
+`flag_<seconds>_<kind>.jpg`. No video is ever saved, and none of it is
+uploaded. The lesson screen shows minutes watched, pauses and each flag with
+its snapshot.
+
+**Before using posture in a real lesson:** record a 60-minute test lesson
+with posture on (phone on the wireless charger, screen dimmed), sing on and
+off through it, and check the lesson list says **No gaps**.
 
 ## Running things
 

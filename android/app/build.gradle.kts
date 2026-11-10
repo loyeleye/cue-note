@@ -17,6 +17,8 @@ android {
         val build = System.getenv("CUENOTE_BUILD_NUMBER")?.toIntOrNull()
         versionCode = build ?: 2
         versionName = if (build != null) "0.2.$build" else "0.2.0-dev"
+        // The Pixel is arm64; x86_64 is for the emulator. Keeps the pose model's native code from bloating the APK.
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     // CI signs with one fixed key (from GitHub secrets) so each new APK
@@ -51,6 +53,7 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 
 dependencies {
     implementation(project(":core:data"))
+    implementation(project(":core:posture"))
     implementation(project(":feature:record"))
     implementation(project(":feature:lesson"))
     implementation(libs.androidx.core.ktx)

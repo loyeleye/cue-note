@@ -143,6 +143,7 @@ fun LessonScreen(
                 items(takes, key = { it.id }) { t -> FoundCard(t, feedback.filter { it.takeId == t.id }) }
             }
 
+            postureSection(File(lesson.dirPath))
             item {
                 HorizontalDivider()
                 TextButton(onClick = { showDetails = !showDetails }) { Text(if (showDetails) "Hide details" else "Details") }

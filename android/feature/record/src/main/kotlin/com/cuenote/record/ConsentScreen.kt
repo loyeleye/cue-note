@@ -33,13 +33,16 @@ import com.cuenote.data.InvitedTeacher
  * With more than one teacher, the student also says who is teaching today,
  * so each teacher can be shown only their own lessons. [teachers] are the
  * active ones; with one, they're picked without asking.
+ *
+ * Posture tracking is a separate opt-in for each lesson, off by default,
+ * for when the student or teacher asks for it.
  */
 @Composable
 fun ConsentScreen(
     store: ConsentStore,
     teachers: List<InvitedTeacher>,
     lastPicked: String?,
-    onConsented: (consentAt: Long, teacherId: String?) -> Unit,
+    onConsented: (consentAt: Long, teacherId: String?, posture: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
     var setup by rememberSaveable { mutableStateOf(store.firstSetup() != null) }
@@ -53,6 +56,7 @@ fun ConsentScreen(
             },
         )
     }
+    var posture by rememberSaveable { mutableStateOf(false) }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
     ) {
@@ -83,8 +87,13 @@ fun ConsentScreen(
                 }
             }
             Spacer(Modifier.padding(8.dp))
-            Button(onClick = { onConsented(System.currentTimeMillis(), picked) }, modifier = Modifier.fillMaxWidth()) {
-                Text("We both agree: start recording")
+            AgreeRow(posture, { posture = it }, "Track posture this lesson")
+            if (posture) {
+                Text(POSTURE_TEXT, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 12.dp))
+            }
+            Spacer(Modifier.padding(8.dp))
+            Button(onClick = { onConsented(System.currentTimeMillis(), picked, posture) }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (posture) "We both agree: record, with posture" else "We both agree: start recording")
             }
         }
         TextButton(onClick = onCancel) { Text("Cancel") }
@@ -115,3 +124,7 @@ private fun AgreeRow(checked: Boolean, onChange: (Boolean) -> Unit, label: Strin
         Text(label)
     }
 }
+
+private val POSTURE_TEXT = """
+    The phone's camera watches the student while they sing, and works out body points (head, shoulders, hips) on the phone. No video is saved. A still photo is kept when it flags chin forward, raised shoulders or a head tilt. Only the student is tracked, though the teacher can appear in a flagged photo if they're in view. All of it stays on this phone.
+""".trimIndent()
