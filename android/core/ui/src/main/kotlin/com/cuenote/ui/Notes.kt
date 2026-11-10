@@ -240,9 +240,12 @@ fun TopicChip(topic: Topic?, label: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** The plum Start button with the brass record dot, the same in light and dark. */
+/**
+ * The plum Start button, the same in light and dark. The brass record dot
+ * shows only when the button leads to recording; [dot] = false for any other step.
+ */
 @Composable
-fun StartButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun StartButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, dot: Boolean = true) {
     Row(
         modifier
             .defaultMinSize(minHeight = 52.dp)
@@ -253,8 +256,10 @@ fun StartButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifie
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Box(Modifier.size(12.dp).background(Brass, CircleShape))
-        Spacer(Modifier.width(10.dp))
+        if (dot) {
+            Box(Modifier.size(12.dp).background(Brass, CircleShape))
+            Spacer(Modifier.width(10.dp))
+        }
         Text(label, color = Color.White, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
     }
 }
