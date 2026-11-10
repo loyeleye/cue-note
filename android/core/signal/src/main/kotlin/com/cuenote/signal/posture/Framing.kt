@@ -5,13 +5,16 @@ package com.cuenote.signal.posture
  * spot. Directions are the student's own left and right: the camera faces
  * them, so someone on the left of the picture needs to step to their left.
  */
-enum class FramingAdvice(val spoken: String) {
-    NOT_SEEN("I can't see you yet. Stand where you'll sing, facing the phone."),
-    STEP_LEFT("Step a little to your left."),
-    STEP_RIGHT("Step a little to your right."),
-    STEP_BACK("Step back a little, so I can see your head and shoulders."),
-    STEP_CLOSER("Come a step closer."),
-    IN_FRAME("That's good. Stand tall and hold still."),
+enum class FramingAdvice(val line: VoiceLine) {
+    NOT_SEEN(VoiceLine.NOT_SEEN),
+    STEP_LEFT(VoiceLine.STEP_LEFT),
+    STEP_RIGHT(VoiceLine.STEP_RIGHT),
+    STEP_BACK(VoiceLine.STEP_BACK),
+    STEP_CLOSER(VoiceLine.STEP_CLOSER),
+    IN_FRAME(VoiceLine.IN_FRAME),
+    ;
+
+    val spoken: String get() = line.text
 }
 
 object FramingRules {
