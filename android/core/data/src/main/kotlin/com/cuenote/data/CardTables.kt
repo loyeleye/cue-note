@@ -1,6 +1,7 @@
 package com.cuenote.data
 
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -65,8 +66,29 @@ data class CardEntity(
 /** How many cards a lesson has, and how many she marked to practice. */
 data class CardCount(val lessonId: String, val cards: Int, val practice: Int)
 
+/** A card with its lesson's date and the two clips a setlist row plays. */
+data class SetlistRow(
+    @Embedded val card: CardEntity,
+    val recordedAt: Long,
+    /** The teacher's words: the clip of the feedback block, if cut. */
+    val wordsFile: String?,
+    /** The student's take the card is about, if cut. */
+    val takeFile: String?,
+)
+
 @Dao
 interface CardDao {
+    /** Every card with a cue, newest lesson first; the setlist is picked from these. */
+    @Query(
+        """select card.*, lesson.recordedAt as recordedAt,
+           (select file from clip where clip.id = card.id) as wordsFile,
+           (select file from clip where clip.id = card.takeId) as takeFile
+           from card join lesson on lesson.id = card.lessonId
+           where card.cue != ''
+           order by lesson.recordedAt desc, card.spanStartMs""",
+    )
+    fun observeWithLessons(): Flow<List<SetlistRow>>
+
     @Query(
         "select lessonId, count(*) as cards, " +
             "sum(case when practiceFlag = 'practice_this' then 1 else 0 end) as practice " +

@@ -82,6 +82,13 @@ private fun AppNav(app: CueNoteApp) {
     val lessons by app.lessons.lessons.collectAsStateWithLifecycle(emptyList())
     val cardCounts by app.lessons.cardCounts.collectAsStateWithLifecycle(emptyMap())
     val email by app.auth.signedInEmail.collectAsStateWithLifecycle(null)
+    val setlist by app.lessons.setlist.collectAsStateWithLifecycle(emptyList())
+    // The student's teachers, for "Marigold said" on the notes.
+    var myTeachers by remember { mutableStateOf<List<InvitedTeacher>>(emptyList()) }
+    LaunchedEffect(email) {
+        myTeachers = if (email == null) emptyList() else runCatching { app.shares.list() }.getOrDefault(emptyList())
+    }
+    val firstSetup = remember(lessons.size) { app.consent.firstSetup() }
     val linkStatus by app.auth.linkStatus.collectAsStateWithLifecycle()
     val recState by RecordingSession.state.collectAsStateWithLifecycle()
     val download by app.lessons.modelDownload().collectAsStateWithLifecycle(null)
@@ -128,6 +135,14 @@ private fun AppNav(app: CueNoteApp) {
             HomeScreen(
                 lessons = lessons,
                 cardCounts = cardCounts,
+                setlist = setlist,
+                studentName = firstSetup?.studentName,
+                hasTeacher = myTeachers.any { it.active },
+                teacherName = { lessonId ->
+                    val id = app.lessonTeachers.get(lessonId)
+                    myTeachers.firstOrNull { it.teacherId != null && it.teacherId == id }?.teacherName?.takeIf { it.isNotBlank() }
+                        ?: firstSetup?.teacherName?.takeIf { it.isNotBlank() }
+                },
                 recordingInProgress = recState is RecordingState.Recording,
                 signedInEmail = email,
                 onStartLesson = { withPermission { nav.navigate("consent") } },

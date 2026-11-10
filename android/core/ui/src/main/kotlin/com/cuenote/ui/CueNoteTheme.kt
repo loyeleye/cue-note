@@ -33,7 +33,7 @@ import com.cuenote.ui.R
 /** The deep plum-black of a stage at night: dark mode, and the recording screen. */
 val Stage = Color(0xFF1B1620)
 
-private val Plum = Color(0xFF5B3A8C)
+val Plum = Color(0xFF5B3A8C)
 private val PlumDeep = Color(0xFF3E2566)
 private val Lilac = Color(0xFFEEE6F7)
 private val BrassInk = Color(0xFF7A5512) // brass for words: readable on paper

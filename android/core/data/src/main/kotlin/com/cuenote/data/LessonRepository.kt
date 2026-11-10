@@ -14,6 +14,7 @@ import com.cuenote.pipeline.cards.ModelTrials
 import kotlinx.serialization.json.Json
 import com.cuenote.data.sync.LessonUploadWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -35,6 +36,14 @@ class LessonRepository(
     val cardCounts: kotlinx.coroutines.flow.Flow<Map<String, CardCount>> =
         cardDao?.observeCounts()?.map { list -> list.associateBy { it.lessonId } }
             ?: kotlinx.coroutines.flow.flowOf(emptyMap())
+
+    /** The student's own on/off switches for cards on the setlist. */
+    val setlistStore = SetlistStore(context)
+
+    /** What to practice: cards on the setlist, newest lesson first. */
+    val setlist: kotlinx.coroutines.flow.Flow<List<SetlistRow>> =
+        (cardDao?.observeWithLessons() ?: kotlinx.coroutines.flow.flowOf(emptyList()))
+            .combine(setlistStore.overrides) { rows, o -> rows.filter { SetlistStore.isOn(it.card, o) } }
 
     /** Lesson folders live in the app's own storage: lessons/<id>/audio/chunk_*.wav, events.tsv, photos/. */
     private val root: File get() = File(context.getExternalFilesDir(null), "lessons")
