@@ -61,6 +61,15 @@ import com.cuenote.audio.RecordingSession
 import com.cuenote.audio.RecordingState
 import java.io.File
 import kotlinx.coroutines.delay
+import com.cuenote.ui.LevelRow
+import com.cuenote.ui.rememberReducedMotion
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 
 /**
  * The lesson screen: dark and minimal, with mark, photo and stop. It runs no
@@ -71,7 +80,10 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val state by RecordingSession.state.collectAsStateWithLifecycle()
-    val levels by RecordingSession.levels.collectAsStateWithLifecycle()
+    // Kept as a State: the bars read it every frame without recomposing the screen.
+    val levels = RecordingSession.levels.collectAsStateWithLifecycle()
+    var markedAt by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(markedAt) { if (markedAt != null) { delay(2_000); markedAt = null } }
     var elapsed by remember { mutableLongStateOf(0L) }
     var confirmStop by remember { mutableStateOf(false) }
 
@@ -99,7 +111,20 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
 
     val rec = state as? RecordingState.Recording
     Column(
-        Modifier.fillMaxSize().background(StageBg).padding(24.dp),
+        Modifier
+            .fillMaxSize()
+            .background(StageBg)
+            // A still, warm glow behind the clock: the stage light, not an animation.
+            .drawBehind {
+                drawRect(
+                    Brush.radialGradient(
+                        listOf(StageBrass.copy(alpha = 0.16f), Color.Transparent),
+                        center = Offset(size.width / 2, size.height * 0.2f),
+                        radius = size.width * 0.75f,
+                    ),
+                )
+            }
+            .padding(24.dp),
         verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -114,12 +139,22 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
             )
             Text(rec?.micName ?: "Starting…", color = StageMuted)
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                LiveDot("You", levels?.student?.rmsDb)
-                LiveDot("Teacher", levels?.teacher?.rmsDb)
+            Column(Modifier.widthIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LevelRow(
+                    "You", { levels.value?.student?.rmsDb },
+                    track = StageRaised, fill = StageBrass, text = StageText, muted = StageMuted, accent = StageBrass, warn = StageWarn, barHeight = 10.dp,
+                )
+                LevelRow(
+                    "Teacher", { levels.value?.teacher?.rmsDb },
+                    track = StageRaised, fill = StageBrass, text = StageText, muted = StageMuted, accent = StageBrass, warn = StageWarn, barHeight = 10.dp,
+                )
             }
             if ((rec?.gaps ?: 0) > 0) Text("${rec!!.gaps} audio gaps so far", color = StageWarn)
-            Text("${rec?.marks ?: 0} marks · ${rec?.photos ?: 0} photos", color = StageMuted)
+            Text(
+                markedAt?.let { "Marked ${formatDuration(it)}" } ?: "${rec?.marks ?: 0} marks · ${rec?.photos ?: 0} photos",
+                color = if (markedAt != null) StageBrass else StageMuted,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
             PostureLine()
         }
 
@@ -129,6 +164,7 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
                 onClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     RecordingSession.mark()
+                    markedAt = RecordingSession.elapsedMs()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = StageBrass, contentColor = StageBrassInk),
                 shape = RoundedCornerShape(24.dp),
@@ -170,12 +206,12 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
     if (confirmStop) {
         AlertDialog(
             onDismissRequest = { confirmStop = false },
-            title = { Text("Stop recording?") },
-            text = { Text("This ends the lesson recording.") },
+            title = { Text("That's a wrap?") },
+            text = { Text("Stopping ends today's recording.") },
             confirmButton = {
                 TextButton(onClick = { confirmStop = false; RecordingService.stop(context) }) { Text("Stop") }
             },
-            dismissButton = { TextButton(onClick = { confirmStop = false }) { Text("Keep recording") } },
+            dismissButton = { TextButton(onClick = { confirmStop = false }) { Text("Keep going") } },
         )
     }
 }
@@ -183,10 +219,7 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
 /** "Recording" with a slow brass pulse, like a breath; still when the phone asks for less motion. */
 @Composable
 private fun RecordingBadge(live: Boolean) {
-    val context = LocalContext.current
-    val calm = remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    val calm = rememberReducedMotion()
     val pulse by rememberInfiniteTransition(label = "breath").animateFloat(
         initialValue = 1f,
         targetValue = 0.35f,
@@ -201,23 +234,6 @@ private fun RecordingBadge(live: Boolean) {
         )
         Spacer(Modifier.width(8.dp))
         Text(if (live) "Recording" else "Getting ready", color = StageMuted, fontSize = 14.sp)
-    }
-}
-
-/** A voice's mic: a filled dot and "hearing" when it picks up sound, a ring and "quiet" when not. */
-@Composable
-private fun LiveDot(label: String, db: Double?) {
-    val alive = db != null && db > -55
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.size(12.dp)
-                .border(2.dp, if (alive) StageBrass else StageMuted, CircleShape)
-                .background(if (alive) StageBrass else Color.Transparent, CircleShape),
-        )
-        Spacer(Modifier.size(6.dp))
-        Text(label, color = StageText)
-        Spacer(Modifier.size(4.dp))
-        Text(if (alive) "hearing" else "quiet", color = StageMuted, fontSize = 13.sp)
     }
 }
 

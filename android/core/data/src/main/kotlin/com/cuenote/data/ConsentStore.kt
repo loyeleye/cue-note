@@ -29,14 +29,15 @@ class ConsentStore(context: Context) {
     fun clear() = prefs.edit().clear().apply()
 
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
         val TEXT = """
-            Cue Note records this lesson on two microphones: one for the student and one for the teacher.
+            Cue Note records this lesson on two mics, one for each of you.
 
-            • The full recording stays on the student's phone. Only short clips of singing and feedback, photos of sketches, and text are uploaded, and only after the lesson.
-            • Text and sketch photos may be sent to an AI service to turn feedback into cards. Audio is never sent to it.
-            • The teacher can see, correct and delete anything from her lessons, and either person can delete clips at any time.
-            • Nothing is recorded unless both of you agree, before every lesson.
+            • The full recording stays on the student's phone, and the phone turns it into text itself.
+            • After the lesson, short clips of singing and feedback, photos of sketches and the text are saved online for the teacher's dashboard.
+            • From the text and sketch photos, the app drafts cue cards with the help of AI. Your lessons aren't used to train it.
+            • The teacher can fix any card, and their version always wins.
+            • Nothing records unless you both say yes, before every lesson.
         """.trimIndent()
     }
 }

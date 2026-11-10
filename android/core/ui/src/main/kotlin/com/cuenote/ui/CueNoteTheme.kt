@@ -1,4 +1,4 @@
-package com.cuenote.app.ui
+package com.cuenote.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,6 +8,9 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -15,10 +18,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.cuenote.app.R
+import com.cuenote.ui.R
 
 /*
- * Cue Note's look, "Rehearsal Room": plum for anything you tap, brass for the
+ * Cue Note's look, "Rehearsal Room", laid out as "Setlist": plum for anything you tap, brass for the
  * moment that matters, paper-cream pages, and Fraunces for headings over the
  * phone's own sans for everything you read. The dashboard (web/src/app.css)
  * and the sign-in emails use the same colours; change them together.
@@ -30,7 +33,7 @@ import com.cuenote.app.R
 /** The deep plum-black of a stage at night: dark mode, and the recording screen. */
 val Stage = Color(0xFF1B1620)
 
-private val Plum = Color(0xFF5B3A8C)
+val Plum = Color(0xFF5B3A8C)
 private val PlumDeep = Color(0xFF3E2566)
 private val Lilac = Color(0xFFEEE6F7)
 private val BrassInk = Color(0xFF7A5512) // brass for words: readable on paper
@@ -139,12 +142,66 @@ private val CueShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+/** The always-on brass of the record dot and stage, the same in both modes. */
+val Brass = Color(0xFFE0A94A)
+
+/** The plum of the Start button, the same in both modes (it never turns light). */
+val PlumAction = Plum
+
+/**
+ * The colours Material's scheme has no slot for: two more topic tints (slate
+ * and a warm neutral, beside lilac and brass), the staff lines, and the
+ * "Now" card on the soundcheck, which is ink on light pages and cream on dark.
+ */
+@Immutable
+data class CueExtras(
+    val slate: Color,
+    val onSlate: Color,
+    val warm: Color,
+    val onWarm: Color,
+    val staff: Color,
+    val nowCard: Color,
+    val onNowCard: Color,
+    val nowAccent: Color,
+    val nowMuted: Color,
+    val nowTrack: Color,
+    val nowFill: Color,
+    val dark: Boolean,
+)
+
+private val LightExtras = CueExtras(
+    slate = Color(0xFFE2E8EF), onSlate = Color(0xFF2C3B4C),
+    warm = Color(0xFFEEE4D4), onWarm = Color(0xFF54442F),
+    staff = Color(0xFFE4D9C7),
+    nowCard = Ink, onNowCard = Color(0xFFF7F3EC), nowAccent = Color(0xFFF0C978),
+    nowMuted = Color(0xFFBDB3C6), nowTrack = Color(0x24FFFFFF), nowFill = Color(0xFFC4A8F0),
+    dark = false,
+)
+
+private val DarkExtras = CueExtras(
+    slate = Color(0xFF25303C), onSlate = Color(0xFFC2D1E0),
+    warm = Color(0xFF33291F), onWarm = Color(0xFFE6D5BD),
+    staff = Color(0xFF352C3D),
+    nowCard = Color(0xFFF3ECE2), onNowCard = Ink, nowAccent = BrassInk,
+    nowMuted = Muted, nowTrack = Color(0x1F231C2B), nowFill = Plum,
+    dark = true,
+)
+
+val LocalCueExtras = staticCompositionLocalOf { LightExtras }
+
+/** Shorthand for the extra colours: `Cue.extras.slate`. */
+object Cue {
+    val extras: CueExtras @Composable get() = LocalCueExtras.current
+}
+
 @Composable
 fun CueNoteTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (dark) DarkColors else LightColors,
-        typography = CueTypography,
-        shapes = CueShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalCueExtras provides if (dark) DarkExtras else LightExtras) {
+        MaterialTheme(
+            colorScheme = if (dark) DarkColors else LightColors,
+            typography = CueTypography,
+            shapes = CueShapes,
+            content = content,
+        )
+    }
 }

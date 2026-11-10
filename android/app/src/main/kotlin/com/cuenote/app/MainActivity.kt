@@ -24,7 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.work.WorkInfo
 import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
-import com.cuenote.app.ui.CueNoteTheme
+import com.cuenote.ui.CueNoteTheme
 import com.cuenote.audio.RecordingState
 import com.cuenote.data.InvitedTeacher
 import com.cuenote.lesson.CornerEditorScreen
@@ -63,11 +63,11 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun modelStatus(ready: Boolean, download: Pair<WorkInfo.State, Int>?): String = when {
-    ready -> "Speech models are on the phone. Lessons can be processed offline."
+    ready -> "Speech models are on this phone, so your notes can be made offline."
     download?.first == WorkInfo.State.RUNNING -> "Downloading speech models… ${download.second}%"
     download?.first == WorkInfo.State.ENQUEUED -> "Speech models will download when the phone is online."
-    download?.first == WorkInfo.State.FAILED -> "The download failed. Try again on Wi-Fi."
-    else -> "Download the speech models on Wi-Fi before your first lesson, or they download when it is first processed."
+    download?.first == WorkInfo.State.FAILED -> "The download didn't finish. Try again on Wi-Fi."
+    else -> "Grab the speech models on Wi-Fi before your first lesson."
 }
 
 private val runtimePermissions = buildList {
@@ -82,6 +82,13 @@ private fun AppNav(app: CueNoteApp) {
     val lessons by app.lessons.lessons.collectAsStateWithLifecycle(emptyList())
     val cardCounts by app.lessons.cardCounts.collectAsStateWithLifecycle(emptyMap())
     val email by app.auth.signedInEmail.collectAsStateWithLifecycle(null)
+    val setlist by app.lessons.setlist.collectAsStateWithLifecycle(emptyList())
+    // The student's teachers, for "Marigold said" on the notes.
+    var myTeachers by remember { mutableStateOf<List<InvitedTeacher>>(emptyList()) }
+    LaunchedEffect(email) {
+        myTeachers = if (email == null) emptyList() else runCatching { app.shares.list() }.getOrDefault(emptyList())
+    }
+    val firstSetup = remember(lessons.size) { app.consent.firstSetup() }
     val linkStatus by app.auth.linkStatus.collectAsStateWithLifecycle()
     val recState by RecordingSession.state.collectAsStateWithLifecycle()
     val download by app.lessons.modelDownload().collectAsStateWithLifecycle(null)
@@ -128,6 +135,14 @@ private fun AppNav(app: CueNoteApp) {
             HomeScreen(
                 lessons = lessons,
                 cardCounts = cardCounts,
+                setlist = setlist,
+                studentName = firstSetup?.studentName,
+                hasTeacher = myTeachers.any { it.active },
+                teacherName = { lessonId ->
+                    val id = app.lessonTeachers.get(lessonId)
+                    myTeachers.firstOrNull { it.teacherId != null && it.teacherId == id }?.teacherName?.takeIf { it.isNotBlank() }
+                        ?: firstSetup?.teacherName?.takeIf { it.isNotBlank() }
+                },
                 recordingInProgress = recState is RecordingState.Recording,
                 signedInEmail = email,
                 onStartLesson = { withPermission { nav.navigate("consent") } },
