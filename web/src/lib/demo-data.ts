@@ -196,7 +196,9 @@ export function initialDemoState(): DemoState {
     ],
     photos: [
       { id: 'demo-photo-1', lesson_id: L1, taken_at_ms: min(14, 40), feedback_id: 'demo-fb-4',
-        caption: 'Jaw drops, tongue tip stays behind the bottom teeth', image_path: 'demo-sketch:jaw' }
+        caption: 'Jaw drops, tongue tip stays behind the bottom teeth', confidence: 0.9,
+        image_path: 'demo-sketch:jaw:photo', cleaned_path: 'demo-sketch:jaw',
+        auto_feedback_id: 'demo-fb-4', link_source: 'auto' }
     ],
     comments: [
       { id: 'demo-comment-1', student_id: SAM, lesson_id: L1, author_id: DEMO_TEACHER.id, created_at: ago(3, 9),
@@ -270,6 +272,15 @@ export function demoScoreSvg(): string {
     }
   });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE_W} ${PAGE_H}">${parts.join('')}</svg>`;
+}
+
+/** The same sketch as the phone photographed it: a tilted, greyish page on a table. */
+export function demoSketchPhotoSvg(): string {
+  const inner = demoSketchSvg().replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '').replace('fill="#f4f4ef"', 'fill="#c9c6bc"');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#4a3f36"/>
+  <g transform="matrix(0.78 -0.06 0.04 0.74 52 58)">${inner}</g>
+</svg>`;
 }
 
 /** A rough marker sketch, standing in for a photo of her whiteboard. */

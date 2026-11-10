@@ -18,6 +18,7 @@
   import PitchPlot from '$lib/components/PitchPlot.svelte';
   import PracticePanel from '$lib/components/PracticePanel.svelte';
   import VersionHistory from '$lib/components/VersionHistory.svelte';
+  import SketchFigure from '$lib/components/SketchFigure.svelte';
 
   const id = $derived(page.params.id!);
   let lesson = $state<Lesson | null | undefined>(undefined);
@@ -153,15 +154,50 @@
     refresh += 1;
   }
 
+  // Sketches: drag one onto a card to move it there.
+  let dropOn = $state<string | null>(null);
+  let moveError = $state('');
+  const PHOTO_TYPE = 'application/x-cuenote-photo';
+
+  function dragOver(e: DragEvent, cardId: string) {
+    if (!e.dataTransfer?.types.includes(PHOTO_TYPE)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    dropOn = cardId;
+  }
+
+  async function dropPhoto(e: DragEvent, cardId: string) {
+    const photoId = e.dataTransfer?.getData(PHOTO_TYPE);
+    dropOn = null;
+    if (!photoId) return;
+    e.preventDefault();
+    const p = photos.find((x) => x.id === photoId);
+    if (!p || p.feedback_id === cardId) return;
+    moveError = '';
+    try {
+      movedPhoto(await api().movePhoto(photoId, cardId));
+    } catch (err) {
+      moveError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function movedPhoto(p: PhotoMark) {
+    photos = photos.map((x) => (x.id === p.id ? p : x));
+    if (p.feedback_id) flashCard(p.feedback_id, null);
+  }
+
   const studentCards = $derived(cards.map((c) => ({ ...c, recorded_at: lesson?.recorded_at ?? '' })));
 </script>
 
 {#snippet cardView(c: Feedback)}
-  {@const photo = photos.find((p) => p.feedback_id === c.id)}
+  {@const sketches = photos.filter((p) => p.feedback_id === c.id)}
   {@const last = latest.get(c.id)}
   {@const busy = editorOf(c.id)}
   {@const busyT = busy ? findTeacher(teachers, busy.id) : null}
   <article class="card cue-card" id="card-{c.id}" class:flash={flash === c.id} class:open={editing === c.id}
+           class:drop={dropOn === c.id}
+           ondragover={(e) => dragOver(e, c.id)} ondragleave={() => { if (dropOn === c.id) dropOn = null; }}
+           ondrop={(e) => dropPhoto(e, c.id)}
            class:busy={!!busyT} style:--busy={busyT ? colorVar(busyT.color) : null}
            style:--flash={flash === c.id && flashColor ? flashColor : null}>
     {#if busyT}
@@ -195,18 +231,13 @@
       {#if c.clip_path}
         <div class="her-clip"><span class="muted small">Her clip</span><ClipPlayer path={c.clip_path} compact /></div>
       {/if}
-      {#if photo}{@render photoView(photo)}{/if}
+      {#each sketches as p (p.id)}{@render photoView(p)}{/each}
     {/if}
   </article>
 {/snippet}
 
 {#snippet photoView(p: PhotoMark)}
-  <figure class="photo">
-    {#await api().fileUrl('photos', p.image_path ?? '') then src}
-      {#if src}<img {src} alt={p.caption ?? 'Sketch from the lesson'} loading="lazy" />{/if}
-    {/await}
-    <figcaption><span class="chip">Sketch · {clock(p.taken_at_ms)}</span> {p.caption ?? ''}</figcaption>
-  </figure>
+  <SketchFigure photo={p} {cards} onmove={movedPhoto} />
 {/snippet}
 
 {#if lesson === null}
@@ -240,6 +271,10 @@
     </p>
   {/if}
 
+  {#if photos.length}
+    <p class="muted small">Sketches sit on the card they were taken during. Drag one onto another card, or use its "Move to" list.</p>
+  {/if}
+  {#if moveError}<p class="error small" role="alert">{moveError}</p>{/if}
   <ol class="timeline">
     {#each timeline as item (item.kind + (item.kind === 'take' ? item.take.id : item.kind === 'card' ? item.card.id : item.photo.id))}
       <li>
@@ -298,6 +333,8 @@
   .take-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .cue-card { display: flex; flex-direction: column; gap: 8px; transition: box-shadow 0.4s; margin-left: 12px; border-left: 3px solid var(--accent); }
   .cue-card { position: relative; }
+  .cue-card.drop { box-shadow: 0 0 0 3px var(--accent); }
+  .error { color: var(--danger); }
   .cue-card.flash { box-shadow: 0 0 0 3px var(--flash, var(--accent-soft)); }
   .cue-card.busy { border-left-color: var(--busy); outline: 2px solid var(--busy); outline-offset: -1px; }
   .editing-badge { position: absolute; top: -10px; right: 12px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
@@ -314,9 +351,6 @@
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .her-clip { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
   .edit-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }
-  .photo { margin: 0; display: flex; flex-direction: column; gap: 4px; max-width: 360px; }
-  .photo img { width: 100%; border-radius: 8px; border: 1px solid var(--border); }
-  .photo figcaption { font-size: 13px; color: var(--muted); }
   .after { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 12px; }
   .small { font-size: 13px; }
   @media (max-width: 760px) {

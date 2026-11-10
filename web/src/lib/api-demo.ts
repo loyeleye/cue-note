@@ -6,7 +6,7 @@ import { EditConflict, scoreFormatOf } from './api';
 import type { CardFields, CardVersion, Feedback, Profile, StorageRow, Teacher } from './types';
 import { CARD_FIELDS } from './types';
 import {
-  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoScoreSvg, demoSketchSvg, initialDemoState, type DemoState
+  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoScoreSvg, demoSketchSvg, demoSketchPhotoSvg, initialDemoState, type DemoState
 } from './demo-data';
 import { wavFor } from './tone';
 
@@ -170,6 +170,18 @@ export const demoApi: Api = {
   async listTakes(lessonId) { return load().takes.filter((t) => t.lesson_id === lessonId).sort((a, b) => a.start_ms - b.start_ms); },
   async listFeedback(lessonId) { return load().feedback.filter((f) => f.lesson_id === lessonId).sort((a, b) => a.span_start_ms - b.span_start_ms); },
   async listPhotos(lessonId) { return load().photos.filter((p) => p.lesson_id === lessonId); },
+  async movePhoto(photoId, feedbackId) {
+    const s = load();
+    const p = s.photos.find((x) => x.id === photoId);
+    if (!p) throw new Error('No such photo');
+    if (feedbackId && !s.feedback.some((f) => f.id === feedbackId && f.lesson_id === p.lesson_id)) {
+      throw new Error('A photo can only go on a card from its own lesson');
+    }
+    p.feedback_id = feedbackId;
+    p.link_source = 'teacher';
+    save();
+    return { ...p };
+  },
 
   async listStudentFeedback(studentId) {
     const s = load();
@@ -409,7 +421,10 @@ export const demoApi: Api = {
       return url;
     }
     if (path === 'demo-score:caro' || path.startsWith('demo-sketch:')) {
-      if (!toneUrls.has(path)) toneUrls.set(path, svgUrl(path === 'demo-score:caro' ? demoScoreSvg() : demoSketchSvg()));
+      if (!toneUrls.has(path)) {
+        const svg = path === 'demo-score:caro' ? demoScoreSvg() : path.endsWith(':photo') ? demoSketchPhotoSvg() : demoSketchSvg();
+        toneUrls.set(path, svgUrl(svg));
+      }
       return toneUrls.get(path)!;
     }
     return load().files[path] ?? memoryFiles.get(path) ?? null;

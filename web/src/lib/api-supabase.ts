@@ -26,6 +26,8 @@ function safeName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/^-+|-+$/g, '') || 'file';
 }
 
+
+const PHOTO_COLUMNS = 'id, lesson_id, taken_at_ms, feedback_id, caption, confidence, image_path, cleaned_path, auto_feedback_id, link_source';
 export const supabaseApi: Api = {
   demo: false,
 
@@ -120,8 +122,14 @@ export const supabaseApi: Api = {
   },
 
   async listPhotos(lessonId) {
-    return check(await supabase.from('photo_mark').select('id, lesson_id, taken_at_ms, feedback_id, caption, image_path')
+    return check(await supabase.from('photo_mark').select(PHOTO_COLUMNS)
       .eq('lesson_id', lessonId).order('taken_at_ms')) as PhotoMark[];
+  },
+
+  async movePhoto(photoId, feedbackId) {
+    // The database marks the move as hers (link_source = 'teacher').
+    return check(await supabase.from('photo_mark').update({ feedback_id: feedbackId })
+      .eq('id', photoId).select(PHOTO_COLUMNS).single()) as PhotoMark;
   },
 
   async listStudentFeedback(studentId) {

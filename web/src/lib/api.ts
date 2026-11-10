@@ -101,6 +101,8 @@ export interface Api {
   listTakes(lessonId: string): Promise<Take[]>;
   listFeedback(lessonId: string): Promise<Feedback[]>;
   listPhotos(lessonId: string): Promise<PhotoMark[]>;
+  /** Puts a sketch on another card of its lesson, or on none (null). */
+  movePhoto(photoId: string, feedbackId: string | null): Promise<PhotoMark>;
   /** Every card for a student, across lessons, newest lesson first. */
   listStudentFeedback(studentId: string): Promise<(Feedback & { recorded_at: string })[]>;
   listSongTakes(songId: string): Promise<Take[]>;

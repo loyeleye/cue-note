@@ -145,8 +145,17 @@ export interface PhotoMark {
   lesson_id: string;
   taken_at_ms: number;
   feedback_id: string | null;
+  /** caption-sketch's one line, and how well the sketch matches her words, 0..1. */
   caption: string | null;
+  confidence?: number | null;
+  /** The photo as taken. */
   image_path: string | null;
+  /** The straightened, whitened copy the phone made; null until then. */
+  cleaned_path?: string | null;
+  /** The card the phone guessed by time, kept after any move. */
+  auto_feedback_id?: string | null;
+  /** Who put it on its current card. */
+  link_source?: 'auto' | 'student' | 'teacher';
 }
 
 export interface Comment {

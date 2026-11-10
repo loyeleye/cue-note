@@ -6,7 +6,7 @@ cards; the teacher corrects those cards and sets practice from a web dashboard.
 
 The full design is in the project's design doc. This repository is built in
 milestones; **M1 (foundations and recorder)**, **M2 (the on-phone pipeline)** and
-**M4 (teacher dashboard)** are here so far.
+**M4 (teacher dashboard)** and **M6 (sketches)** are here so far.
 
 ### Several teachers on one student
 
@@ -149,6 +149,38 @@ override them while tuning.
 Real lessons are too big for git (an hour is about 700 MB), so the golden set
 lives outside the repository. CI runs three synthetic lessons on every change
 instead; the report is on each run's summary page.
+
+## Sketches (M6)
+
+**Taking them.** The lesson screen's **Photo** button opens a camera inside the
+app; the recording carries on underneath. One tap on the big shutter saves
+`photos/photo_<ms>.jpg` in the lesson folder, stamped with the moment of the
+tap, and the screen goes back to the lesson.
+
+**Which card.** After processing, each photo goes on the feedback it was taken
+during, or that ended up to 90 s before it (`PipelineConfig.photoAfterMs`).
+The student can move it on the phone (open a sketch, **Move to another card**)
+and the teacher on the dashboard (drag it onto a card, or its **Move to** list).
+A move by hand is never undone by reprocessing, and the phone's first guess is
+kept (`photo_mark.auto_feedback_id`), so we can count how often it was right.
+
+**Clean-up.** `:core:sketch` (pure Kotlin, tested on the JVM) finds the sheet as
+the biggest bright patch, takes its four corners, straightens it with a
+perspective transform, and divides out the paper's own brightness so shadows
+go and the paper turns white while pen colors stay. The original is kept. When
+it gets the edges wrong, **Fix the corners** lets the student drag them.
+
+**Upload and caption.** Once the lesson's cards are in the cloud, the phone
+uploads `photos/<student>/<lesson>/<photo id>.jpg` and `.clean.jpg` and calls
+the `caption-sketch` edge function with the words said around the photo
+(60 s before to 20 s after). It asks Claude for a one-line caption in her
+terms and how well the sketch matches what she said; it never adds advice.
+It needs the `ANTHROPIC_API_KEY` secret (and optionally `CUE_MODEL`).
+
+## M6 gate
+
+Most photos land on the right card without a manual fix: compare
+`photo_mark.auto_feedback_id` with `feedback_id` over real lessons.
 
 ## M2 gate
 
