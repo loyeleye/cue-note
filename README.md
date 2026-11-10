@@ -306,6 +306,18 @@ whose lesson audio is gone, have no tracks. The student's voice leaking into
 the teacher's mic stays in the piano track for now; how much to duck it is
 for tuning on real lessons.
 
+**Pitch after each take.** Once a take is saved, the phone tracks its pitch
+(YIN every 32 ms, as in the lesson pipeline), splits it into notes, and lines
+those notes up in order with the notes of the teacher's first sung demo,
+moved by whole octaves to the student's range. Each note is *in tune*, *a
+little flat* or *a little sharp* (more than 35 cents off), or *unclear* when
+the pitch confidence is too low to judge. The take row shows the notes as
+bars over the demo's dashed notes, with a small arrow on the ones that are
+off, and one friendly line ("Mostly with their demo. One note ran a little
+flat."). No numbers or percentages are shown. Results are kept as
+`<take>.pitch.json`. The thresholds (`PitchCompare`, `PitchTrack` in
+`:core:pipeline`) are starting points to tune on real lessons.
+
 ## Sketches (M6)
 
 **Taking them.** The lesson screen's **Photo** button opens a camera inside the

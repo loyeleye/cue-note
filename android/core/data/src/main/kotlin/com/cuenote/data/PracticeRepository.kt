@@ -9,6 +9,10 @@ import com.cuenote.pipeline.audio.LessonFolder
 import com.cuenote.pipeline.practice.BackingAudio
 import com.cuenote.pipeline.practice.BackingPlan
 import com.cuenote.pipeline.practice.BackingSpan
+import com.cuenote.pipeline.practice.PitchCompare
+import com.cuenote.pipeline.practice.PitchTrack
+import com.cuenote.pipeline.practice.TakePitch
+import kotlinx.serialization.json.Json
 import com.cuenote.pipeline.practice.StartingNote
 import com.cuenote.pipeline.practice.TimeStretch
 import com.cuenote.signal.WavReader
@@ -117,6 +121,31 @@ class PracticeRepository(
     /** A WAV's samples, for playing along. */
     suspend fun pcm(file: File): ShortArray = withContext(Dispatchers.IO) { WavReader.read(file).samples }
 
+    /**
+     * The take's pitch, note by note, against the teacher's first sung demo
+     * when the note has one. Worked out once after the take and kept beside
+     * it as <take>.pitch.json.
+     */
+    suspend fun pitch(take: PracticeTakeEntity, backing: Backing?): TakePitch? = withContext(Dispatchers.Default) {
+        val wav = File(take.file)
+        if (!wav.isFile) return@withContext null
+        val cache = File(wav.parentFile, wav.nameWithoutExtension + ".pitch.json")
+        val demoFile = backing?.demos?.firstOrNull()?.file
+        val stamp = demoFile?.name ?: "none"
+        runCatching {
+            val saved = pitchJson.decodeFromString(CachedPitch.serializer(), cache.readText())
+            if (saved.demo == stamp) return@withContext saved.pitch
+        }
+        val contour = PitchTrack.of(WavReader.read(wav).samples)
+        val demo = demoFile?.takeIf { it.isFile }?.let { PitchTrack.of(WavReader.read(it).samples) }
+        val result = PitchCompare.compare(contour, demo)
+        runCatching { cache.writeText(pitchJson.encodeToString(CachedPitch.serializer(), CachedPitch(stamp, result))) }
+        result
+    }
+
+    @kotlinx.serialization.Serializable
+    private data class CachedPitch(val demo: String, val pitch: TakePitch)
+
     /** A short tone of the starting note, kept in the cache. */
     suspend fun toneFile(note: StartingNote.Note): File = withContext(Dispatchers.IO) {
         val f = File(context.cacheDir, "note_${note.midi}.wav")
@@ -131,7 +160,7 @@ class PracticeRepository(
     }
 
     suspend fun deleteTake(id: String) = withContext(Dispatchers.IO) {
-        dao.take(id)?.let { File(it.file).delete() }
+        dao.take(id)?.let { File(it.file).delete(); File(it.file.removeSuffix(".wav") + ".pitch.json").delete() }
         dao.deleteTake(id)
     }
 
@@ -143,6 +172,9 @@ class PracticeRepository(
         const val MIN_TAKE_MS = 1_000L
     }
 }
+
+/** Pitch lines have gaps (NaN) where nothing was sung. */
+private val pitchJson = Json { allowSpecialFloatingPointValues = true; ignoreUnknownKeys = true }
 
 /**
  * The timing check's result for each pair of headphones the student has
