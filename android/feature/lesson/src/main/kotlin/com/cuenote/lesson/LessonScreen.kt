@@ -2,6 +2,14 @@ package com.cuenote.lesson
 
 import com.cuenote.ui.ClipPlayer
 import com.cuenote.ui.rememberClipPlayer
+import com.cuenote.data.SetlistStore
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Switch
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import com.cuenote.data.diagrams.DiagramSuggestion
 import com.cuenote.data.diagrams.DiagramRepository
 import com.cuenote.data.sketch.SketchRepository
@@ -103,6 +111,7 @@ fun LessonScreen(
         if (cards.isNotEmpty() || lesson.pipelineState == "cards") runCatching { repo.refreshCards(lesson.id) }
     }
 
+    val overrides by repo.setlistStore.overrides.collectAsStateWithLifecycle()
     val clipFile: Map<String, String> = clips.associate { it.id to it.file }
     val takeNo = takes.withIndex().associate { (i, t) -> CloudIds.take(t.id) to i + 1 }
 
@@ -147,13 +156,13 @@ fun LessonScreen(
                 val opening = cues.filter { it.takeId == null || it.takeId !in takeNo }
                 if (opening.isNotEmpty()) {
                     item { SectionTitle("Before the first take") }
-                    items(opening, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch, suggestions.filter { s -> s.feedbackId == it.id }, onDecide) }
+                    items(opening, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch, suggestions.filter { s -> s.feedbackId == it.id }, onDecide, SetlistStore.isOn(it, overrides)) { on -> repo.setlistStore.set(it.id, on) } }
                 }
                 for ((i, t) in takes.withIndex()) {
                     val id = CloudIds.take(t.id)
                     val mine = cues.filter { it.takeId == id }
                     item(key = "take-${t.id}") { TakeRow(i + 1, t, clipFile[id], player) }
-                    items(mine, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch, suggestions.filter { s -> s.feedbackId == it.id }, onDecide) }
+                    items(mine, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch, suggestions.filter { s -> s.feedbackId == it.id }, onDecide, SetlistStore.isOn(it, overrides)) { on -> repo.setlistStore.set(it.id, on) } }
                 }
                 if (talk.isNotEmpty()) item {
                     TextButton(onClick = { showTalk = !showTalk }) {
@@ -261,6 +270,8 @@ private fun CueCard(
     onOpenSketch: (String) -> Unit,
     suggestions: List<DiagramSuggestion>,
     onDecide: suspend (DiagramSuggestion, String) -> Unit,
+    onSetlist: Boolean,
+    onSetlistChange: (Boolean) -> Unit,
 ) {
     var showAll by rememberSaveable(card.id) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
@@ -286,6 +297,19 @@ private fun CueCard(
                 }
             }
             if (showAll) Text(card.transcript, style = MaterialTheme.typography.bodyMedium)
+            // The student's own switch: on for "practice this" cards to start with.
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .toggleable(onSetlist, role = Role.Switch, onValueChange = onSetlistChange)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("On my setlist", Modifier.weight(1f), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelLarge)
+                Switch(checked = onSetlist, onCheckedChange = null)
+            }
             SketchRow(sketches, lessonDir, onOpenSketch)
             for (sg in suggestions) DiagramSuggestionCard(sg) { d -> onDecide(sg, d) }
         }
