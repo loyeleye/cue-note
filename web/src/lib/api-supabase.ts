@@ -4,6 +4,7 @@ import { supabase } from './supabase';
 import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeacher } from './api';
 import { EditConflict, scoreFormatOf } from './api';
 import type {
+  PracticeSession, SharedTake, StudentQuestion,
   Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramSuggestion, Feedback, Lesson, PhotoMark,
   PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
@@ -305,6 +306,34 @@ export const supabaseApi: Api = {
 
   async deletePractice(id) {
     check(await supabase.from('practice_item').delete().eq('id', id));
+  },
+
+  async getAgenda(studentId) {
+    const since = new Date(Date.now() - 28 * 864e5).toISOString();
+    const [sessions, takes, questions] = await Promise.all([
+      supabase.from('practice_session').select('*').eq('student_id', studentId).gte('started_at', since)
+        .order('started_at', { ascending: false }),
+      supabase.from('practice_take').select('*').eq('student_id', studentId).order('shared_at', { ascending: false }),
+      supabase.from('student_question').select('*').eq('student_id', studentId).neq('status', 'dropped')
+        .order('created_at', { ascending: false })
+    ]);
+    return {
+      sessions: check(sessions) as PracticeSession[],
+      takes: check(takes) as SharedTake[],
+      questions: check(questions) as StudentQuestion[]
+    };
+  },
+
+  async markTakeHeard(takeId, heard) {
+    check(await supabase.from('practice_take').update({ heard_at: heard ? new Date().toISOString() : null }).eq('id', takeId));
+  },
+
+  async answerQuestion(questionId, answer) {
+    check(await supabase.from('student_question').update({ status: 'answered', answer }).eq('id', questionId));
+  },
+
+  async reopenQuestion(questionId) {
+    check(await supabase.from('student_question').update({ status: 'open', answer: null }).eq('id', questionId));
   },
 
   async listSongs(studentId) {

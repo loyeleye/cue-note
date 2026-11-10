@@ -2,8 +2,8 @@
 // their AI originals, notes, practice and a song with a score. Nothing here
 // touches the real database. Dates are relative to today so it looks fresh.
 import type {
-  Annotation, CardVersion, Checkpoint, Comment, DiagramSuggestion, Feedback, Lesson, PhotoMark, PracticeItem, Profile,
-  Score, Share, Song, Take
+  Annotation, CardVersion, Checkpoint, Comment, DiagramSuggestion, Feedback, Lesson, PhotoMark, PracticeItem,
+  PracticeSession, Profile, Score, Share, SharedTake, Song, StudentQuestion, Take
 } from './types';
 import { contourFor, type Note } from './tone';
 import { weekOf as mondayOf } from './format';
@@ -83,6 +83,10 @@ export interface DemoState {
   suggestions?: DiagramSuggestion[];
   comments: Comment[];
   practice: PracticeItem[];
+  /** The next lesson's agenda; missing from demo states saved before it. */
+  practiceSessions?: PracticeSession[];
+  sharedTakes?: SharedTake[];
+  questions?: StudentQuestion[];
   songs: Song[];
   scores: Score[];
   annotations: Annotation[];
@@ -222,6 +226,7 @@ export function initialDemoState(): DemoState {
         body: 'Lip trills through two octaves before singing anything.', due_week: mondayOf(new Date(Date.now() - 7 * day)),
         created_at: ago(10, 9) }
     ],
+    ...demoAgenda(),
     songs: [{ id: SONG, student_id: SAM, title: 'Caro mio ben', composer: 'Tommaso Giordani', created_at: ago(11) }],
     scores: [{
       id: 'demo-score-1', song_id: SONG, file_path: 'demo-score:caro', format: 'image', page_count: 1,
@@ -313,4 +318,53 @@ export function demoSketchSvg(): string {
   <text x="40" y="262" font-family="Comic Sans MS, cursive" font-size="20" fill="#222">tongue fwd</text>
   <text x="150" y="45" font-family="Comic Sans MS, cursive" font-size="26" fill="#222">"ah" not "aw"</text>
 </svg>`;
+}
+
+/** Sam's week since the last lesson: three sittings, two shared takes, three questions. */
+export function demoAgenda(): Pick<DemoState, 'practiceSessions' | 'sharedTakes' | 'questions'> {
+  const at = (days: number, hour: number, minute = 0) => {
+    const d = new Date(Date.now() - days * day);
+    d.setHours(hour, minute, 0, 0);
+    return d.toISOString();
+  };
+  const sitting = (id: string, days: number, hour: number, mins: number, items: { feedback_id: string; takes: number }[]) => ({
+    id, student_id: SAM, started_at: at(days, hour), ended_at: at(days, hour, mins), minutes: mins, items
+  });
+  const shared = (id: string, fb: string, days: number, hour: number, ms: number, extra: Partial<SharedTake>): SharedTake => ({
+    id, student_id: SAM, feedback_id: fb, lesson_id: L1, session_id: null, recorded_at: at(days, hour, 5),
+    duration_ms: ms, clip_path: null, pitch: null, feeling_note: null, shared_at: at(days, hour, 20),
+    heard_at: null, heard_by: null, ...extra
+  });
+  return {
+    practiceSessions: [
+      sitting('demo-ps-1', 3, 8, 15, [{ feedback_id: 'demo-fb-1', takes: 3 }, { feedback_id: 'demo-fb-2', takes: 2 }]),
+      sitting('demo-ps-2', 2, 19, 22, [{ feedback_id: 'demo-fb-3', takes: 6 }, { feedback_id: 'demo-fb-4', takes: 2 }]),
+      sitting('demo-ps-3', 1, 7, 12, [{ feedback_id: 'demo-fb-3', takes: 4 }])
+    ],
+    sharedTakes: [
+      shared('demo-st-1', 'demo-fb-3', 1, 7, 9400, {
+        clip_path: 'demo-tone:demo-take-3:student', feeling_note: 'Thought "down and over" and it felt easier, but still tight on the F.',
+        pitch: [
+          { sung: 65.02, target: 65, verdict: 'IN_TUNE' }, { sung: 66.9, target: 67, verdict: 'IN_TUNE' },
+          { sung: 68.55, target: 69, verdict: 'FLAT' }, { sung: 66.97, target: 67, verdict: 'IN_TUNE' }
+        ]
+      }),
+      shared('demo-st-2', 'demo-fb-1', 3, 8, 7100, {
+        clip_path: 'demo-tone:demo-take-1:student',
+        pitch: [{ sung: 60.1, target: 60, verdict: 'IN_TUNE' }, { sung: 61.6, target: null, verdict: 'UNCLEAR' }]
+      })
+    ],
+    questions: [
+      { id: 'demo-q-1', student_id: SAM, feedback_id: 'demo-fb-3', lesson_id: L1, song_id: null, bar: 7,
+        body: 'Bar 7 still cracks when I go for the F. Is it the breath or the vowel?', status: 'open',
+        answer: null, answered_by: null, answered_at: null, created_at: at(1, 7, 30) },
+      { id: 'demo-q-2', student_id: SAM, feedback_id: null, lesson_id: null, song_id: null, bar: null,
+        body: 'How long should I warm up before practicing?', status: 'open',
+        answer: null, answered_by: null, answered_at: null, created_at: at(2, 19, 40) },
+      { id: 'demo-q-3', student_id: SAM, feedback_id: 'demo-fb-4', lesson_id: L1, song_id: null, bar: 11,
+        body: 'Should the "ah" on "ben" feel this wide?', status: 'answered',
+        answer: 'Yes, tall and wide is right. Keep the tongue tip down.', answered_by: DEMO_TEACHER.id,
+        answered_at: at(2, 9), created_at: at(3, 8, 20) }
+    ]
+  };
 }

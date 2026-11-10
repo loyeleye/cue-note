@@ -204,6 +204,62 @@ export interface PracticeItem {
   created_at: string;
 }
 
+/** One sitting of practice, as the student's phone logged it. No audio. */
+export interface PracticeSession {
+  id: string;
+  student_id: string;
+  started_at: string;
+  ended_at: string;
+  minutes: number;
+  /** Each note practiced in the sitting, and how many goes. */
+  items: { feedback_id: string; takes: number }[];
+}
+
+export type NoteVerdict = 'IN_TUNE' | 'FLAT' | 'SHARP' | 'UNCLEAR' | 'NO_TARGET';
+
+/** A practice take the student shared before the next lesson. */
+export interface SharedTake {
+  id: string;
+  student_id: string;
+  feedback_id: string | null;
+  lesson_id: string;
+  session_id: string | null;
+  recorded_at: string;
+  duration_ms: number;
+  clip_path: string | null;
+  /** One row per note sung, against the demo when there was one. */
+  pitch: { sung: number; target?: number | null; verdict: NoteVerdict }[] | null;
+  feeling_note: string | null;
+  shared_at: string;
+  heard_at: string | null;
+  heard_by: string | null;
+}
+
+export type QuestionStatus = 'open' | 'answered' | 'dropped';
+
+/** A question the student asked for the next lesson. */
+export interface StudentQuestion {
+  id: string;
+  student_id: string;
+  feedback_id: string | null;
+  lesson_id: string | null;
+  song_id: string | null;
+  bar: number | null;
+  body: string;
+  status: QuestionStatus;
+  answer: string | null;
+  answered_by: string | null;
+  answered_at: string | null;
+  created_at: string;
+}
+
+/** Everything for the next lesson's agenda. */
+export interface Agenda {
+  sessions: PracticeSession[];
+  takes: SharedTake[];
+  questions: StudentQuestion[];
+}
+
 export interface Song {
   id: string;
   student_id: string;
