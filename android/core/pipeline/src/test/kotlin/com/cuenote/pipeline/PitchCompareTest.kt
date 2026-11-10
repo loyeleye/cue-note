@@ -81,4 +81,24 @@ class PitchCompareTest {
         assertTrue(p.notes.isEmpty())
         assertEquals("No clear notes were heard in this take.", PitchSummary.of(p))
     }
+
+    @Test fun `a different melody is not judged against the demo`() {
+        val other = listOf(67.0, 64.0, 69.0, 62.0, 71.0, 60.0, 66.0, 63.0) // not the demo's tune
+        val p = PitchCompare.compare(PitchTrack.of(sing(other.map { it to 0.4 })), PitchTrack.of(sing(tune.map { it to 0.5 }, seed = 4)))
+        assertFalse(p.matched)
+        assertTrue(p.notes.none { it.verdict in setOf(Verdict.FLAT, Verdict.SHARP, Verdict.IN_TUNE) })
+        assertEquals("This take didn't line up with their demo, so here's just its pitch.", PitchSummary.of(p))
+    }
+
+    @Test fun `a mostly unclear take says so`() {
+        val semis = List(12) { 60f } + List(3) { Float.NaN } + List(12) { 62f } + List(3) { Float.NaN } + List(12) { 64f }
+        val conf = List(12) { 0.9f } + List(3) { 0f } + List(12) { 0.3f } + List(3) { 0f } + List(12) { 0.3f }
+        val p = PitchCompare.compare(Contour(semis, conf), null)
+        assertTrue(PitchSummary.of(p).contains("A lot of it was hard to hear clearly"))
+    }
+
+    @Test fun `a take that is sharp throughout says so without a count`() {
+        val p = PitchCompare.compare(PitchTrack.of(sing(tune.map { it + 0.5 to 0.5 })), PitchTrack.of(sing(tune.map { it to 0.5 }, seed = 5)))
+        assertEquals("Most of it sat a little sharp of their demo. Try it slower, with their demo in your ear.", PitchSummary.of(p))
+    }
 }
