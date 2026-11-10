@@ -40,6 +40,9 @@ interface LessonDao {
     @Query("select * from lesson where id = :id")
     suspend fun get(id: String): LessonEntity?
 
+    @Query("select * from lesson where pipelineState = :state")
+    suspend fun withState(state: String): List<LessonEntity>
+
     @Insert
     suspend fun insert(lesson: LessonEntity)
 
@@ -59,14 +62,15 @@ interface LessonDao {
 @Database(
     entities = [
         LessonEntity::class, SegmentEntity::class, TakeEntity::class, FeedbackEntity::class,
-        TranscriptLineEntity::class, PipelineStageEntity::class,
+        TranscriptLineEntity::class, PipelineStageEntity::class, ClipEntity::class, CardEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class LessonDatabase : RoomDatabase() {
     abstract fun lessons(): LessonDao
     abstract fun pipeline(): PipelineDao
+    abstract fun cards(): CardDao
 
     companion object {
         @Volatile private var instance: LessonDatabase? = null
@@ -74,7 +78,7 @@ abstract class LessonDatabase : RoomDatabase() {
         /** One database for the app and its background workers. */
         fun get(context: Context): LessonDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, LessonDatabase::class.java, "cuenote.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build().also { instance = it }
         }
 
@@ -82,6 +86,13 @@ abstract class LessonDatabase : RoomDatabase() {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_1_2_SQL.forEach(db::execSQL)
+            }
+        }
+
+        /** M3 adds replay clips and cards; existing lessons and results are kept. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_2_3_SQL.forEach(db::execSQL)
             }
         }
     }
@@ -94,4 +105,10 @@ internal val MIGRATION_1_2_SQL = listOf(
     "CREATE TABLE IF NOT EXISTS `feedback` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `takeId` TEXT, `spanStartMs` INTEGER NOT NULL, `spanEndMs` INTEGER NOT NULL, `linkConfidence` REAL NOT NULL, `linkReason` TEXT NOT NULL, `demos` TEXT NOT NULL, `words` TEXT NOT NULL, PRIMARY KEY(`id`))",
     "CREATE TABLE IF NOT EXISTS `transcript_line` (`lessonId` TEXT NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `speaker` TEXT NOT NULL, `text` TEXT NOT NULL, PRIMARY KEY(`lessonId`, `startMs`, `speaker`))",
     "CREATE TABLE IF NOT EXISTS `pipeline_stage` (`lessonId` TEXT NOT NULL, `stage` TEXT NOT NULL, `status` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `finishedAt` INTEGER NOT NULL, `detail` TEXT NOT NULL, PRIMARY KEY(`lessonId`, `stage`))",
+)
+
+/** Copied from schemas/com.cuenote.data.LessonDatabase/3.json (Room checks they match). */
+internal val MIGRATION_2_3_SQL = listOf(
+    "CREATE TABLE IF NOT EXISTS `clip` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `kind` TEXT NOT NULL, `localId` TEXT NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `file` TEXT NOT NULL, `storagePath` TEXT, PRIMARY KEY(`id`))",
+    "CREATE TABLE IF NOT EXISTS `card` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `localId` TEXT, `takeId` TEXT, `spanStartMs` INTEGER NOT NULL, `spanEndMs` INTEGER NOT NULL, `cue` TEXT NOT NULL, `category` TEXT, `herWords` TEXT NOT NULL, `practiceFlag` TEXT, `barStart` INTEGER, `barEnd` INTEGER, `transcript` TEXT NOT NULL, `editedByTeacher` INTEGER NOT NULL, `updatedAt` TEXT NOT NULL, PRIMARY KEY(`id`))",
 )

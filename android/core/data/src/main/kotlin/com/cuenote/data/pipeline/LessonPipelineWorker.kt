@@ -12,6 +12,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.cuenote.data.LessonDatabase
 import com.cuenote.data.PipelineStageEntity
+import com.cuenote.data.sync.LessonUploadWorker
 import com.cuenote.ml.ModelFiles
 import com.cuenote.ml.WhisperNative
 import com.cuenote.pipeline.Models
@@ -39,6 +40,8 @@ class LessonPipelineWorker(context: Context, params: WorkerParameters) : Corouti
         val dao = db.pipeline()
         if (inputData.getBoolean(KEY_AGAIN, false) && runAttemptCount == 0) {
             dao.clearAll(lessonId)
+            db.cards().clearClips(lessonId)
+            File(lesson.dirPath, "clips").deleteRecursively()
             Pipeline(folder, com.cuenote.ml.EnergyVad(), null).reset()
         }
 
@@ -82,6 +85,8 @@ class LessonPipelineWorker(context: Context, params: WorkerParameters) : Corouti
                 )
                 ResultImporter.import(dao, lessonId, out, pipeline.state())
                 dao.setLessonState(lessonId, "processed")
+                // Next: clips, upload and cards, once there is a network.
+                LessonUploadWorker.enqueue(applicationContext, lessonId)
                 Result.success()
             } catch (e: StoppedException) {
                 ResultImporter.importStages(dao, lessonId, pipeline.state())

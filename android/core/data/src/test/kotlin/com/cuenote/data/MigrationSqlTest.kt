@@ -10,16 +10,26 @@ import java.io.File
 
 /**
  * Room refuses to open a migrated database whose tables differ from what it
- * expects. This checks the 1 → 2 migration creates every new table exactly as
+ * expects. These check each migration creates every new table exactly as
  * Room's exported schema describes it, so existing lessons survive the update.
  */
 class MigrationSqlTest {
-    @Test fun `migration 1 to 2 matches the exported schema`() {
-        val schema = Json.parseToJsonElement(File("schemas/com.cuenote.data.LessonDatabase/2.json").readText())
+    private fun createSql(version: Int, except: Set<String>): List<String> {
+        val schema = Json.parseToJsonElement(File("schemas/com.cuenote.data.LessonDatabase/$version.json").readText())
         val entities = schema.jsonObject["database"]!!.jsonObject["entities"]!!.jsonArray
-        val expected = entities.map { it.jsonObject }
-            .filter { it["tableName"]!!.jsonPrimitive.content != "lesson" }   // already there in version 1
+        return entities.map { it.jsonObject }
+            .filter { it["tableName"]!!.jsonPrimitive.content !in except }
             .map { it["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", it["tableName"]!!.jsonPrimitive.content) }
-        assertEquals(expected.sorted(), MIGRATION_1_2_SQL.sorted())
+    }
+
+    @Test fun `migration 1 to 2 matches the exported schema`() {
+        assertEquals(createSql(2, setOf("lesson")).sorted(), MIGRATION_1_2_SQL.sorted())   // lesson was there in version 1
+    }
+
+    @Test fun `migration 2 to 3 matches the exported schema`() {
+        val old = setOf("lesson", "segment", "take", "feedback", "transcript_line", "pipeline_stage")
+        assertEquals(createSql(3, old).sorted(), MIGRATION_2_3_SQL.sorted())
+        // The tables version 2 already had are unchanged.
+        assertEquals(createSql(2, emptySet()).sorted(), createSql(3, setOf("clip", "card")).sorted())
     }
 }

@@ -47,6 +47,11 @@ otp_expiry = 3600
 [functions.notify]
 verify_jwt = false
 
+# The phone calls extract-cues with the student's session; the function checks
+# the lesson is theirs.
+[functions.extract-cues]
+verify_jwt = true
+
 # Branded emails. The hosted project uses the same HTML: paste each file into
 # Authentication -> Emails -> Templates in the dashboard.
 [auth.email.template.confirmation]
