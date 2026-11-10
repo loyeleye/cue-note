@@ -114,6 +114,8 @@ export interface Feedback {
   updated_at: string;
   /** Everything she said in the block, as the phone transcribed it (M3). */
   transcript?: string;
+  /** Set once a teacher removed the card's audio; the note stays. */
+  audio_removed_at?: string | null;
 }
 
 /** The fields a teacher may change on a card; also what a version stores. */

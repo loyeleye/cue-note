@@ -111,6 +111,10 @@ interface CardDao {
 
     @Query("delete from clip where lessonId = :lessonId") suspend fun clearClips(lessonId: String)
 
+    @Query("select * from clip where id in (:ids)") suspend fun clipsById(ids: List<String>): List<ClipEntity>
+
+    @Query("delete from clip where id in (:ids)") suspend fun deleteClips(ids: List<String>)
+
     @Query("delete from card where lessonId = :lessonId") suspend fun clearCards(lessonId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertCards(c: List<CardEntity>)

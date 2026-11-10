@@ -103,6 +103,26 @@ test('blocks the phone no longer finds are removed, unless she worked on them', 
   assert.deepEqual(tables.feedback.map((f) => f.id).sort(), [B(1), B(2), B(3)].sort());
 });
 
+test('a card a teacher deleted stays deleted when the notes are made again', async () => {
+  await post(sample.request);
+  tables.feedback = tables.feedback.filter((f) => f.id !== B(2));
+  tables.feedback_removed = [{ feedback_id: B(2), lesson_id: sample.request.lesson_id }];
+  const out = await (await post(sample.request)).json();
+  assert.equal(out.cards, 3);
+  assert.equal(tables.feedback.find((f) => f.id === B(2)), undefined);
+  assert.doesNotMatch(calls[1].content, /Drop the jaw|jaw/i);
+});
+
+test('audio a teacher removed is not linked again, and the note stays', async () => {
+  await post(sample.request);
+  const withClip = sample.request.blocks.findIndex((b: any) => b.clip_path);
+  const id = B(withClip + 1);
+  Object.assign(feedback(id), { clip_path: null, audio_removed_at: '2026-11-10T00:00:00Z' });
+  await post(sample.request);
+  assert.equal(feedback(id).clip_path, null);
+  assert.ok(feedback(id).audio_removed_at);
+});
+
 test('a link to a take that never uploaded is dropped', async () => {
   tables.take = tables.take.slice(1);
   await post(sample.request);

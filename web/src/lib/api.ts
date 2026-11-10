@@ -120,6 +120,10 @@ export interface Api {
    * opts.expected, throws EditConflict instead of saving over someone else.
    */
   saveCard(feedbackId: string, changes: Partial<CardFields>, opts?: SaveOptions): Promise<Feedback>;
+  /** Deletes a card and its clip for good; making the notes again won't bring it back. */
+  removeCard(card: Feedback): Promise<void>;
+  /** Deletes a card's clip but keeps the note. */
+  removeCardAudio(card: Feedback): Promise<Feedback>;
 
   listCheckpoints(lessonId: string): Promise<Checkpoint[]>;
   addCheckpoint(lessonId: string, label: string): Promise<Checkpoint>;

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -401,6 +402,7 @@ private fun LessonRow(
     onOpen: (LessonEntity) -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val m = MaterialTheme.colorScheme
     TicketRow(onClick = { onOpen(l) }) {
         Column(Modifier.size(width = 44.dp, height = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -426,9 +428,23 @@ private fun LessonRow(
             TextButton(onClick = { menu = true }) { Text("⋯", modifier = Modifier.semantics { contentDescription = "More" }) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Copy to Downloads") }, onClick = { menu = false; onExport(l) })
-                DropdownMenuItem(text = { Text("Delete from this phone") }, onClick = { menu = false; onDelete(l) })
+                DropdownMenuItem(text = { Text("Delete lesson") }, onClick = { menu = false; confirmDelete = true })
             }
         }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this lesson?") },
+            text = {
+                Text(
+                    "The recording, notes, clips and sketch photos go from this phone and from your teacher's dashboard. " +
+                        "This can't be undone.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete(l) }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Keep it") } },
+        )
     }
 }
 

@@ -113,6 +113,16 @@ class LessonRepository(
         val cloud = CloudSync(AuthRepository.get())
         if (cloud.studentId() == null) return@withContext
         cardDao?.replaceCards(id, cloud.cards(id))
+        forgetRemovedClips(id, cloud)
+    }
+
+    /** A teacher deleted a card or removed its audio: the phone's copy of that clip goes too. */
+    private suspend fun forgetRemovedClips(id: String, cloud: CloudSync) {
+        val dao = cardDao ?: return
+        val removed = cloud.removedClipIds(id).toList()
+        if (removed.isEmpty()) return
+        dao.clipsById(removed).forEach { File(it.file).delete() }
+        dao.deleteClips(removed)
     }
 
     /** True once the speech models are on the phone. */
@@ -124,7 +134,14 @@ class LessonRepository(
 
     suspend fun failed(id: String) = dao.finish(id, "failed", 0, 0, 0, 0, 0, "")
 
+    /**
+     * Deletes a lesson everywhere: online first (when signed in), then on the
+     * phone. If the online part fails, the phone keeps its copy and this
+     * throws, so nothing is half-deleted without the student knowing.
+     */
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
+        val cloud = CloudSync(AuthRepository.get())
+        cloud.studentId()?.let { student -> cloud.deleteLesson(student, id) }
         lessonDir(id).deleteRecursively()
         pipelineDao?.clearAll(id)
         photoDao?.clear(id)

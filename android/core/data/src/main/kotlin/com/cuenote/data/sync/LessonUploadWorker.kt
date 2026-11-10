@@ -103,10 +103,12 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         val pathOf = clips.associate { it.localId to cloud.clipPath(student, lessonId, File(it.file).name) }
         try {
             cloud.putLesson(student, lesson, LessonTeacherStore(applicationContext).get(lessonId))
+            // Clips a teacher deleted, or whose audio they removed, stay off the cloud.
+            val removed = cloud.removedClipIds(lessonId)
             clips.forEachIndexed { i, c ->
                 if (isStopped) return@withContext Result.retry()
                 val path = pathOf.getValue(c.localId)
-                if (c.storagePath != path) {
+                if (c.id !in removed && c.storagePath != path) {
                     cloud.putClip(path, File(c.file))
                     cardsDao.setUploaded(c.id, path)
                 }
