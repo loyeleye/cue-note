@@ -20,14 +20,32 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class SetupStep(val title: String, val instruction: String, val seconds: Int) {
-    STUDENT_SPEAK("Student speaks", "Student: talk normally for a few seconds. Teacher: stay quiet.", 5),
-    TEACHER_SPEAK("Teacher speaks", "Teacher: talk normally for a few seconds. Student: stay quiet.", 5),
-    LOUD_NOTE("Loud note", "Student: sing your loudest comfortable note and hold it.", 4),
-    PIANO_ALONE("Piano alone", "Teacher: play one exercise at your usual volume. Student: stay quiet.", 5),
-    PIANO_SOFT("Soft singing with piano", "Teacher: play the exercise again. Student: sing it softly.", 6),
-    PIANO_LOUD("Loud singing with piano", "Teacher: play loud chords. Student: sing loudly.", 5),
+/**
+ * The soundcheck's steps, in order. Each has a friendly prompt to sing or
+ * say (shown big, in quotes, so nobody reads instructions mid-lesson), who
+ * should make sound, and who should stay quiet.
+ */
+enum class SetupStep(
+    val title: String,
+    val who: String,
+    val prompt: String,
+    val seconds: Int,
+    /** Whose mic should stay quiet in this step, if anyone's. */
+    val quiet: Who?,
+) {
+    STUDENT_SPEAK("Hi, I'm ready", "Student", "Sing \"Hi, I'm ready to sing.\"", 5, Who.TEACHER),
+    TEACHER_SPEAK("Teacher says hello", "Teacher", "Say \"Hello! Ready when you are.\"", 5, Who.STUDENT),
+    LOUD_NOTE("One big note", "Student", "Sing your biggest comfortable note and hold it.", 4, null),
+    PIANO_ALONE("Piano solo", "Teacher", "Play an exercise at your usual volume.", 5, Who.STUDENT),
+    PIANO_SOFT("Soft with piano", "Both", "Play it again. Student, sing it softly.", 6, null),
+    PIANO_LOUD("Full voice + piano", "Both", "Big chords, big voice.", 5, null),
+    ;
+
+    enum class Who { STUDENT, TEACHER }
 }
+
+/** Where the current step is: waiting for the first Start, getting ready, listening, or showing its result. */
+enum class StepPhase { IDLE, GET_READY, LISTENING, PASSED, FAILED }
 
 data class SetupUiState(
     val mic: MicInfo? = null,
@@ -36,6 +54,9 @@ data class SetupUiState(
     val charging: Boolean = false,
     val step: SetupStep = SetupStep.STUDENT_SPEAK,
     val secondsLeft: Int? = null,
+    val phase: StepPhase = StepPhase.IDLE,
+    /** No chime after each step, for a quiet room. */
+    val quietCheck: Boolean = false,
     val results: Map<SetupStep, StepResult> = emptyMap(),
     val error: String? = null,
     val done: Boolean = false,
@@ -63,6 +84,8 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
     private val _state = MutableStateFlow(SetupUiState())
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
     val liveLevels = recorder.levels
+    private val prefs = app.getSharedPreferences("soundcheck", android.content.Context.MODE_PRIVATE)
+    private val chime = Chime()
 
     init {
         val battery = app.getSystemService(BatteryManager::class.java)
@@ -72,6 +95,7 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
                 batteryPercent = battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY),
                 charging = battery.isCharging,
                 channelsSwitched = recorder.switchChannels,
+                quietCheck = prefs.getBoolean("quiet", false),
             )
         }
         try {
@@ -82,30 +106,56 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
         }
     }
 
+    /**
+     * Starts the check, which then runs hands-free: each step listens for
+     * its seconds, a pass stamps and moves on after a short "get ready",
+     * and only a failure stops and waits for "Try again".
+     */
     fun runStep() {
         if (job?.isActive == true) return
-        val step = _state.value.step
         job = viewModelScope.launch {
-            recorder.resetWindow()
-            for (s in step.seconds downTo 1) {
-                _state.update { it.copy(secondsLeft = s) }
-                delay(1_000)
+            while (true) {
+                val step = _state.value.step
+                if (!listen(step)) return@launch // failed: wait for Try again
+                delay(PASS_HOLD_MS)
+                if (!advance()) return@launch // all done
+                _state.update { it.copy(phase = StepPhase.GET_READY) }
+                delay(GET_READY_MS)
             }
-            captured[step] = recorder.windowLevels()
-            val result = judge(step)
-            if (step == SetupStep.STUDENT_SPEAK) {
-                val outcome = rules.studentStep(captured.getValue(step))
-                if (outcome.switchChannels) setSwitched(!recorder.switchChannels, byCheck = true)
-            }
-            _state.update {
-                it.copy(
-                    secondsLeft = null,
-                    routedTo = recorder.routedDeviceName(),
-                    results = if (result != null) it.results + (step to result) else it.results,
-                )
-            }
-            if (result == null || result == StepResult.Pass) advance()
         }
+    }
+
+    /** Listens to one step and judges it; true when it passed (or only captured). */
+    private suspend fun listen(step: SetupStep): Boolean {
+        recorder.resetWindow()
+        _state.update { it.copy(phase = StepPhase.LISTENING) }
+        for (s in step.seconds downTo 1) {
+            _state.update { it.copy(secondsLeft = s) }
+            delay(1_000)
+        }
+        captured[step] = recorder.windowLevels()
+        val result = judge(step)
+        if (step == SetupStep.STUDENT_SPEAK) {
+            val outcome = rules.studentStep(captured.getValue(step))
+            if (outcome.switchChannels) setSwitched(!recorder.switchChannels, byCheck = true)
+        }
+        val passed = result == null || result == StepResult.Pass
+        _state.update {
+            it.copy(
+                secondsLeft = null,
+                phase = if (passed) StepPhase.PASSED else StepPhase.FAILED,
+                routedTo = recorder.routedDeviceName(),
+                results = if (result != null) it.results + (step to result) else it.results,
+            )
+        }
+        // The window is captured, so the chime can't end up in the measurement.
+        if (!_state.value.quietCheck) chime.play(passed)
+        return passed
+    }
+
+    fun setQuietCheck(on: Boolean) {
+        prefs.edit().putBoolean("quiet", on).apply()
+        _state.update { it.copy(quietCheck = on) }
     }
 
     /** Skips the piano steps, for lessons without a piano. */
@@ -125,6 +175,12 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
             step == SetupStep.PIANO_LOUD -> _state.update { it.copy(step = SetupStep.PIANO_ALONE, results = it.results - step) }
             else -> _state.update { it.copy(results = it.results - step) }
         }
+        _state.update { it.copy(phase = StepPhase.GET_READY) }
+        job = viewModelScope.launch {
+            delay(GET_READY_MS)
+            job = null
+            runStep()
+        }
     }
 
     /** Manual override: switch which input is the student's and start the check over. */
@@ -132,7 +188,7 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
         if (job?.isActive == true) return
         setSwitched(!recorder.switchChannels, byCheck = false)
         captured.clear()
-        _state.update { it.copy(step = SetupStep.STUDENT_SPEAK, results = emptyMap(), done = false) }
+        _state.update { it.copy(step = SetupStep.STUDENT_SPEAK, results = emptyMap(), done = false, phase = StepPhase.IDLE) }
     }
 
     private fun setSwitched(on: Boolean, byCheck: Boolean) {
@@ -141,9 +197,11 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
         _state.update { it.copy(channelsSwitched = on, switchedThisCheck = byCheck) }
     }
 
-    private fun advance() {
+    /** Moves to the next step; false when that was the last one. */
+    private fun advance(): Boolean {
         val next = SetupStep.entries.getOrNull(_state.value.step.ordinal + 1)
-        _state.update { if (next == null) it.copy(done = true) else it.copy(step = next) }
+        _state.update { if (next == null) it.copy(done = true) else it.copy(step = next, phase = StepPhase.GET_READY) }
+        return next != null
     }
 
     /** Returns null for steps that only capture audio for a later step. */
@@ -161,5 +219,13 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
 
     override fun onCleared() {
         recorder.stop()
+        chime.release()
+    }
+
+    private companion object {
+        /** How long a passed step's stamp shows before the next step. */
+        const val PASS_HOLD_MS = 1_200L
+        /** "Get ready" before each step listens. */
+        const val GET_READY_MS = 2_000L
     }
 }

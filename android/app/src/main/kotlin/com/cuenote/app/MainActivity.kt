@@ -24,7 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.work.WorkInfo
 import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
-import com.cuenote.app.ui.CueNoteTheme
+import com.cuenote.ui.CueNoteTheme
 import com.cuenote.audio.RecordingState
 import com.cuenote.data.InvitedTeacher
 import com.cuenote.lesson.CornerEditorScreen

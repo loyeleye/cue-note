@@ -1,4 +1,4 @@
-package com.cuenote.lesson
+package com.cuenote.ui
 
 import android.media.AudioAttributes
 import android.media.MediaPlayer

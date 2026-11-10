@@ -1,5 +1,7 @@
 package com.cuenote.lesson
 
+import com.cuenote.ui.ClipPlayer
+import com.cuenote.ui.rememberClipPlayer
 import com.cuenote.data.diagrams.DiagramSuggestion
 import com.cuenote.data.diagrams.DiagramRepository
 import com.cuenote.data.sketch.SketchRepository
