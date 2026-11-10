@@ -15,6 +15,10 @@
 //   ANTHROPIC_API_KEY  the Claude API key
 //   CUE_MODEL          optional, default claude-opus-5-5
 //   CUE_EFFORT         optional, low | medium | high, default low
+// With "trial_models" in the body (any of TRIAL_MODELS), it runs the lesson
+// through each of those models and returns their cards side by side without
+// writing any; each run is still logged, marked trial, with its cost.
+//
 // SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY come from Supabase.
 import Anthropic from 'npm:@anthropic-ai/sdk@1.2.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -32,18 +36,18 @@ const json = (body: unknown, status = 200) => Response.json(body, { status });
 interface Usage { input: number; output: number }
 
 /** One model call for a batch of blocks. Returns its cards and token use. */
-async function ask(client: Anthropic, lesson: string, examples: string): Promise<{ cards: ModelCard[]; usage: Usage }> {
+async function ask(client: Anthropic, model: string, lesson: string, examples: string): Promise<{ cards: ModelCard[]; usage: Usage }> {
   const content = [examples, `The lesson:\n\n${lesson}`].filter(Boolean).join('\n\n---\n\n');
   const params = {
-    model: MODEL,
+    model,
     max_tokens: 32000,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user' as const, content }],
     output_config: { effort: EFFORT, format: { type: 'json_schema' as const, schema: ANSWER_SCHEMA } },
   };
-  // Opus and Sonnet 5.5 can hand a declined request to another model on the
+  // Fable 5.2, Opus 5.5 and Sonnet 5.5 can hand a declined request to another model on the
   // server; Haiku 5.5 has no such fallback.
-  const msg = supportsFallback(MODEL)
+  const msg = supportsFallback(model)
     ? await client.beta.messages.stream({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }).finalMessage()
     : await client.messages.stream(params).finalMessage();
   const usage = {
@@ -93,8 +97,8 @@ Deno.serve(async (req) => {
   // A link to a take that never uploaded would break the foreign key.
   const blocks: Block[] = body.blocks.map((b) => ({ ...b, take_id: b.take_id && takeIds.has(b.take_id) ? b.take_id : null }));
 
-  const log = async (row: Record<string, unknown>) => {
-    await db.from('cue_extraction').insert({ lesson_id: lesson.id, model: MODEL, ...row });
+  const log = async (row: Record<string, unknown>, model = MODEL) => {
+    await db.from('cue_extraction').insert({ lesson_id: lesson.id, model, ...row });
   };
 
   // ---------------------------------------------------------------- ask the model
@@ -109,24 +113,53 @@ Deno.serve(async (req) => {
   }
   const client = new Anthropic({ apiKey, timeout: 140_000, maxRetries: 1 });
 
-  // Takes and blocks with nothing said need no model call.
+  // Blocks with nothing said need no model call.
   const spoken = [...labels].filter(([, b]) => b.transcript.trim()).map(([l]) => l);
-  const usage: Usage = { input: 0, output: 0 };
-  let cards: ModelCard[] = [];
-  try {
-    const answers = await Promise.all(batches(spoken).map((group) =>
-      ask(client, lessonText(labels, takes, body.transcript, new Set(group)), examples)));
-    for (const a of answers) {
-      cards = cards.concat(a.cards);
-      usage.input += a.usage.input;
-      usage.output += a.usage.output;
+
+  /** The whole lesson through one model: its cards and token use, or why it failed. */
+  const run = async (model: string): Promise<{ cards: ModelCard[]; usage: Usage; error?: string }> => {
+    const usage: Usage = { input: 0, output: 0 };
+    let cards: ModelCard[] = [];
+    try {
+      const answers = await Promise.all(batches(spoken).map((group) =>
+        ask(client, model, lessonText(labels, takes, body.transcript, new Set(group)), examples)));
+      for (const a of answers) {
+        cards = cards.concat(a.cards);
+        usage.input += a.usage.input;
+        usage.output += a.usage.output;
+      }
+      return { cards, usage };
+    } catch (e) {
+      const u = (e as { usage?: Usage }).usage;
+      if (u) { usage.input += u.input; usage.output += u.output; }
+      const error = e instanceof Anthropic.APIError ? `${e.status ?? ''} ${e.message}`.trim() : String((e as Error).message ?? e);
+      return { cards: [], usage, error };
     }
-  } catch (e) {
-    const u = (e as { usage?: Usage }).usage;
-    if (u) { usage.input += u.input; usage.output += u.output; }
-    const message = e instanceof Anthropic.APIError ? `${e.status ?? ''} ${e.message}`.trim() : String((e as Error).message ?? e);
-    await log({ input_tokens: usage.input, output_tokens: usage.output, cost_usd: costUsd(MODEL, usage.input, usage.output), error: message });
-    return json({ error: `cue extraction failed: ${message}` }, 502);
+  };
+
+  // ---------------------------------------------------------------- trial: compare models, write no cards
+  if (body.trial_models?.length) {
+    const trials = await Promise.all(body.trial_models.map(async (model) => {
+      const r = await run(model);
+      const cost = costUsd(model, r.usage.input, r.usage.output);
+      await log({ input_tokens: r.usage.input, output_tokens: r.usage.output, cost_usd: cost, trial: true, error: r.error ?? null }, model);
+      const checked = r.error ? [] : check(labels, r.cards);
+      return {
+        model, cost_usd: cost, input_tokens: r.usage.input, output_tokens: r.usage.output, error: r.error ?? null,
+        cards: checked.map((c) => ({
+          id: c.block.id, cue: c.payload.cue, her_words: c.payload.her_words, category: c.payload.category,
+          practice_flag: c.payload.practice_flag, bar_start: c.payload.bar_start, bar_end: c.payload.bar_end,
+          repaired: c.repaired, missing: c.missing,
+        })),
+      };
+    }));
+    return json({ trials });
+  }
+
+  const { cards, usage, error } = await run(MODEL);
+  if (error) {
+    await log({ input_tokens: usage.input, output_tokens: usage.output, cost_usd: costUsd(MODEL, usage.input, usage.output), error });
+    return json({ error: `cue extraction failed: ${error}` }, 502);
   }
   const checked = check(labels, cards);
 

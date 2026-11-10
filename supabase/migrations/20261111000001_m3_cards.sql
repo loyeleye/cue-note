@@ -49,6 +49,7 @@ create table public.cue_extraction (
   cost_usd       numeric(10, 5),
   cards          int not null default 0,   -- cards written or refreshed
   kept_teacher   int not null default 0,   -- cards left alone because a teacher had edited them
+  trial          boolean not null default false,  -- a model comparison; it wrote no cards
   error          text,
   created_at     timestamptz not null default now()
 );

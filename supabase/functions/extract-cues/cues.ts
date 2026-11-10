@@ -30,7 +30,12 @@ export interface Request {
   lesson_id: string;
   blocks: Block[];
   transcript: Line[];
+  /** Compare these models on the lesson instead of writing cards. */
+  trial_models?: string[];
 }
+
+/** The models a trial may compare. */
+export const TRIAL_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-2'];
 
 export interface TakeRow {
   id: string;
@@ -56,6 +61,10 @@ export function invalidRequest(r: unknown): string | null {
   if (typeof q.lesson_id !== 'string' || !UUID.test(q.lesson_id)) return 'lesson_id must be a uuid';
   if (!Array.isArray(q.blocks) || q.blocks.length > MAX_BLOCKS) return `blocks must be a list of at most ${MAX_BLOCKS}`;
   if (!Array.isArray(q.transcript)) return 'transcript must be a list';
+  if (q.trial_models != null && (!Array.isArray(q.trial_models) || q.trial_models.length > TRIAL_MODELS.length
+      || q.trial_models.some((m) => !TRIAL_MODELS.includes(m)))) {
+    return `trial_models must be some of ${TRIAL_MODELS.join(', ')}`;
+  }
   const ids = new Set<string>();
   for (const b of q.blocks) {
     if (!b || typeof b.id !== 'string' || !UUID.test(b.id)) return 'each block needs a uuid id';
@@ -292,6 +301,7 @@ export function samePayload(a: Partial<CardPayload> | null | undefined, b: CardP
 
 /** US dollars per million tokens (input, output), first-party API prices. */
 const PRICES: Record<string, [number, number]> = {
+  'claude-fable-5-2': [8, 40],
   'claude-opus-5-5': [4, 20],
   'claude-sonnet-5-5': [2, 10],
   'claude-haiku-5-5': [0.10, 0.50],
@@ -305,5 +315,5 @@ export function costUsd(model: string, input: number, output: number): number | 
 
 /** Server-side refusal fallbacks exist for these models only; Haiku 5.5 has none. */
 export function supportsFallback(model: string): boolean {
-  return model.startsWith('claude-opus-5-5') || model.startsWith('claude-sonnet-5-5');
+  return ['claude-fable-5-2', 'claude-opus-5-5', 'claude-sonnet-5-5'].some((m) => model.startsWith(m));
 }

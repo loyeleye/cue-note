@@ -181,6 +181,11 @@ lesson fetches her latest edits from the dashboard.
 Each run is logged in `cue_extraction` with its tokens and cost, to check the
 design doc's estimate of $0.03 a lesson.
 
+**Picking the model.** On a lesson that has cards, **Details → Compare AI
+models** runs it through Haiku 5.5, Sonnet 5.5, Opus 5.5 and Fable 5.2 and
+shows each one's card for every block, with what each run cost. The lesson's
+own cards don't change. The model the app uses is the `CUE_MODEL` secret.
+
 **Setting up the function.** It deploys with the others on merge. It needs the
 Claude API key as a secret, once:
 

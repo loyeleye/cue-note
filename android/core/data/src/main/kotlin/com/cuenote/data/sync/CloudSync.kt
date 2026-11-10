@@ -7,6 +7,7 @@ import com.cuenote.data.TakeEntity
 import com.cuenote.pipeline.cards.ClipPlan
 import com.cuenote.pipeline.cards.CloudIds
 import com.cuenote.pipeline.cards.CueRequest
+import com.cuenote.pipeline.cards.ModelTrials
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.functions.functions
@@ -128,6 +129,22 @@ class CloudSync(private val auth: AuthRepository) {
 
     /** Asks extract-cues to turn the lesson's feedback into cards. */
     suspend fun extractCues(request: CueRequest): CueResult {
+        val o = json.parseToJsonElement(callExtractCues(request)).jsonObject
+        return CueResult(
+            cards = o["cards"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+            keptTeacher = o["kept_teacher"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+            costUsd = o["cost_usd"]?.jsonPrimitive?.content?.toDoubleOrNull(),
+            model = o["model"]?.jsonPrimitive?.content,
+        )
+    }
+
+    /** Runs the lesson through each of [models] and returns their cards; writes no cards. Returns the raw JSON too. */
+    suspend fun compareModels(request: CueRequest, models: List<String>): Pair<ModelTrials, String> {
+        val text = callExtractCues(request.copy(trialModels = models))
+        return json.decodeFromString(ModelTrials.serializer(), text) to text
+    }
+
+    private suspend fun callExtractCues(request: CueRequest): String {
         val response = try {
             client.functions.invoke("extract-cues") {
                 contentType(ContentType.Application.Json)
@@ -143,13 +160,7 @@ class CloudSync(private val auth: AuthRepository) {
             val error = runCatching { json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
             throw CueError(error ?: "extract-cues answered ${response.status.value}", retryable = response.status.value >= 500)
         }
-        val o = json.parseToJsonElement(text).jsonObject
-        return CueResult(
-            cards = o["cards"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-            keptTeacher = o["kept_teacher"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
-            costUsd = o["cost_usd"]?.jsonPrimitive?.content?.toDoubleOrNull(),
-            model = o["model"]?.jsonPrimitive?.content,
-        )
+        return text
     }
 
     @Serializable

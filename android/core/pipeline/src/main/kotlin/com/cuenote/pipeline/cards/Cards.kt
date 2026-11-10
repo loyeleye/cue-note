@@ -114,6 +114,8 @@ data class CueRequest(
     @SerialName("lesson_id") val lessonId: String,
     val blocks: List<Block>,
     val transcript: List<Line>,
+    /** Set to compare models on the lesson; the function then writes no cards. */
+    @SerialName("trial_models") val trialModels: List<String>? = null,
 ) {
     @Serializable
     data class Block(
@@ -163,6 +165,45 @@ data class CueRequest(
             },
             transcript = out.transcript.filter { it.text.isNotBlank() }
                 .map { Line(it.speaker.name.lowercase(), it.startMs, it.endMs, it.text.trim()) },
+        )
+    }
+}
+
+/** What a model comparison returns: each model's cards for the lesson and what it cost. */
+@Serializable
+data class ModelTrials(val trials: List<Trial>) {
+    @Serializable
+    data class Trial(
+        val model: String,
+        @SerialName("cost_usd") val costUsd: Double? = null,
+        @SerialName("input_tokens") val inputTokens: Int = 0,
+        @SerialName("output_tokens") val outputTokens: Int = 0,
+        val error: String? = null,
+        val cards: List<Card> = emptyList(),
+    )
+
+    @Serializable
+    data class Card(
+        /** The card's cloud id (feedback.id). */
+        val id: String,
+        val cue: String = "",
+        @SerialName("her_words") val herWords: String = "",
+        val category: String? = null,
+        @SerialName("practice_flag") val practiceFlag: String? = null,
+        @SerialName("bar_start") val barStart: Int? = null,
+        @SerialName("bar_end") val barEnd: Int? = null,
+        /** Its quote wasn't her words and was replaced with her sentence. */
+        val repaired: Boolean = false,
+        val missing: Boolean = false,
+    )
+
+    companion object {
+        /** The models to compare, cheapest first, with the names people know them by. */
+        val MODELS = linkedMapOf(
+            "claude-haiku-5-5" to "Haiku 5.5",
+            "claude-sonnet-5-5" to "Sonnet 5.5",
+            "claude-opus-5-5" to "Opus 5.5",
+            "claude-fable-5-2" to "Fable 5.2",
         )
     }
 }

@@ -7,11 +7,18 @@ import android.provider.MediaStore
 import com.cuenote.audio.RecordingSummary
 import com.cuenote.data.pipeline.PipelineScheduler
 import com.cuenote.data.sync.CloudSync
+import com.cuenote.pipeline.Pipeline
+import com.cuenote.pipeline.audio.LessonFolder
+import com.cuenote.pipeline.cards.CueRequest
+import com.cuenote.pipeline.cards.ModelTrials
+import kotlinx.serialization.json.Json
 import com.cuenote.data.sync.LessonUploadWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+
+private val compareJson = Json { ignoreUnknownKeys = true }
 
 class LessonRepository(
     private val context: Context,
@@ -61,6 +68,28 @@ class LessonRepository(
 
     /** Lessons that were processed but have no cards yet, for after signing in. */
     suspend fun makeMissingCards() = dao.withState("processed").forEach { makeCards(it.id) }
+
+    /** Where the last model comparison for a lesson is kept. */
+    fun comparisonFile(id: String) = File(lessonDir(id), "pipeline/model-compare.json")
+
+    /** The last model comparison, if one was run. */
+    fun lastComparison(id: String): ModelTrials? = comparisonFile(id).takeIf { it.isFile }
+        ?.let { runCatching { compareJson.decodeFromString(ModelTrials.serializer(), it.readText()) }.getOrNull() }
+
+    /**
+     * Runs the lesson through each model and keeps the result next to the
+     * lesson. No cards change. The lesson must already have its cards (so it
+     * is in the cloud).
+     */
+    suspend fun compareModels(id: String, models: List<String> = ModelTrials.MODELS.keys.toList()): ModelTrials =
+        withContext(Dispatchers.IO) {
+            val out = Pipeline.readOutput(LessonFolder(lessonDir(id))) ?: error("This lesson isn't processed yet")
+            val cloud = CloudSync(AuthRepository.get())
+            requireNotNull(cloud.studentId()) { "Sign in first" }
+            val (trials, text) = cloud.compareModels(CueRequest.from(id, out) { null }, models)
+            comparisonFile(id).writeText(text)
+            trials
+        }
 
     /** Copies the lesson's cards from the cloud again, her latest edits included. */
     suspend fun refreshCards(id: String) = withContext(Dispatchers.IO) {

@@ -157,6 +157,10 @@ fun LessonScreen(
                 items(stages, key = { "s-" + it.stage }) { s ->
                     Text("${s.stage}: ${s.status} in ${(s.finishedAt - s.startedAt) / 1000} s. ${s.detail}", style = MaterialTheme.typography.bodySmall)
                 }
+                if (cards.isNotEmpty()) item(key = "compare") {
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    CompareSection(lesson.id, repo, cards)
+                }
             }
         }
     }

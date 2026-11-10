@@ -129,3 +129,27 @@ test('a declined or unconfigured run writes nothing and says why', async () => {
   delete env.ANTHROPIC_API_KEY;
   assert.equal((await post(sample.request)).status, 503);
 });
+
+test('a trial runs each model on the lesson and writes no cards', async () => {
+  const res = await post({ ...sample.request, trial_models: ['claude-haiku-5-5', 'claude-opus-5-5', 'claude-fable-5-2'] });
+  assert.equal(res.status, 200);
+  const { trials } = await res.json();
+  assert.deepEqual(trials.map((t: any) => t.model), ['claude-haiku-5-5', 'claude-opus-5-5', 'claude-fable-5-2']);
+  assert.equal(trials[0].cards.length, 4);
+  assert.equal(trials[0].cards[1].cue, 'Drop the jaw on the top note');
+  assert.equal(trials[0].cards[1].id, B(2));
+  assert.equal(trials[0].cost_usd, 0.0002);
+  assert.equal(trials[2].cost_usd, 0.016);
+  assert.equal(tables.feedback?.length ?? 0, 0, 'a trial writes no cards');
+  assert.equal(tables.lesson[0].pipeline_state, 'uploading');
+  assert.equal(tables.cue_extraction.length, 3);
+  assert.ok(tables.cue_extraction.every((r) => r.trial === true));
+  // Haiku has no server-side fallback; the others do.
+  const haiku = calls.find((c) => c.model === 'claude-haiku-5-5')!;
+  assert.equal(haiku.fallbacks, undefined);
+  assert.equal(calls.find((c) => c.model === 'claude-fable-5-2')!.fallbacks, 'default');
+});
+
+test('a trial can only name known models', async () => {
+  assert.equal((await post({ ...sample.request, trial_models: ['gpt-9'] })).status, 400);
+});
