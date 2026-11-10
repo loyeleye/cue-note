@@ -122,6 +122,23 @@ fun PracticeScreen(
     var confirmDelete by remember { mutableStateOf<PracticeTakeEntity?>(null) }
     var confirmLeave by remember { mutableStateOf(false) }
     val recording = startedAt != null
+    var singingAlong by remember { mutableStateOf(false) }
+
+    // The music from the lesson, cut from the teacher's channel the first time.
+    val card = row?.card
+    var backing by remember { mutableStateOf<PracticeRepository.Backing?>(null) }
+    var backingLoading by remember { mutableStateOf(true) }
+    LaunchedEffect(card?.id, card?.localId) {
+        if (card == null) return@LaunchedEffect
+        backingLoading = true
+        backing = runCatching { repo.backing(card) }.getOrNull()
+        backingLoading = false
+    }
+    var settings by remember { mutableStateOf(BackingSettings()) }
+    val music = rememberLoopPlayer()
+    var musicSpan by remember { mutableStateOf<Any?>(null) }
+    val accompaniment = backing?.accompaniment
+    val canSingAlong = accompaniment != null && devices.output.listening != Listening.SPEAKER
 
     // Leaving the screen mid-take (rather than with Back) doesn't keep a half take.
     DisposableEffect(recorder) {
@@ -134,18 +151,24 @@ fun PracticeScreen(
         onDispose { view.keepScreenOn = false }
     }
 
-    fun start() {
+    /** Starts a take, singing along with [along] in the headphones when given. */
+    fun start(along: PracticeRepository.Track? = null) {
         player.stop()
+        music.stop()
         note = null
-        runCatching { recorder.start(repo.newTakeFile()) }
-            .onSuccess { startedAt = System.currentTimeMillis() }
-            .onFailure { note = "The mic didn't start: ${it.message}" }
+        scope.launch {
+            val pcm = along?.let { runCatching { repo.pcm(repo.slowed(it, settings.rate)) }.getOrNull() }
+            runCatching { recorder.start(repo.newTakeFile(), pcm) }
+                .onSuccess { startedAt = System.currentTimeMillis(); singingAlong = pcm != null }
+                .onFailure { note = "The mic didn't start: ${it.message}" }
+        }
     }
 
     /** Ends the take; [keep] false throws it away. Closing the file runs off the main thread. */
     fun stop(keep: Boolean, then: () -> Unit = {}) {
         val began = startedAt ?: return
         startedAt = null
+        singingAlong = false
         val card = row?.card
         saving = keep
         scope.launch {
@@ -166,6 +189,12 @@ fun PracticeScreen(
 
     BackHandler(enabled = recording) { confirmLeave = true }
 
+    // A sing-along take ends a moment after the piano does.
+    val backingDone by recorder.playbackDone.collectAsStateWithLifecycle()
+    LaunchedEffect(singingAlong, backingDone) {
+        if (singingAlong && backingDone && startedAt != null) { delay(1_000); stop(keep = true) }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -180,12 +209,15 @@ fun PracticeScreen(
                 enabled = !lessonRecording && row != null && !saving,
                 label = when {
                     saving -> "Saving…"
+                    canSingAlong -> "Sing along with the piano"
                     takes.isEmpty() -> "Sing a practice take"
                     else -> "Sing another take"
                 },
-                onStart = ::start,
+                onStart = { start(if (canSingAlong) accompaniment else null) },
+                onSingAlone = if (canSingAlong) ({ start() }) else null,
+                hint = if (accompaniment != null && !canSingAlong) "Plug in headphones to sing along with the piano." else null,
                 onDone = { stop(keep = true) },
-                onStartOver = { stop(keep = false) { start() } },
+                onStartOver = { val along = singingAlong; stop(keep = false) { start(if (along) accompaniment else null) } },
             )
         },
     ) { padding ->
@@ -211,6 +243,32 @@ fun PracticeScreen(
             }
             item(key = "note") { Note(r, teacherName(r.card.lessonId), player) }
             player.error?.let { e -> item(key = "perr") { Text(e, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } }
+
+            item(key = "backing") {
+                BackingSection(
+                    backing = backing,
+                    loading = backingLoading,
+                    settings = settings,
+                    onSettings = { settings = it; music.stop() },
+                    isPlaying = { t -> music.playing != null && musicSpan == t.span },
+                    onPlayTrack = { t ->
+                        player.stop()
+                        if (musicSpan == t.span && music.playing != null) music.stop()
+                        else scope.launch {
+                            val f = repo.slowed(t, settings.rate)
+                            music.toggle(f.path, settings.loop)
+                            musicSpan = t.span
+                        }
+                    },
+                    onPlayNote = {
+                        val n = backing?.startingNote ?: return@BackingSection
+                        player.stop()
+                        if (musicSpan == n && music.playing != null) music.stop()
+                        else scope.launch { music.toggle(repo.toneFile(n).path); musicSpan = n }
+                    },
+                    notePlaying = music.playing != null && musicSpan == backing?.startingNote,
+                )
+            }
 
             item(key = "listen") { ListeningRow(devices, latency, onTimingCheck) }
 
@@ -370,6 +428,9 @@ private fun SingBar(
     enabled: Boolean,
     label: String,
     onStart: () -> Unit,
+    /** Shown under the main button when it sings along: a take without the piano. */
+    onSingAlone: (() -> Unit)?,
+    hint: String?,
     onDone: () -> Unit,
     onStartOver: () -> Unit,
 ) {
@@ -383,6 +444,8 @@ private fun SingBar(
     ) {
         if (!recording) {
             StartButton(label, onStart, Modifier.fillMaxWidth().defaultMinSize(minHeight = 60.dp), enabled = enabled)
+            onSingAlone?.let { TextButton(onClick = it, enabled = enabled) { Text("Sing on your own") } }
+            hint?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
         } else {
             var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
             LaunchedEffect(startedAt) { while (true) { now = System.currentTimeMillis(); delay(250) } }
