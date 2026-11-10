@@ -3,7 +3,7 @@
 // and the demo one keeps made-up sample data in the browser. Screens never know
 // which one they have, so the demo exercises exactly the same screens.
 import type {
-  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Feedback,
+  Agenda, Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Feedback,
   Lesson, PhotoMark,
   PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
@@ -143,6 +143,14 @@ export interface Api {
   addPractice(p: NewPractice): Promise<PracticeItem>;
   updatePractice(id: string, patch: Partial<Pick<PracticeItem, 'body' | 'due_week'>>): Promise<void>;
   deletePractice(id: string): Promise<void>;
+
+  /** The next lesson's agenda: the practice log, shared takes and questions, newest first. */
+  getAgenda(studentId: string): Promise<Agenda>;
+  /** Marks a shared take as listened to (or not), which frees the student to share another. */
+  markTakeHeard(takeId: string, heard: boolean): Promise<void>;
+  /** Answers a question, in words or (answer null) as covered in the lesson; reopen puts it back. */
+  answerQuestion(questionId: string, answer: string | null): Promise<void>;
+  reopenQuestion(questionId: string): Promise<void>;
 
   listSongs(studentId: string): Promise<Song[]>;
   createSong(studentId: string, title: string, composer: string): Promise<Song>;

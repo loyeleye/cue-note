@@ -1,17 +1,19 @@
 <script lang="ts">
-  // One student: lessons, songs, notes and practice, one tab each.
+  // One student: lessons, the next lesson's agenda, songs, notes and practice, one tab each.
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { api, app } from '$lib/app.svelte';
   import { date, minutes } from '$lib/format';
   import { findTeacher } from '$lib/people';
   import type { Comment, Feedback, Lesson, PracticeItem, Profile, Share, Song, Teacher } from '$lib/types';
+  import AgendaPanel from '$lib/components/AgendaPanel.svelte';
   import NotesPanel from '$lib/components/NotesPanel.svelte';
   import PracticePanel from '$lib/components/PracticePanel.svelte';
   import Who from '$lib/components/Who.svelte';
 
   const id = $derived(page.params.id!);
-  const TABS = ['lessons', 'songs', 'notes', 'practice'] as const;
+  const TABS = ['lessons', 'agenda', 'songs', 'notes', 'practice'] as const;
+  const TAB_LABEL: Record<string, string> = { agenda: 'Next lesson' };
   type Tab = (typeof TABS)[number];
   const tab = $derived<Tab>((TABS as readonly string[]).includes(page.url.hash.slice(1)) ? (page.url.hash.slice(1) as Tab) : 'lessons');
 
@@ -74,7 +76,9 @@
 
   async function saveNextLesson() {
     if (!student) return;
-    await api().setNextLesson(student.share.id, nextLesson ? new Date(nextLesson).toISOString() : null);
+    const at = nextLesson ? new Date(nextLesson).toISOString() : null;
+    await api().setNextLesson(student.share.id, at);
+    student = { ...student, share: { ...student.share, next_lesson_at: at } };
   }
 
   async function addSong(e: SubmitEvent) {
@@ -117,7 +121,7 @@
 
   <nav class="tabs" aria-label="Student sections">
     {#each TABS as t (t)}
-      <a href="#{t}" aria-current={tab === t ? 'page' : undefined}>{t[0].toUpperCase() + t.slice(1)}</a>
+      <a href="#{t}" aria-current={tab === t ? 'page' : undefined}>{TAB_LABEL[t] ?? t[0].toUpperCase() + t.slice(1)}</a>
     {/each}
   </nav>
 
@@ -145,6 +149,15 @@
         {/each}
       </ul>
     {/if}
+  {:else if tab === 'agenda'}
+    <AgendaPanel
+      studentId={id}
+      studentName={student.student.display_name || 'Your student'}
+      cards={shownCards}
+      lessons={shownLessons}
+      nextLessonAt={student.share.next_lesson_at}
+      keepLesson={(l) => !onlyMine || l == null || shownIds.has(l)}
+    />
   {:else if tab === 'songs'}
     <ul class="list">
       {#each songs as s (s.id)}

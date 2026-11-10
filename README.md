@@ -334,7 +334,11 @@ there's a network and brings answers and "listened" back. In the database,
 student; teachers with an active share read them, mark takes heard and
 answer questions, and a teacher limited to their own lessons sees only the
 takes and questions from those lessons
-(`supabase/migrations/20261114000001_m5_practice.sql`).
+(`supabase/migrations/20261114000001_m5_practice.sql`). On the dashboard,
+each student has a **Next lesson** tab: the practice since the last lesson,
+the shared takes to hear (with how it felt and one line on pitch, no
+numbers), and the questions to answer in words or mark as covered in the
+lesson.
 
 ## Sketches (M6)
 

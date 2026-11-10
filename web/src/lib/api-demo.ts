@@ -6,7 +6,7 @@ import { EditConflict, scoreFormatOf } from './api';
 import type { CardFields, CardVersion, DiagramSuggestion, Feedback, Profile, StorageRow, Teacher } from './types';
 import { CARD_FIELDS } from './types';
 import {
-  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, initialDemoState, type DemoState
+  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, initialDemoState, type DemoState
 } from './demo-data';
 import { wavFor } from './tone';
 
@@ -54,6 +54,13 @@ function blobToDataUrl(b: Blob): Promise<string> {
 
 function svgUrl(svg: string) {
   return URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+}
+
+/** The demo state, with the agenda's sample data added to one saved before it existed. */
+function withAgenda(): DemoState {
+  const s = load();
+  if (!s.practiceSessions || !s.sharedTakes || !s.questions) Object.assign(s, demoAgenda());
+  return s;
 }
 
 function lessonStudent(s: DemoState, lessonId: string) {
@@ -438,6 +445,41 @@ export const demoApi: Api = {
   async deleteAnnotation(aid) {
     const s = load();
     s.annotations = s.annotations.filter((x) => x.id !== aid);
+    save();
+  },
+
+  async getAgenda(studentId) {
+    await wait();
+    const s = withAgenda();
+    const since = new Date(Date.now() - 28 * 864e5).toISOString();
+    return {
+      sessions: s.practiceSessions!.filter((p) => p.student_id === studentId && p.started_at >= since)
+        .sort((a, b) => b.started_at.localeCompare(a.started_at)),
+      takes: s.sharedTakes!.filter((t) => t.student_id === studentId).sort((a, b) => b.shared_at.localeCompare(a.shared_at)),
+      questions: s.questions!.filter((q) => q.student_id === studentId && q.status !== 'dropped')
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    };
+  },
+
+  async markTakeHeard(takeId, heard) {
+    const t = withAgenda().sharedTakes!.find((x) => x.id === takeId);
+    if (!t) throw new Error('That take is no longer shared.');
+    t.heard_at = heard ? now() : null;
+    t.heard_by = heard ? DEMO_TEACHER.id : null;
+    save();
+  },
+
+  async answerQuestion(questionId, answer) {
+    const q = withAgenda().questions!.find((x) => x.id === questionId);
+    if (!q) throw new Error('That question was taken back.');
+    Object.assign(q, { status: 'answered', answer, answered_by: DEMO_TEACHER.id, answered_at: q.answered_at ?? now() });
+    save();
+  },
+
+  async reopenQuestion(questionId) {
+    const q = withAgenda().questions!.find((x) => x.id === questionId);
+    if (!q) return;
+    Object.assign(q, { status: 'open', answer: null, answered_by: null, answered_at: null });
     save();
   },
 
