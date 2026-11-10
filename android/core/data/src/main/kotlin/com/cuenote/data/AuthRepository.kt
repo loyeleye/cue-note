@@ -9,8 +9,9 @@ import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
-import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.functions.Functions
+import kotlin.time.Duration.Companion.seconds
 import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -27,8 +28,9 @@ import kotlinx.coroutines.flow.map
  * Magic-link sign-in. The email link opens cuenote://auth-callback, which
  * MainActivity hands to [handleDeepLink] to finish signing in.
  *
- * Signing in is optional in M1: recording works fully offline. It becomes
- * required in M3, when clips start uploading.
+ * Recording and processing work fully offline without signing in. Making
+ * cards (M3) needs it: clips upload to the student's own folder and the cards
+ * come back from the cloud.
  */
 class AuthRepository private constructor(internal val client: SupabaseClient?) {
 
@@ -105,11 +107,20 @@ class AuthRepository private constructor(internal val client: SupabaseClient?) {
 
         private fun redact(uri: Uri) = uri.toString().replace(Regex("(code|access_token|refresh_token)=[^&#]+"), "$1=…")
 
-        fun create(): AuthRepository {
+        @Volatile private var instance: AuthRepository? = null
+
+        /** One client for the app and its background workers (they share the saved session). */
+        fun create(): AuthRepository = instance ?: synchronized(this) { instance ?: build().also { instance = it } }
+
+        fun get(): AuthRepository = create()
+
+        private fun build(): AuthRepository {
             if (BuildConfig.SUPABASE_URL.isBlank() || BuildConfig.SUPABASE_ANON_KEY.isBlank()) {
                 return AuthRepository(null)
             }
             val client = createSupabaseClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY) {
+                // Turning a lesson into cards can take a minute or two.
+                requestTimeout = 150.seconds
                 install(Auth) {
                     flowType = FlowType.PKCE
                     scheme = "cuenote"
@@ -121,13 +132,5 @@ class AuthRepository private constructor(internal val client: SupabaseClient?) {
             }
             return AuthRepository(client)
         }
-
-        @Volatile private var shared: AuthRepository? = null
-
-        /**
-         * One client for the whole app, background workers included, so two
-         * clients never refresh the same session at once.
-         */
-        fun get(): AuthRepository = shared ?: synchronized(this) { shared ?: create().also { shared = it } }
     }
 }

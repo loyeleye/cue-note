@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Builds the app's few shared objects once (a hand-written "container"
@@ -35,7 +36,7 @@ class CueNoteApp : Application() {
         // The posture camera runs in its own process; it needs none of this.
         if (getProcessName().endsWith(":posture")) return
         val db = LessonDatabase.get(this)
-        lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.photos())
+        lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.cards(), db.photos())
         sketches = SketchRepository(this, db.photos())
         consent = ConsentStore(this)
         auth = AuthRepository.get()
@@ -43,6 +44,10 @@ class CueNoteApp : Application() {
         lessonTeachers = LessonTeacherStore(this)
         posture = PostureLink(this, scope)
 
+        // Lessons processed while signed out get their cards once someone signs in.
+        scope.launch {
+            auth.signedInEmail.distinctUntilChanged().collect { if (it != null) lessons.makeMissingCards() }
+        }
         scope.launch {
             RecordingSession.state.collect { s ->
                 when (s) {

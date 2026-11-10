@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "34d7e0bb42f158134e140bed3f394722",
+    "identityHash": "a69d2d522aed4e67c8bad7d9d830be69",
     "entities": [
       {
         "tableName": "lesson",
@@ -332,8 +332,8 @@
         }
       },
       {
-        "tableName": "photo",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `fileName` TEXT NOT NULL, `takenAtMs` INTEGER NOT NULL, `feedbackId` TEXT, `autoFeedbackId` TEXT, `linkSource` TEXT NOT NULL, `cleanFileName` TEXT, `corners` TEXT, `pageConfidence` REAL NOT NULL, `caption` TEXT, `captionConfidence` REAL, `needsUpload` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "tableName": "clip",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `kind` TEXT NOT NULL, `localId` TEXT NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `file` TEXT NOT NULL, `storagePath` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -348,63 +348,134 @@
             "notNull": true
           },
           {
-            "fieldPath": "fileName",
-            "columnName": "fileName",
+            "fieldPath": "kind",
+            "columnName": "kind",
             "affinity": "TEXT",
             "notNull": true
           },
           {
-            "fieldPath": "takenAtMs",
-            "columnName": "takenAtMs",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "feedbackId",
-            "columnName": "feedbackId",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "autoFeedbackId",
-            "columnName": "autoFeedbackId",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "linkSource",
-            "columnName": "linkSource",
+            "fieldPath": "localId",
+            "columnName": "localId",
             "affinity": "TEXT",
             "notNull": true
           },
           {
-            "fieldPath": "cleanFileName",
-            "columnName": "cleanFileName",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "corners",
-            "columnName": "corners",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "pageConfidence",
-            "columnName": "pageConfidence",
-            "affinity": "REAL",
+            "fieldPath": "startMs",
+            "columnName": "startMs",
+            "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "caption",
-            "columnName": "caption",
+            "fieldPath": "endMs",
+            "columnName": "endMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "file",
+            "columnName": "file",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "storagePath",
+            "columnName": "storagePath",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "card",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `localId` TEXT, `takeId` TEXT, `spanStartMs` INTEGER NOT NULL, `spanEndMs` INTEGER NOT NULL, `cue` TEXT NOT NULL, `category` TEXT, `herWords` TEXT NOT NULL, `practiceFlag` TEXT, `barStart` INTEGER, `barEnd` INTEGER, `transcript` TEXT NOT NULL, `editedByTeacher` INTEGER NOT NULL, `updatedAt` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lessonId",
+            "columnName": "lessonId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localId",
+            "columnName": "localId",
             "affinity": "TEXT"
           },
           {
-            "fieldPath": "captionConfidence",
-            "columnName": "captionConfidence",
-            "affinity": "REAL"
+            "fieldPath": "takeId",
+            "columnName": "takeId",
+            "affinity": "TEXT"
           },
           {
-            "fieldPath": "needsUpload",
-            "columnName": "needsUpload",
+            "fieldPath": "spanStartMs",
+            "columnName": "spanStartMs",
             "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spanEndMs",
+            "columnName": "spanEndMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cue",
+            "columnName": "cue",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "herWords",
+            "columnName": "herWords",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "practiceFlag",
+            "columnName": "practiceFlag",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "barStart",
+            "columnName": "barStart",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "barEnd",
+            "columnName": "barEnd",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "transcript",
+            "columnName": "transcript",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "editedByTeacher",
+            "columnName": "editedByTeacher",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "TEXT",
             "notNull": true
           }
         ],
@@ -418,7 +489,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '34d7e0bb42f158134e140bed3f394722')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a69d2d522aed4e67c8bad7d9d830be69')"
     ]
   }
 }

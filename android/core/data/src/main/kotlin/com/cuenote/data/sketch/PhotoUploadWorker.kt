@@ -15,6 +15,7 @@ import com.cuenote.data.AuthRepository
 import com.cuenote.data.LessonDatabase
 import com.cuenote.data.PhotoDao
 import com.cuenote.data.PhotoEntity
+import com.cuenote.pipeline.cards.CloudIds
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
@@ -26,7 +27,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import java.io.File
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
@@ -64,7 +64,7 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
             val bucket = client.storage.from("photos")
             for (p in dao.forLesson(lessonId)) {
                 if (isStopped) return Result.retry()
-                val cardId = p.feedbackId?.let(::cloudFeedbackId)
+                val cardId = p.feedbackId?.let(CloudIds::feedback)
                 if (cardId != null && cardId !in cloudCards) waitingForCards = true
                 if (!p.needsUpload && (cardId == null || cardId in cloudCards)) continue
 
@@ -81,7 +81,7 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
                         lessonId = lessonId,
                         takenAtMs = p.takenAtMs,
                         feedbackId = cardId?.takeIf { it in cloudCards },
-                        autoFeedbackId = p.autoFeedbackId?.let(::cloudFeedbackId)?.takeIf { it in cloudCards },
+                        autoFeedbackId = p.autoFeedbackId?.let(CloudIds::feedback)?.takeIf { it in cloudCards },
                         linkSource = p.linkSource,
                         imagePath = "$base.jpg",
                         cleanedPath = clean?.let { "$base.clean.jpg" },
@@ -151,12 +151,6 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
         private val json = Json { ignoreUnknownKeys = true }
 
         /**
-         * The cloud id of a phone feedback id ("<lesson>-fb-001"), the same
-         * mapping the cards' upload uses.
-         */
-        fun cloudFeedbackId(localId: String): String = UUID.nameUUIDFromBytes("cuenote:$localId".toByteArray()).toString()
-
-        /**
          * Brings her dashboard moves and the captions down to the phone. A move
          * she made wins over the phone's guess; the student's own move is kept
          * until it is uploaded.
@@ -166,7 +160,7 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
                 filter { eq("lesson_id", lessonId) }
             }.decodeList<CloudPhoto>()
             val local = dao.forLesson(lessonId).associateBy { it.id }
-            val byCloud = dao.feedbackIds(lessonId).associateBy(::cloudFeedbackId)
+            val byCloud = dao.feedbackIds(lessonId).associateBy(CloudIds::feedback)
             for (r in rows) {
                 val p = local[r.id] ?: continue
                 if (p.needsUpload) {

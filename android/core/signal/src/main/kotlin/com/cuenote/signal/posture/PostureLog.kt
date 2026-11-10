@@ -17,6 +17,8 @@ sealed interface PostureEvent {
     data class Flagged(override val atMs: Long, val flag: PostureFlag, val snapshot: String, val detail: String) : PostureEvent
     data class FlagEnded(override val atMs: Long, val flag: PostureFlag) : PostureEvent
     data class Stopped(override val atMs: Long) : PostureEvent
+    /** A new baseline: [why] is "manual" (the button), "moved" (the phone was moved) or "photo". */
+    data class Rebaselined(override val atMs: Long, val why: String) : PostureEvent
 
     fun toLine(): String = when (this) {
         is Started -> "start\t$atMs"
@@ -27,6 +29,7 @@ sealed interface PostureEvent {
         is Flagged -> "flag\t$atMs\t${flag.key}\t$snapshot\t${clean(detail)}"
         is FlagEnded -> "flag_end\t$atMs\t${flag.key}"
         is Stopped -> "stop\t$atMs"
+        is Rebaselined -> "baseline\t$atMs\t${clean(why)}"
     }
 
     companion object {
@@ -45,6 +48,7 @@ sealed interface PostureEvent {
                 "flag" -> flag(p.getOrNull(2))?.let { Flagged(at, it, p.getOrElse(3) { "" }, p.getOrElse(4) { "" }) }
                 "flag_end" -> flag(p.getOrNull(2))?.let { FlagEnded(at, it) }
                 "stop" -> Stopped(at)
+                "baseline" -> Rebaselined(at, p.getOrElse(2) { "" })
                 else -> null
             }
         }
@@ -56,6 +60,7 @@ data class PostureSummary(
     val trackedMs: Long,
     val flags: List<PostureEvent.Flagged>,
     val pauses: List<PostureEvent.Paused>,
+    val rebaselines: List<PostureEvent.Rebaselined> = emptyList(),
 ) {
     companion object {
         fun of(events: List<PostureEvent>): PostureSummary {
@@ -75,6 +80,7 @@ data class PostureSummary(
                 trackedMs = tracked,
                 flags = events.filterIsInstance<PostureEvent.Flagged>(),
                 pauses = events.filterIsInstance<PostureEvent.Paused>(),
+                rebaselines = events.filterIsInstance<PostureEvent.Rebaselined>(),
             )
         }
 

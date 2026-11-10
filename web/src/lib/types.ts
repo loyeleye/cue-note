@@ -112,6 +112,8 @@ export interface Feedback {
   bar_end: number | null;
   resolved_at: string | null;
   updated_at: string;
+  /** Everything she said in the block, as the phone transcribed it (M3). */
+  transcript?: string;
 }
 
 /** The fields a teacher may change on a card; also what a version stores. */

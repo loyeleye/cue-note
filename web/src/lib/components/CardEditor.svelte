@@ -28,7 +28,7 @@
     oncancel: () => void;
   } = $props();
 
-  const CATEGORIES = ['breath', 'resonance', 'vowel', 'registration', 'phrasing', 'pitch', 'diction', 'posture', 'warm-up', 'encouragement'];
+  const CATEGORIES = ['breath', 'resonance', 'vowel', 'registration', 'phrasing', 'pitch', 'diction', 'posture', 'warm-up', 'encouragement', 'chat'];
 
   const pick = (f: Feedback | Partial<CardFields>): CardFields => ({
     cue: f.cue ?? '', category: f.category ?? null, her_words: f.her_words ?? '',

@@ -1,0 +1,49 @@
+{
+  "request": {
+    "lesson_id": "6f1c2a3b-0000-4000-8000-000000000001",
+    "blocks": [
+      { "id": "6f1c2a3b-0000-4000-8000-0000000000b1", "local_id": "6f1c2a3b-0000-4000-8000-000000000001-fb-001",
+        "take_id": null, "span_start_ms": 2000, "span_end_ms": 35000, "clip_path": null, "link_confidence": 0, "demos": 0,
+        "transcript": "Hi! How was your week? Did you get to practice? Great, let's start with some lip trills." },
+      { "id": "6f1c2a3b-0000-4000-8000-0000000000b2", "local_id": "6f1c2a3b-0000-4000-8000-000000000001-fb-002",
+        "take_id": "6f1c2a3b-0000-4000-8000-0000000000a1", "span_start_ms": 70000, "span_end_ms": 110000,
+        "clip_path": "student/lesson/6f1c2a3b-0000-4000-8000-0000000000b2.ogg", "link_confidence": 0.92, "demos": 1,
+        "transcript": "Lovely. But you pushed the top. Let the jaw drop and think of a yawn, okay? Like this. Try it again." },
+      { "id": "6f1c2a3b-0000-4000-8000-0000000000b3", "local_id": "6f1c2a3b-0000-4000-8000-000000000001-fb-003",
+        "take_id": "6f1c2a3b-0000-4000-8000-0000000000a2", "span_start_ms": 152000, "span_end_ms": 190000,
+        "clip_path": null, "link_confidence": 0.81, "demos": 0,
+        "transcript": "A little. Keep the breath moving through the end of the phrase so it doesn't sag." },
+      { "id": "6f1c2a3b-0000-4000-8000-0000000000b4", "local_id": "6f1c2a3b-0000-4000-8000-000000000001-fb-004",
+        "take_id": "6f1c2a3b-0000-4000-8000-0000000000a3", "span_start_ms": 242000, "span_end_ms": 280000,
+        "clip_path": null, "link_confidence": 0.88, "demos": 0,
+        "transcript": "From bar 12 back to bar 9, I want you to work that at home every day. Really legato." }
+    ],
+    "transcript": [
+      { "speaker": "teacher", "start_ms": 2000, "end_ms": 9000, "text": "Hi! How was your week?" },
+      { "speaker": "student", "start_ms": 9500, "end_ms": 12000, "text": "Good, busy." },
+      { "speaker": "teacher", "start_ms": 12500, "end_ms": 35000, "text": "Did you get to practice? Great, let's start with some lip trills." },
+      { "speaker": "teacher", "start_ms": 70000, "end_ms": 90000, "text": "Lovely. But you pushed the top." },
+      { "speaker": "teacher", "start_ms": 90500, "end_ms": 110000, "text": "Let the jaw drop and think of a yawn, okay? Like this. Try it again." },
+      { "speaker": "student", "start_ms": 150500, "end_ms": 152500, "text": "was that flat?" },
+      { "speaker": "teacher", "start_ms": 153000, "end_ms": 190000, "text": "A little. Keep the breath moving through the end of the phrase so it doesn't sag." },
+      { "speaker": "teacher", "start_ms": 242000, "end_ms": 280000, "text": "From bar 12 back to bar 9, I want you to work that at home every day. Really legato." }
+    ]
+  },
+  "takes": [
+    { "id": "6f1c2a3b-0000-4000-8000-0000000000a1", "start_ms": 40000, "end_ms": 68000 },
+    { "id": "6f1c2a3b-0000-4000-8000-0000000000a2", "start_ms": 120000, "end_ms": 150000 },
+    { "id": "6f1c2a3b-0000-4000-8000-0000000000a3", "start_ms": 200000, "end_ms": 240000 }
+  ],
+  "answer": {
+    "cards": [
+      { "block": "B1", "cue": "Lip trills to start", "category": "chat", "her_words": "Great, let's start with some lip trills.",
+        "practice_flag": null, "bar_start": null, "bar_end": null },
+      { "block": "B2", "cue": "Drop the jaw on the top note", "category": "registration", "her_words": "let the jaw drop and think of a yawn",
+        "practice_flag": "practice_this", "bar_start": null, "bar_end": null },
+      { "block": "B3", "cue": "Keep the breath moving to the end of the phrase", "category": "breath", "her_words": "Keep air flowing through the phrase end.",
+        "practice_flag": null, "bar_start": null, "bar_end": null },
+      { "block": "B4", "cue": "Sing bars 9 to 12 legato", "category": "phrasing", "her_words": "From bar 12 back to bar 9, I want you to work that at home every day.",
+        "practice_flag": "practice_this", "bar_start": 12, "bar_end": 9 }
+    ]
+  }
+}

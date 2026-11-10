@@ -60,6 +60,12 @@ data class PostureMetrics(
     val noseForward: Float,
     /** Nose height above the ears, in shoulder widths. Grows when the chin lifts. */
     val chinLift: Float,
+    /**
+     * Shoulder width over torso height. Drops when the student turns away
+     * from the phone, since their shoulders look narrower. Null when the hips
+     * aren't in view.
+     */
+    val facing: Float? = null,
 ) {
     companion object {
         /** The metrics for [pose], or null when the head and shoulders aren't clearly in view. */
@@ -76,11 +82,19 @@ data class PostureMetrics(
             val earY = (pose.py(Pose.LEFT_EAR) + pose.py(Pose.RIGHT_EAR)) / 2
             val shoulderY = (pose.py(Pose.LEFT_SHOULDER) + pose.py(Pose.RIGHT_SHOULDER)) / 2
             val shoulderZ = (pose[Pose.LEFT_SHOULDER].z + pose[Pose.RIGHT_SHOULDER].z) / 2
+            val facing = if (pose.seen(Pose.LEFT_HIP) && pose.seen(Pose.RIGHT_HIP)) {
+                val hx = (pose.px(Pose.LEFT_HIP) + pose.px(Pose.RIGHT_HIP)) / 2
+                val hy = (pose.py(Pose.LEFT_HIP) + pose.py(Pose.RIGHT_HIP)) / 2
+                val sx = (pose.px(Pose.LEFT_SHOULDER) + pose.px(Pose.RIGHT_SHOULDER)) / 2
+                val torso = hypot(hx - sx, hy - shoulderY)
+                if (torso > 0.01f) w / torso else null
+            } else null
             return PostureMetrics(
                 headTiltDeg = wrap(ears - shoulders),
                 neckLength = (shoulderY - earY) / w,
                 noseForward = (shoulderZ - pose[Pose.NOSE].z) / w,
                 chinLift = (earY - pose.py(Pose.NOSE)) / w,
+                facing = facing,
             )
         }
 
@@ -88,7 +102,11 @@ data class PostureMetrics(
         fun median(all: List<PostureMetrics>): PostureMetrics? {
             if (all.isEmpty()) return null
             fun med(f: (PostureMetrics) -> Float) = all.map(f).sorted()[all.size / 2]
-            return PostureMetrics(med { it.headTiltDeg }, med { it.neckLength }, med { it.noseForward }, med { it.chinLift })
+            val facings = all.mapNotNull { it.facing }.sorted()
+            return PostureMetrics(
+                med { it.headTiltDeg }, med { it.neckLength }, med { it.noseForward }, med { it.chinLift },
+                facings.getOrNull(facings.size / 2),
+            )
         }
 
         private fun angleDeg(x1: Float, y1: Float, x2: Float, y2: Float): Float =
@@ -101,13 +119,25 @@ data class PostureMetrics(
         }
     }
 
-    /** Four numbers on one line, for handing the baseline to the camera service. */
-    fun encode(): String = "$headTiltDeg,$neckLength,$noseForward,$chinLift"
+    /**
+     * Whether the student is turned too far from the phone to judge, compared
+     * with how they faced it for this baseline. Unknown (hips out of view) counts as facing.
+     */
+    fun turnedAwayFrom(baseline: PostureMetrics, keep: Float = 0.75f): Boolean {
+        val now = facing ?: return false
+        val then = baseline.facing ?: return false
+        return now < then * keep
+    }
+
+    /** The numbers on one line, for handing the baseline to the camera service. */
+    fun encode(): String = "$headTiltDeg,$neckLength,$noseForward,$chinLift,${facing ?: ""}"
 }
 
 fun decodePostureMetrics(s: String?): PostureMetrics? {
-    val p = s?.split(',')?.mapNotNull { it.toFloatOrNull() } ?: return null
-    return if (p.size == 4) PostureMetrics(p[0], p[1], p[2], p[3]) else null
+    val raw = s?.split(',') ?: return null
+    val p = raw.take(4).mapNotNull { it.toFloatOrNull() }
+    if (p.size != 4) return null
+    return PostureMetrics(p[0], p[1], p[2], p[3], raw.getOrNull(4)?.toFloatOrNull())
 }
 
 /**

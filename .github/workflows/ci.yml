@@ -110,6 +110,21 @@ jobs:
       - run: npm run check
       - run: npm run build
 
+  functions:
+    name: Edge function tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: extract-cues (prompt, schema and answer checks; no model calls)
+        run: node --experimental-strip-types --test supabase/functions/extract-cues/cues.test.ts
+      - name: extract-cues end to end (fake database and model)
+        run: >
+          node --experimental-strip-types --import ./supabase/functions/extract-cues/test/loader.mjs
+          --test supabase/functions/extract-cues/test/index.test.ts
+
   database:
     name: Database migrations and security-rule tests
     runs-on: ubuntu-latest

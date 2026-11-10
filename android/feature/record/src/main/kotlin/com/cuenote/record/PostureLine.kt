@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -23,7 +24,7 @@ import com.cuenote.posture.PostureService
 /**
  * One line on the recording screen while posture is on: what the camera is
  * doing ("watching", "waiting for singing", "paused: phone warm") and how
- * many moments it has flagged. Posture keeps the screen on, dimmed right
+ * many moments it has flagged, and a "Recalibrate posture" button. Posture keeps the screen on, dimmed right
  * down, since some phones close the camera when the screen turns off.
  */
 @Composable
@@ -57,4 +58,11 @@ internal fun PostureLine() {
         "Posture: $status" + if (flags > 0) " · $flags flagged" else "",
         color = if (status.startsWith("paused") || status.startsWith("off")) Color(0xFFF2A49B) else Color(0xFFACA2B5),
     )
+    // For a lesson that's about posture: both pause, and the phone talks the
+    // student back into place and takes how they stand now as the new baseline.
+    if (!status.startsWith("off") && status != "recalibrating") {
+        TextButton(onClick = { PostureService.recalibrate(context) }) {
+            Text("Recalibrate posture", color = Color(0xFFE0A94A))
+        }
+    }
 }
