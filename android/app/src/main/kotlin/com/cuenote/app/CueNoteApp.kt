@@ -10,6 +10,7 @@ import com.cuenote.data.LessonRepository
 import com.cuenote.data.LessonTeacherStore
 import com.cuenote.data.ShareRepository
 import com.cuenote.data.sketch.SketchRepository
+import com.cuenote.data.diagrams.DiagramRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ class CueNoteApp : Application() {
     lateinit var shares: ShareRepository private set
     lateinit var lessonTeachers: LessonTeacherStore private set
     lateinit var sketches: SketchRepository private set
+    lateinit var diagrams: DiagramRepository private set
     lateinit var posture: PostureLink private set
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -38,6 +40,7 @@ class CueNoteApp : Application() {
         val db = LessonDatabase.get(this)
         lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.cards(), db.photos())
         sketches = SketchRepository(this, db.photos())
+        diagrams = DiagramRepository(AuthRepository.get())
         consent = ConsentStore(this)
         auth = AuthRepository.get()
         shares = ShareRepository(auth)

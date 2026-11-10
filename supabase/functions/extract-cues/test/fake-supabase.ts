@@ -15,13 +15,20 @@ class Query {
   private filters: ((r: Row) => boolean)[] = [];
   private op: 'select' | 'insert' | 'upsert' | 'update' | 'delete' = 'select';
   private payload: any;
+  private conflict = ['id'];
+  private ignoreDuplicates = false;
   private one = false;
   private sortKey?: string;
   private table: string;
   constructor(table: string) { this.table = table; tables[table] ??= []; }
   select(_cols?: string) { return this; }
   insert(rows: any) { this.op = 'insert'; this.payload = rows; return this; }
-  upsert(rows: any) { this.op = 'upsert'; this.payload = rows; return this; }
+  upsert(rows: any, opts?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+    this.op = 'upsert'; this.payload = rows;
+    if (opts?.onConflict) this.conflict = opts.onConflict.split(',');
+    this.ignoreDuplicates = !!opts?.ignoreDuplicates;
+    return this;
+  }
   update(obj: any) { this.op = 'update'; this.payload = obj; return this; }
   delete() { this.op = 'delete'; return this; }
   eq(k: string, v: any) { this.filters.push((r) => r[k] === v); return this; }
@@ -38,8 +45,8 @@ class Query {
         return { data: null, error: null };
       case 'upsert':
         for (const r of [].concat(this.payload) as Row[]) {
-          const i = t.findIndex((x) => x.id === r.id);
-          if (i >= 0) t[i] = { ...t[i], ...r }; else t.push(stamp(r));
+          const i = t.findIndex((x) => this.conflict.every((k) => x[k] === r[k]));
+          if (i >= 0) { if (!this.ignoreDuplicates) t[i] = { ...t[i], ...r }; } else t.push(stamp(r));
         }
         return { data: null, error: null };
       case 'update':

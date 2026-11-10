@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Tongue for each vowel">
+<title>Tongue for each vowel</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<rect x="14" y="32" width="62" height="150" rx="8" fill="#ece8f1" opacity="0.6"/>
+<path d="M20,60 C28,40 56,38 72,50" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M20,60 L20,170" stroke="#2d2a32" stroke-width="1.4" fill="none"/>
+<path d="M22,170 C22,80.6 41.0,70.6 59.0,70.6 C73.0,70.6 70,84.6 70,104.6 L70,170 Z" stroke="#2d2a32" stroke-width="1.8" fill="#f7e2da"/>
+<text x="45" y="204" text-anchor="middle" font-size="15" font-weight="700" fill="#2d2a32">ee</text>
+<rect x="82" y="32" width="62" height="150" rx="8" fill="#ece8f1" opacity="0.6"/>
+<path d="M88,60 C96,40 124,38 140,50" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M88,60 L88,170" stroke="#2d2a32" stroke-width="1.4" fill="none"/>
+<path d="M90,170 C90,97.4 106.0,87.4 124.0,87.4 C138.0,87.4 138,101.4 138,121.4 L138,170 Z" stroke="#2d2a32" stroke-width="1.8" fill="#f7e2da"/>
+<text x="113" y="204" text-anchor="middle" font-size="15" font-weight="700" fill="#2d2a32">eh</text>
+<rect x="150" y="32" width="62" height="150" rx="8" fill="#ece8f1" opacity="0.6"/>
+<path d="M156,60 C164,40 192,38 208,50" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M156,60 L156,170" stroke="#2d2a32" stroke-width="1.4" fill="none"/>
+<path d="M158,170 C158,124.0 164.0,114.0 182.0,114.0 C196.0,114.0 206,128.0 206,148.0 L206,170 Z" stroke="#2d2a32" stroke-width="1.8" fill="#f7e2da"/>
+<text x="181" y="204" text-anchor="middle" font-size="15" font-weight="700" fill="#2d2a32">ah</text>
+<rect x="218" y="32" width="62" height="150" rx="8" fill="#ece8f1" opacity="0.6"/>
+<path d="M224,60 C232,40 260,38 276,50" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M224,60 L224,170" stroke="#2d2a32" stroke-width="1.4" fill="none"/>
+<path d="M226,170 C226,99.5 221.0,89.5 239.0,89.5 C253.0,89.5 274,103.5 274,123.5 L274,170 Z" stroke="#2d2a32" stroke-width="1.8" fill="#f7e2da"/>
+<path d="M276,54 q8,16 0,34" stroke="#c8553d" stroke-width="2.4" fill="none"/>
+<text x="249" y="204" text-anchor="middle" font-size="15" font-weight="700" fill="#2d2a32">oh</text>
+<rect x="286" y="32" width="62" height="150" rx="8" fill="#ece8f1" opacity="0.6"/>
+<path d="M292,60 C300,40 328,38 344,50" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M292,60 L292,170" stroke="#2d2a32" stroke-width="1.4" fill="none"/>
+<path d="M294,170 C294,82.0 286.0,72.0 304.0,72.0 C318.0,72.0 342,86.0 342,106.0 L342,170 Z" stroke="#2d2a32" stroke-width="1.8" fill="#f7e2da"/>
+<path d="M344,54 q8,12 0,28" stroke="#c8553d" stroke-width="2.4" fill="none"/>
+<text x="317" y="204" text-anchor="middle" font-size="15" font-weight="700" fill="#2d2a32">oo</text>
+<text x="346" y="24" text-anchor="end" font-size="11" font-weight="400" fill="#9d97a6">front of the mouth →</text>
+<text x="180" y="228" text-anchor="middle" font-size="11.5" font-weight="400" fill="#2d2a32">Side view: the tongue's high point moves for each vowel</text>
+</g>
+</svg>

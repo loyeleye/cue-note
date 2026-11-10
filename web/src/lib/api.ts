@@ -3,7 +3,8 @@
 // and the demo one keeps made-up sample data in the browser. Screens never know
 // which one they have, so the demo exercises exactly the same screens.
 import type {
-  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, Feedback, Lesson, PhotoMark,
+  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Feedback,
+  Lesson, PhotoMark,
   PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
 
@@ -103,6 +104,10 @@ export interface Api {
   listPhotos(lessonId: string): Promise<PhotoMark[]>;
   /** Puts a sketch on another card of its lesson, or on none (null). */
   movePhoto(photoId: string, feedbackId: string | null): Promise<PhotoMark>;
+  /** Suggested diagrams on a lesson's cards, dismissed ones included. */
+  listDiagramSuggestions(lessonId: string): Promise<DiagramSuggestion[]>;
+  /** The teacher's answer to "Does this diagram help?". */
+  decideDiagram(suggestionId: string, decision: DiagramDecision): Promise<DiagramSuggestion>;
   /** Every card for a student, across lessons, newest lesson first. */
   listStudentFeedback(studentId: string): Promise<(Feedback & { recorded_at: string })[]>;
   listSongTakes(songId: string): Promise<Take[]>;

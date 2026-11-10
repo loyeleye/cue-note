@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Through the passaggio">
+<title>Through the passaggio</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<rect x="158" y="24" width="64" height="168" fill="#ece8f1"/>
+<text x="190" y="40" text-anchor="middle" font-size="11" font-weight="600" fill="#9d97a6">the break</text>
+<path d="M30,200 L30,24" stroke="#2d2a32" stroke-width="1.2" fill="none" marker-end="url(#aI)"/>
+<text x="22" y="112" text-anchor="middle" font-size="11" fill="#9d97a6" transform="rotate(-90 22 112)">pitch</text>
+<path d="M40.0,168.0 L50.0,163.6 L60.0,159.2 L70.0,154.9 L80.0,150.5 L90.0,146.1 L100.0,141.7 L110.0,137.3 L120.0,133.0 L130.0,128.6 L140.0,124.2 L150.0,119.8 L160.0,115.4 L170.0,111.1 L180.0,106.7 L190.0,102.3 L200.0,97.9 L210.0,93.5 L220.0,89.2 L230.0,84.8 L240.0,80.4 L250.0,76.0 L260.0,71.6 L270.0,67.3 L280.0,62.9 L290.0,58.5 L300.0,54.1 L310.0,49.7 L320.0,45.4 L330.0,41.0 L330.0,44.2 L320.0,49.0 L310.0,53.9 L300.0,58.7 L290.0,63.5 L280.0,68.3 L270.0,73.1 L260.0,78.0 L250.0,82.8 L240.0,87.6 L230.0,92.4 L220.0,97.2 L210.0,102.1 L200.0,106.9 L190.0,111.7 L180.0,116.5 L170.0,121.3 L160.0,126.2 L150.0,131.0 L140.0,135.8 L130.0,140.6 L120.0,145.4 L110.0,150.3 L100.0,155.1 L90.0,159.9 L80.0,164.7 L70.0,169.5 L60.0,174.4 L50.0,179.2 L40.0,184.0 Z" stroke="none" stroke-width="0" fill="#3a7ca5" opacity="0.85"/>
+<text x="64" y="154" text-anchor="start" font-size="11" font-weight="400" fill="#3a7ca5">full</text>
+<text x="300" y="56" text-anchor="start" font-size="11" font-weight="400" fill="#3a7ca5">thin</text>
+<text x="190" y="90" text-anchor="middle" font-size="12" font-weight="600" fill="#2d2a32">ah → aw</text>
+<path d="M40,198 L158,176 L178,170" stroke="#c8553d" stroke-width="4" fill="none" stroke-dasharray="1 0" opacity="0.55"/>
+<path d="M178,170 L182,110" stroke="#c8553d" stroke-width="1.6" fill="none" stroke-dasharray="2 3"/>
+<path d="M182,110 L330,90" stroke="#c8553d" stroke-width="2" fill="none" opacity="0.55"/>
+<text x="236" y="132" text-anchor="start" font-size="11" font-weight="400" fill="#c8553d">pushed up heavy,</text>
+<text x="236" y="146" text-anchor="start" font-size="11" font-weight="400" fill="#c8553d">then it flips</text>
+<text x="180" y="222" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Thin the sound and narrow the vowel through the break</text>
+</g>
+</svg>

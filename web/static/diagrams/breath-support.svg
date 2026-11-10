@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Appoggio / support">
+<title>Appoggio / support</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M64,40 C34,56 28,100 34,150" stroke="#2d2a32" stroke-width="2.2" fill="none"/>
+<path d="M116,40 C146,56 152,100 146,150" stroke="#2d2a32" stroke-width="2.2" fill="none"/>
+<path d="M38,70 Q90,84 142,70" stroke="#2d2a32" stroke-width="1.2" fill="none" opacity="0.5"/>
+<path d="M38,92 Q90,106 142,92" stroke="#2d2a32" stroke-width="1.2" fill="none" opacity="0.5"/>
+<path d="M38,114 Q90,128 142,114" stroke="#2d2a32" stroke-width="1.2" fill="none" opacity="0.5"/>
+<path d="M30,100 L12,100" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<path d="M150,100 L168,100" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<text x="90" y="172" text-anchor="middle" font-size="12.5" font-weight="600" fill="#c8553d">Ribs stay open</text>
+<path d="M90,34 C90,22 110,16 130,16" stroke="#3a7ca5" stroke-width="1.5" fill="none" marker-end="url(#aB)"/>
+<text x="136" y="20" text-anchor="start" font-size="11" font-weight="400" fill="#3a7ca5">a slow, steady stream</text>
+<path d="M190,40 L190,160 L340,160" stroke="#2d2a32" stroke-width="1.4" fill="none"/>
+<path d="M192,68 L334,70" stroke="#c8553d" stroke-width="3" fill="none"/>
+<text x="334" y="62" text-anchor="end" font-size="11.5" font-weight="600" fill="#c8553d">Rib width</text>
+<path d="M192,72 C250,96 300,124 334,150" stroke="#3a7ca5" stroke-width="3" fill="none"/>
+<text x="250" y="132" text-anchor="middle" font-size="11.5" font-weight="600" fill="#3a7ca5">Air in the lungs</text>
+<text x="265.0" y="176" text-anchor="middle" font-size="11" font-weight="400" fill="#9d97a6">Through the phrase →</text>
+<text x="180" y="206" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Support: the ribs stay wide while the voice sings,</text>
+<text x="180" y="222" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">so the air is let out slowly</text>
+</g>
+</svg>

@@ -5,8 +5,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   ANSWER_SCHEMA, batches, CATEGORIES, check, costUsd, examplesText, invalidRequest, labelBlocks, lessonText,
-  samePayload, supportsFallback, verbatim, type ModelCard, type Request, type TakeRow,
+  samePayload, supportsFallback, verbatim, diagramPick, DIAGRAM_MIN_CONFIDENCE, SYSTEM_PROMPT,
+  type ModelCard, type Request, type TakeRow,
 } from './cues.ts';
+import { DIAGRAMS } from '../_shared/diagrams.ts';
 
 // A short test lesson in the shape the phone sends: an opening chat, two
 // takes with feedback, and a block with bar numbers.
@@ -137,4 +139,30 @@ test('the answer schema follows the structured-output rules', () => {
   };
   walk(ANSWER_SCHEMA);
   assert.deepEqual(ANSWER_SCHEMA.properties.cards.items.properties.category.enum, [...CATEGORIES]);
+});
+
+test('diagram picks are kept only for known diagrams on real cues', () => {
+  const labels = labelBlocks(sample.request.blocks);
+  const [hello, jaw, flat, bars] = check(labels, sample.answer.cards);
+  assert.equal(hello.diagram, null);
+  assert.deepEqual(jaw.diagram, { diagram_id: 'vowels-jaw', confidence: 0.88 });
+  assert.equal(flat.diagram!.confidence < DIAGRAM_MIN_CONFIDENCE, true, 'a weak pick is kept, and the bar is applied when saving');
+  assert.deepEqual(bars.diagram, { diagram_id: 'line-legato', confidence: 0.75 });
+  assert.equal(diagramPick({ diagram: 'made-up', diagram_confidence: 0.9 }, 'breath'), null);
+  assert.equal(diagramPick({ diagram: 'vowels-jaw', diagram_confidence: 0.9 }, 'chat'), null);
+  assert.equal(diagramPick({ diagram: 'vowels-jaw', diagram_confidence: 0.9 }, 'encouragement'), null);
+  assert.deepEqual(diagramPick({ diagram: 'vowels-jaw', diagram_confidence: 3 }, 'vowel'), { diagram_id: 'vowels-jaw', confidence: 1 });
+  assert.equal(diagramPick({ diagram: 'vowels-jaw', diagram_confidence: NaN }, 'vowel'), null);
+});
+
+test('the prompt and schema list every diagram in the library', () => {
+  for (const d of DIAGRAMS) assert.match(SYSTEM_PROMPT, new RegExp(`^${d.id}: `, 'm'));
+  const ids = (ANSWER_SCHEMA.properties.cards.items.properties.diagram.anyOf[0] as { enum: string[] }).enum;
+  assert.deepEqual(ids, DIAGRAMS.map((d) => d.id));
+});
+
+test('the library matches the drawings on the dashboard', () => {
+  const index = JSON.parse(readFileSync(new URL('../../../web/static/diagrams/index.json', import.meta.url), 'utf8'));
+  assert.deepEqual(index, DIAGRAMS);
+  for (const d of DIAGRAMS) readFileSync(new URL(`../../../web/static/diagrams/${d.id}.svg`, import.meta.url));
 });

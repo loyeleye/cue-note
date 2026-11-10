@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Singer's alignment, side view">
+<title>Singer's alignment, side view</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M180,24 L180,226" stroke="#3a7ca5" stroke-width="1.4" fill="none" stroke-dasharray="5 4"/>
+<ellipse cx="184" cy="44" rx="15" ry="18" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<path d="M198,44 L203,51 L197,53" stroke="#2d2a32" stroke-width="1.6" fill="none"/>
+<path d="M176,61 L174,82 M188,61 L190,80" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M173,82 C166,116 167,146 172,162" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M190,80 C206,104 202,140 192,162" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M182,88 C186,110 188,126 186,140" stroke="#2d2a32" stroke-width="1.6" fill="none"/>
+<path d="M180,164 L185,192 L180,218" stroke="#2d2a32" stroke-width="2.4" fill="none"/>
+<path d="M172,222 L204,222" stroke="#2d2a32" stroke-width="2.4" fill="none"/>
+<circle cx="180" cy="46" r="4.2" fill="#c8553d"/>
+<path d="M188,46 L246,46" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="252" y="50" text-anchor="start" font-size="12" font-weight="400" fill="#2d2a32">Ear</text>
+<circle cx="180" cy="86" r="4.2" fill="#c8553d"/>
+<path d="M188,86 L246,86" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="252" y="90" text-anchor="start" font-size="12" font-weight="400" fill="#2d2a32">Shoulder</text>
+<circle cx="180" cy="160" r="4.2" fill="#c8553d"/>
+<path d="M188,160 L246,160" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="252" y="164" text-anchor="start" font-size="12" font-weight="400" fill="#2d2a32">Hip</text>
+<circle cx="185" cy="192" r="4.2" fill="#c8553d"/>
+<path d="M193,192 L246,192" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="252" y="196" text-anchor="start" font-size="12" font-weight="400" fill="#2d2a32">Knee, soft</text>
+<circle cx="180" cy="218" r="4.2" fill="#c8553d"/>
+<path d="M188,218 L246,218" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="252" y="222" text-anchor="start" font-size="12" font-weight="400" fill="#2d2a32">Ankle</text>
+<text x="30" y="100" text-anchor="start" font-size="12" font-weight="600" fill="#2d2a32">One line from</text>
+<text x="30" y="116" text-anchor="start" font-size="12" font-weight="600" fill="#2d2a32">ear to ankle</text>
+<text x="30" y="136" text-anchor="start" font-size="11" font-weight="400" fill="#9d97a6">Side view</text>
+</g>
+</svg>

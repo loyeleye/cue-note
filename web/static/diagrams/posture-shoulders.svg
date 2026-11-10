@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Shoulders and chest">
+<title>Shoulders and chest</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M120,22 L120,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M240,22 L240,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<circle cx="58" cy="48" r="15" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<path d="M71,50 L77,56 L70,58" stroke="#2d2a32" stroke-width="1.6" fill="none"/>
+<path d="M54,63 L54,78" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M64,62 L66,76" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M52,78 C44,112 44.0,152 48,175" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M66,78 C84,96 82,132 76,175" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<circle cx="59" cy="78" r="4.5" fill="#c8553d"/>
+<text x="60" y="204" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Relaxed</text>
+<circle cx="190" cy="60" r="15" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<path d="M203,62 L209,68 L202,70" stroke="#2d2a32" stroke-width="1.6" fill="none"/>
+<path d="M186,75 L174,84" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M196,74 L186,82" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M172,84 C154,118 159.0,158 168,175" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M186,84 C194,102 192,138 196,175" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<circle cx="184" cy="86" r="4.5" fill="#c8553d"/>
+<path d="M198,118 L186,128" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<text x="180" y="204" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Collapsed</text>
+<text x="180" y="220" text-anchor="middle" font-size="11.5" font-weight="400" fill="#2d2a32">chest sinks</text>
+<circle cx="298" cy="48" r="15" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<path d="M311,50 L317,56 L310,58" stroke="#2d2a32" stroke-width="1.6" fill="none"/>
+<path d="M294,63 L294,56" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M304,62 L306,54" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M292,56 C284,90 284.0,130 288,175" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M306,56 C324,74 322,110 316,175" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<circle cx="299" cy="56" r="4.5" fill="#c8553d"/>
+<path d="M320,78 L320,52" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<text x="300" y="204" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Raised</text>
+<text x="300" y="220" text-anchor="middle" font-size="11.5" font-weight="400" fill="#2d2a32">shoulders up</text>
+</g>
+</svg>

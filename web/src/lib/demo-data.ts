@@ -2,7 +2,7 @@
 // their AI originals, notes, practice and a song with a score. Nothing here
 // touches the real database. Dates are relative to today so it looks fresh.
 import type {
-  Annotation, CardVersion, Checkpoint, Comment, Feedback, Lesson, PhotoMark, PracticeItem, Profile,
+  Annotation, CardVersion, Checkpoint, Comment, DiagramSuggestion, Feedback, Lesson, PhotoMark, PracticeItem, Profile,
   Score, Share, Song, Take
 } from './types';
 import { contourFor, type Note } from './tone';
@@ -79,6 +79,8 @@ export interface DemoState {
   versions: CardVersion[];
   checkpoints: Checkpoint[];
   photos: PhotoMark[];
+  /** Missing from demo states saved before suggested diagrams. */
+  suggestions?: DiagramSuggestion[];
   comments: Comment[];
   practice: PracticeItem[];
   songs: Song[];
@@ -200,6 +202,7 @@ export function initialDemoState(): DemoState {
         image_path: 'demo-sketch:jaw:photo', cleaned_path: 'demo-sketch:jaw',
         auto_feedback_id: 'demo-fb-4', link_source: 'auto' }
     ],
+    suggestions: demoSuggestions(),
     comments: [
       { id: 'demo-comment-1', student_id: SAM, lesson_id: L1, author_id: DEMO_TEACHER.id, created_at: ago(3, 9),
         body: 'Lovely progress on the breath this week. Bars 1 to 4 are nearly there; bar 7 is the one to live with.',
@@ -245,6 +248,20 @@ const BAR_X = [110, 330, 550, 770, 990];
 export const DEMO_SCORE_BARS = SYSTEM_Y.flatMap((y, s) =>
   [0, 1, 2, 3].map((b) => ({ bar: s * 4 + b + 1, page: 1, x: (BAR_X[b] + 8) / PAGE_W, y: (y - 30) / PAGE_H }))
 );
+
+/** Suggested diagrams on the demo's cards, as extract-cues and caption-sketch would save them. */
+export function demoSuggestions(): DiagramSuggestion[] {
+  const s = (id: string, feedback_id: string, diagram_id: string, confidence: number, source: 'cues' | 'sketch',
+             student_status: DiagramSuggestion['student_status'] = 'open'): DiagramSuggestion => ({
+    id, feedback_id, diagram_id, confidence, source, teacher_status: 'open', student_status, created_at: ago(4, 18)
+  });
+  return [
+    s('demo-sug-1', 'demo-fb-2', 'breath-low-high', 0.91, 'cues', 'accepted'),
+    s('demo-sug-2', 'demo-fb-4', 'vowels-jaw', 0.82, 'sketch'),
+    s('demo-sug-3', 'demo-fb-1', 'resonance-mask', 0.77, 'cues'),
+    s('demo-sug-4', 'demo-fb-8', 'resonance-soft-palate', 0.73, 'cues')
+  ];
+}
 
 export function demoScoreSvg(): string {
   const parts: string[] = [];

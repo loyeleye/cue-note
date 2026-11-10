@@ -7,7 +7,10 @@
 // sends the cleaned image and the words to Claude, and saves:
 //   caption     one short line in her own terms, e.g. "Soft palate lifting on the 'ah' vowel"
 //   confidence  0..1, how clearly the sketch matches what she was saying
-// It never adds advice she didn't give.
+// It never adds advice she didn't give. When a diagram from the app's library
+// plainly shows the same thing and the model is sure enough (at or above
+// DIAGRAM_MIN_CONFIDENCE, default 0.7), it also suggests that diagram on the
+// photo's card ("Does this diagram help?").
 //
 // Secrets (supabase secrets set ...):
 //   ANTHROPIC_API_KEY  the Claude API key (shared with extract-cues)
@@ -15,6 +18,7 @@
 // SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk@1.2.0';
+import { DIAGRAMS } from '../_shared/diagrams.ts';
 
 type Body = { photo_mark_id?: string; words?: string };
 
@@ -22,15 +26,22 @@ const SYSTEM = `You caption photos taken during a one-to-one singing lesson. The
 
 Write one caption of at most 12 words saying what the sketch shows, in the teacher's own terms from the transcript where they fit. Describe; do not add advice, corrections or technique she did not give. If the photo is not a sketch, say plainly what it shows.
 
-confidence is how clearly the sketch matches what she was saying, from 0 (unrelated or unreadable) to 1 (plainly the thing she was explaining).`;
+confidence is how clearly the sketch matches what she was saying, from 0 (unrelated or unreadable) to 1 (plainly the thing she was explaining).
+
+diagram is the one diagram from the library below that shows the same thing as her sketch and her words, or null. Most sketches get null; pick one only when it is plainly the same idea. diagram_confidence is how sure you are, from 0 to 1, and 0 when diagram is null.
+
+The diagram library (id: what it shows):
+${DIAGRAMS.map((d) => `${d.id}: ${d.title}. ${d.shows}.`).join('\n')}`;
 
 const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
     caption: { type: 'string' },
     confidence: { type: 'number' },
+    diagram: { anyOf: [{ type: 'string', enum: DIAGRAMS.map((d) => d.id) }, { type: 'null' }] },
+    diagram_confidence: { type: 'number' },
   },
-  required: ['caption', 'confidence'],
+  required: ['caption', 'confidence', 'diagram', 'diagram_confidence'],
   additionalProperties: false,
 };
 
@@ -55,7 +66,7 @@ Deno.serve(async (req) => {
   });
   const { data: photo, error } = await asCaller
     .from('photo_mark')
-    .select('id, image_path, cleaned_path')
+    .select('id, image_path, cleaned_path, feedback_id')
     .eq('id', id)
     .maybeSingle();
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -74,6 +85,8 @@ Deno.serve(async (req) => {
 
   let caption: string;
   let confidence: number;
+  let diagram: string | null = null;
+  let diagramConfidence = 0;
   try {
     const response = await client.beta.messages.create({
       model: Deno.env.get('CUE_MODEL') || 'claude-opus-5-5',
@@ -101,6 +114,10 @@ Deno.serve(async (req) => {
     const out = JSON.parse(text);
     caption = String(out.caption).trim().slice(0, 200);
     confidence = Math.min(1, Math.max(0, Number(out.confidence) || 0));
+    if (typeof out.diagram === 'string' && DIAGRAMS.some((d) => d.id === out.diagram)) {
+      diagram = out.diagram;
+      diagramConfidence = Math.min(1, Math.max(0, Number(out.diagram_confidence) || 0));
+    }
   } catch (e) {
     if (e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError) {
       return Response.json({ error: 'busy, try later' }, { status: 503 });
@@ -113,5 +130,16 @@ Deno.serve(async (req) => {
 
   const { error: saveError } = await service.from('photo_mark').update({ caption, confidence }).eq('id', id);
   if (saveError) return Response.json({ error: saveError.message }, { status: 500 });
-  return Response.json({ caption, confidence });
+
+  const bar = Number(Deno.env.get('DIAGRAM_MIN_CONFIDENCE') || 0.7);
+  let suggested: string | null = null;
+  if (diagram && photo.feedback_id && diagramConfidence >= bar) {
+    // An existing suggestion keeps its decisions.
+    const { error: sugError } = await service.from('diagram_suggestion').upsert(
+      { feedback_id: photo.feedback_id, diagram_id: diagram, confidence: diagramConfidence, source: 'sketch' },
+      { onConflict: 'feedback_id,diagram_id', ignoreDuplicates: true },
+    );
+    if (!sugError) suggested = diagram;
+  }
+  return Response.json({ caption, confidence, diagram: suggested, diagram_confidence: diagramConfidence });
 });

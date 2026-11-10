@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Consonants on the beat">
+<title>Consonants on the beat</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M80,36 L80,178" stroke="#9d97a6" stroke-width="1.2" fill="none" stroke-dasharray="4 3"/>
+<text x="80" y="30" text-anchor="middle" font-size="11" font-weight="400" fill="#9d97a6">beat 1</text>
+<path d="M170,36 L170,178" stroke="#9d97a6" stroke-width="1.2" fill="none" stroke-dasharray="4 3"/>
+<text x="170" y="30" text-anchor="middle" font-size="11" font-weight="400" fill="#9d97a6">beat 2</text>
+<path d="M260,36 L260,178" stroke="#9d97a6" stroke-width="1.2" fill="none" stroke-dasharray="4 3"/>
+<text x="260" y="30" text-anchor="middle" font-size="11" font-weight="400" fill="#9d97a6">beat 3</text>
+<rect x="60" y="86" width="20" height="28" rx="5" fill="#f7e2da" stroke="#c8553d" stroke-width="1.6"/>
+<text x="70.0" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#c8553d">L</text>
+<rect x="80" y="80" width="72" height="40" rx="5" fill="#d9e8f3" stroke="#3a7ca5" stroke-width="1.6"/>
+<text x="116.0" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#3a7ca5">o</text>
+<rect x="144" y="86" width="26" height="28" rx="5" fill="#f7e2da" stroke="#c8553d" stroke-width="1.6"/>
+<text x="157.0" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#c8553d">v m</text>
+<rect x="170" y="80" width="72" height="40" rx="5" fill="#d9e8f3" stroke="#3a7ca5" stroke-width="1.6"/>
+<text x="206.0" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#3a7ca5">e</text>
+<rect x="242" y="86" width="18" height="28" rx="5" fill="#f7e2da" stroke="#c8553d" stroke-width="1.6"/>
+<text x="251.0" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#c8553d">t</text>
+<rect x="260" y="80" width="70" height="40" rx="5" fill="#d9e8f3" stroke="#3a7ca5" stroke-width="1.6"/>
+<text x="295.0" y="104" text-anchor="middle" font-size="13" font-weight="700" fill="#3a7ca5">ah</text>
+<text x="60" y="146" text-anchor="middle" font-size="13" font-weight="600" fill="#2d2a32">Love</text>
+<text x="170" y="146" text-anchor="middle" font-size="13" font-weight="600" fill="#2d2a32">me</text>
+<text x="260" y="146" text-anchor="middle" font-size="13" font-weight="600" fill="#2d2a32">too</text>
+<rect x="40" y="196" width="14" height="10" rx="3" fill="#f7e2da" stroke="#c8553d" stroke-width="1.4"/>
+<text x="60" y="205" text-anchor="start" font-size="11.5" font-weight="400" fill="#2d2a32">consonant, just before the beat</text>
+<rect x="40" y="214" width="14" height="10" rx="3" fill="#d9e8f3" stroke="#3a7ca5" stroke-width="1.4"/>
+<text x="60" y="223" text-anchor="start" font-size="11.5" font-weight="400" fill="#2d2a32">vowel, on the beat</text>
+</g>
+</svg>

@@ -160,6 +160,27 @@ export interface PhotoMark {
   link_source?: 'auto' | 'student' | 'teacher';
 }
 
+/** Where a side stands on a suggested diagram. */
+export type DiagramDecision = 'open' | 'accepted' | 'dismissed';
+
+/**
+ * "Does this diagram help?": a diagram from the library (static/diagrams)
+ * the AI matched to a card. A teacher's dismissal hides it for everyone; a
+ * student's only for the student.
+ */
+export interface DiagramSuggestion {
+  id: string;
+  feedback_id: string;
+  diagram_id: string;
+  /** How sure the AI was, 0..1. Only 0.7 and up are saved, to start. */
+  confidence: number;
+  /** Picked from her words when the cards were made, or from her sketch. */
+  source: 'cues' | 'sketch';
+  teacher_status: DiagramDecision;
+  student_status: DiagramDecision;
+  created_at: string;
+}
+
 export interface Comment {
   id: string;
   student_id: string;

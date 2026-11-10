@@ -3,6 +3,7 @@
 // answer in, and the checks on its answer. Plain TypeScript with no Deno or
 // npm imports, so the same file runs in the edge function and in the tests
 // (node --experimental-strip-types --test).
+import { DIAGRAMS } from '../_shared/diagrams.ts';
 
 // ----------------------------------------------------------------- Request
 
@@ -104,6 +105,10 @@ export interface ModelCard {
   practice_flag: PracticeFlag | null;
   bar_start: number | null;
   bar_end: number | null;
+  /** One diagram from the library that shows what she explains, or null. */
+  diagram: string | null;
+  /** 0..1: how sure the model is that the diagram shows what she explained. */
+  diagram_confidence: number;
 }
 
 /** What a card_version stores; the same keys save_card snapshots. */
@@ -136,8 +141,10 @@ export const ANSWER_SCHEMA = {
           practice_flag: nullable({ type: 'string', enum: ['practice_this', 'just_listen'] }),
           bar_start: nullable({ type: 'integer' }),
           bar_end: nullable({ type: 'integer' }),
+          diagram: nullable({ type: 'string', enum: DIAGRAMS.map((d) => d.id) }),
+          diagram_confidence: { type: 'number', description: '0 to 1. Use 0 when diagram is null.' },
         },
-        required: ['block', 'cue', 'category', 'her_words', 'practice_flag', 'bar_start', 'bar_end'],
+        required: ['block', 'cue', 'category', 'her_words', 'practice_flag', 'bar_start', 'bar_end', 'diagram', 'diagram_confidence'],
         additionalProperties: false,
       },
     },
@@ -159,7 +166,13 @@ For each block, write:
 - practice_flag: "practice_this" when she asks the student to work on it at home or keeps returning to it; "just_listen" when it is something to hear or notice rather than drill; null when neither is clear.
 - bar_start and bar_end: only when she names bar or measure numbers ("from bar 17", "measures 9 to 12"); otherwise null. A single bar has the same start and end.
 
-Write exactly one card for every block, in order, and use the block labels exactly as given. The student's lines are context only; never take a cue from them.`;
+- diagram: the one diagram from the library below that shows exactly what she is explaining in this block, or null. Most blocks get null. Pick one only when the block is about that very thing (she talks about the soft palate lifting, not just "more space"). Never pick one for chat or encouragement.
+- diagram_confidence: from 0 to 1, how sure you are that the diagram shows what she explained. 0 when diagram is null.
+
+Write exactly one card for every block, in order, and use the block labels exactly as given. The student's lines are context only; never take a cue from them.
+
+The diagram library (id: what it shows):
+${DIAGRAMS.map((d) => `${d.id}: ${d.title}. ${d.shows}.`).join('\n')}`;
 
 const clock = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -240,9 +253,30 @@ export function verbatim(quote: string, transcript: string): { text: string; rep
   return { text: (best || transcript).slice(0, 400).trim(), repaired: true };
 }
 
+/** The model's diagram pick for a card, once checked. */
+export interface DiagramPick {
+  diagram_id: string;
+  confidence: number;
+}
+
+/** Suggestions show from this confidence up, to start; accept and dismiss counts will tune it. */
+export const DIAGRAM_MIN_CONFIDENCE = 0.7;
+
+const DIAGRAM_IDS = new Set(DIAGRAMS.map((d) => d.id));
+
+/** A known diagram with a confidence in 0..1, never on chat or praise; otherwise null. */
+export function diagramPick(c: Pick<ModelCard, 'diagram' | 'diagram_confidence'>, category: string | null): DiagramPick | null {
+  if (!c.diagram || !DIAGRAM_IDS.has(c.diagram)) return null;
+  if (category === 'chat' || category === 'encouragement') return null;
+  const n = Number(c.diagram_confidence);
+  if (!Number.isFinite(n)) return null;
+  return { diagram_id: c.diagram, confidence: Math.min(1, Math.max(0, n)) };
+}
+
 export interface Checked {
   block: Block;
   payload: CardPayload;
+  diagram: DiagramPick | null;
   repaired: boolean;   // her_words was replaced with her real words
   missing: boolean;    // the model skipped this block
 }
@@ -260,7 +294,7 @@ export function check(labels: Map<string, Block>, cards: ModelCard[]): Checked[]
     const c = byLabel.get(label);
     if (!c) {
       out.push({
-        block, repaired: false, missing: true,
+        block, repaired: false, missing: true, diagram: null,
         payload: { cue: '', category: null, her_words: block.transcript.trim().slice(0, 400), practice_flag: null,
                    take_id: block.take_id, song_id: null, bar_start: null, bar_end: null },
       });
@@ -274,7 +308,7 @@ export function check(labels: Map<string, Block>, cards: ModelCard[]): Checked[]
     if (bs != null && be != null && be < bs) [bs, be] = [be, bs];
     const category = (CATEGORIES as readonly string[]).includes(c.category) ? c.category : null;
     out.push({
-      block, repaired: words.repaired, missing: false,
+      block, repaired: words.repaired, missing: false, diagram: diagramPick(c, category),
       payload: {
         cue: category === 'chat' ? '' : (c.cue ?? '').trim().slice(0, 200),
         category,
