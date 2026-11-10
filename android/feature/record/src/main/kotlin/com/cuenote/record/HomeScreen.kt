@@ -116,6 +116,9 @@ fun HomeScreen(
     hasTeacher: Boolean = false,
     /** Opens practice for a note (by card id). */
     onPractice: (String) -> Unit = {},
+    /** What's ready for the next lesson; null hides the row (no teacher yet). */
+    nextLesson: NextLessonPeek? = null,
+    onNextLesson: () -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val player = rememberClipPlayer()
@@ -158,6 +161,8 @@ fun HomeScreen(
                     onOpen = onOpen,
                     onAllLessons = { tab = 2 },
                     onPractice = onPractice,
+                    nextLesson = nextLesson,
+                    onNextLesson = onNextLesson,
                 )
                 1 -> setlistTab(setlist, teacherName, player, onPractice)
                 else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen)
@@ -185,6 +190,8 @@ private fun LazyListScope.homeTab(
     onOpen: (LessonEntity) -> Unit,
     onAllLessons: () -> Unit,
     onPractice: (String) -> Unit,
+    nextLesson: NextLessonPeek?,
+    onNextLesson: () -> Unit,
 ) {
     val firstRun = lessons.isEmpty()
     val last = lessons.firstOrNull()
@@ -224,6 +231,9 @@ private fun LazyListScope.homeTab(
         }
     } else {
         items(setlist.take(HOME_NOTES), key = { "n-" + it.card.id }) { SetlistNote(it, teacherName, player, onPractice) }
+    }
+    if (nextLesson != null && !firstRun) {
+        item(key = "next") { NextLessonRow(nextLesson, onNextLesson) }
     }
 
     if (firstRun) {
@@ -396,6 +406,37 @@ private fun EmptySetlist(firstRun: Boolean, notesOnTheWay: Boolean, teacher: Str
             color = m.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
         )
+    }
+}
+
+/** What the student has ready for the next lesson, for the row on Home. */
+data class NextLessonPeek(
+    /** Epoch ms of the next lesson, when a teacher has set it. */
+    val at: Long?,
+    val sharedTakes: Int,
+    val openQuestions: Int,
+)
+
+/** "Before your next lesson": the date, and what's on the list so far. */
+@Composable
+private fun NextLessonRow(p: NextLessonPeek, onOpen: () -> Unit) {
+    val m = MaterialTheme.colorScheme
+    TicketRow(onClick = onOpen) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                p.at?.let { "Next lesson " + SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(it)) } ?: "Before your next lesson",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            val parts = listOfNotNull(
+                p.sharedTakes.takeIf { it > 0 }?.let { if (it == 1) "1 take shared" else "$it takes shared" },
+                p.openQuestions.takeIf { it > 0 }?.let { if (it == 1) "1 question" else "$it questions" },
+            )
+            Text(
+                parts.joinToString(" · ").ifEmpty { "Share a take or ask a question" },
+                color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Text("Open", color = m.primary, style = MaterialTheme.typography.labelLarge)
     }
 }
 

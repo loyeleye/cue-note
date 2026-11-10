@@ -31,7 +31,12 @@ object ClipEncoder {
         // (5 minutes is about 29 MB), which lets the whole clip share one gain.
         val mono = ClipAudio.mixToMono(lesson.readFrames(first, count))
         ClipAudio.applyGain(mono, ClipAudio.normalizeGain(mono))
+        return encodeMono(mono, out, span.localId)
+    }
 
+    /** Writes 48 kHz mono samples to [out] as an .m4a, replacing it. Returns the file size in bytes. */
+    fun encodeMono(mono: ShortArray, out: File, label: String): Long {
+        require(mono.isNotEmpty()) { "empty clip $label" }
         val tmp = File(out.parentFile, out.name + ".part")
         tmp.delete()
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, RATE, 1).apply {
@@ -96,7 +101,7 @@ object ClipEncoder {
             if (muxing) runCatching { muxer.stop() }
             runCatching { muxer.release() }
         }
-        check(muxing && tmp.length() > 0) { "the encoder wrote nothing for ${span.localId}" }
+        check(muxing && tmp.length() > 0) { "the encoder wrote nothing for $label" }
         out.delete()
         check(tmp.renameTo(out)) { "could not save ${out.name}" }
         return out.length()
