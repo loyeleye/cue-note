@@ -54,6 +54,9 @@ class PracticeRepository(
     /** A fresh file for the next take. */
     fun newTakeFile(): File = File(root, "${UUID.randomUUID()}.wav")
 
+    /** Where posture tracking for a take goes (practice/<take id>/posture/), when it was on. */
+    fun postureDir(takeFile: File): File = File(takeFile.parentFile, takeFile.nameWithoutExtension)
+
     /** Saves a finished take and adds it to this sitting of practice (or starts one). */
     suspend fun saveTake(
         card: CardEntity,
@@ -180,6 +183,7 @@ class PracticeRepository(
     suspend fun deleteTake(id: String) = withContext(Dispatchers.IO) {
         val t = dao.take(id) ?: return@withContext
         File(t.file).delete(); File(t.file.removeSuffix(".wav") + ".pitch.json").delete()
+        postureDir(File(t.file)).deleteRecursively()
         if (t.shared || t.cloudShared) dao.markDeleted(id) else dao.deleteTake(id)
         PracticeSyncWorker.enqueue(context)
     }

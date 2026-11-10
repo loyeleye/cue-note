@@ -340,6 +340,15 @@ the shared takes to hear (with how it felt and one line on pitch, no
 numbers), and the questions to answer in words or mark as covered in the
 lesson.
 
+**Posture during practice.** **Watch my posture** on the practice screen
+uses the lesson's posture tracking (`PostureService`, MediaPipe on the
+phone). Switching it on runs the framing check from the student's singing
+spot once per sitting; after that the camera is on only while a take
+records, no video is saved, and each flagged moment keeps a snapshot in
+`practice/<take id>/posture/`. Under the take, one line says how it went
+("Posture: steady all the way through", or what was flagged), with the
+snapshots. None of it leaves the phone.
+
 ## Sketches (M6)
 
 **Taking them.** The lesson screen's **Photo** button opens a camera inside the

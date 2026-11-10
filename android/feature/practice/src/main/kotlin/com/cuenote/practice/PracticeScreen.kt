@@ -51,6 +51,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -108,6 +109,10 @@ fun PracticeScreen(
     lessonRecording: Boolean,
     /** Signed in with a teacher who has accepted, so takes can be shared and questions asked. */
     sharing: Boolean = false,
+    /** Posture during takes; null when this phone can't track it. */
+    posture: TakePosture? = null,
+    /** Opens the framing check, for posture. */
+    onFraming: () -> Unit = {},
     onTimingCheck: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -117,6 +122,8 @@ fun PracticeScreen(
     val allQuestions by remember { repo.questions() }.collectAsStateWithLifecycle(emptyList())
     val questions = allQuestions.filter { it.cardId == cardId }
     var asking by remember { mutableStateOf(false) }
+    var postureOn by rememberSaveable { mutableStateOf(false) }
+    val postureReady by (posture?.ready ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsStateWithLifecycle()
     val devices = rememberDevices()
     val timingVersion by repo.timing.changes.collectAsStateWithLifecycle()
     val latency = remember(devices.output, timingVersion) { repo.timing.latencyMs(devices.output) }
@@ -157,7 +164,10 @@ fun PracticeScreen(
 
     // Leaving the screen mid-take (rather than with Back) doesn't keep a half take.
     DisposableEffect(recorder) {
-        onDispose { recorder.stop()?.file?.delete() }
+        onDispose {
+            posture?.stop()
+            recorder.stop()?.file?.let { f -> f.delete(); repo.postureDir(f).deleteRecursively() }
+        }
     }
     // The screen stays on while singing.
     val view = LocalView.current
@@ -173,8 +183,12 @@ fun PracticeScreen(
         note = null
         scope.launch {
             val pcm = along?.let { runCatching { repo.pcm(repo.slowed(it, settings.rate)) }.getOrNull() }
-            runCatching { recorder.start(repo.newTakeFile(), pcm) }
-                .onSuccess { startedAt = System.currentTimeMillis(); singingAlong = pcm != null }
+            val file = repo.newTakeFile()
+            runCatching { recorder.start(file, pcm) }
+                .onSuccess {
+                    startedAt = System.currentTimeMillis(); singingAlong = pcm != null
+                    if (postureOn && postureReady) posture?.start(repo.postureDir(file))
+                }
                 .onFailure { note = "The mic didn't start: ${it.message}" }
         }
     }
@@ -186,8 +200,12 @@ fun PracticeScreen(
         singingAlong = false
         val card = row?.card
         saving = keep
+        posture?.stop()
         scope.launch {
             val take = withContext(Dispatchers.IO) { recorder.stop() }
+            if (take != null && (!keep || card == null || take.durationMs < PracticeRepository.MIN_TAKE_MS)) {
+                withContext(Dispatchers.IO) { repo.postureDir(take.file).deleteRecursively() }
+            }
             when {
                 take == null -> Unit
                 !keep || card == null -> withContext(Dispatchers.IO) { take.file.delete() }
@@ -286,6 +304,15 @@ fun PracticeScreen(
             }
 
             item(key = "listen") { ListeningRow(devices, latency, onTimingCheck) }
+            if (posture != null) {
+                item(key = "posture") {
+                    PostureRow(
+                        on = postureOn, ready = postureReady,
+                        onToggle = { on -> postureOn = on; if (on && !postureReady) onFraming() },
+                        onFraming = onFraming,
+                    )
+                }
+            }
 
             if (lessonRecording) {
                 item(key = "busy") {
@@ -304,7 +331,7 @@ fun PracticeScreen(
             }
             val teacher = teacherName(r.card.lessonId) ?: "your teacher"
             takesList(
-                takes, r, player, { pitches[it] }, { it in pitches },
+                takes, r, player, { pitches[it] }, { it in pitches }, { repo.postureDir(java.io.File(it.file)) },
                 share = if (!sharing) null else TakeSharing(
                     teacher = teacher,
                     canShareMore = PracticeLog.canShare(waiting.size),
@@ -383,6 +410,7 @@ private fun LazyListScope.takesList(
     player: ClipPlayer,
     pitch: (String) -> com.cuenote.pipeline.practice.TakePitch?,
     analysed: (String) -> Boolean,
+    postureDir: (PracticeTakeEntity) -> java.io.File,
     share: TakeSharing?,
     onDelete: (PracticeTakeEntity) -> Unit,
 ) {
@@ -406,6 +434,7 @@ private fun LazyListScope.takesList(
                 !analysed(t.id) -> Text("Listening back to your pitch…", color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 12.dp))
             }
+            TakePostureLine(postureDir(t), Modifier.padding(horizontal = 12.dp))
         }
     }
     item(key = "private") {
