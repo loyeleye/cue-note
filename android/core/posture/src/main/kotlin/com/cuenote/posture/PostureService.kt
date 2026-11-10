@@ -19,7 +19,16 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import com.cuenote.signal.posture.BaselineSettler
+import com.cuenote.signal.posture.FramingCheck
+import com.cuenote.signal.posture.MotionWatch
+import com.cuenote.signal.posture.Pose
 import com.cuenote.signal.posture.PoseTsv
+import com.cuenote.signal.posture.rotationFromGravity
 import com.cuenote.signal.posture.PostureBackOff
 import com.cuenote.signal.posture.PostureEvent
 import com.cuenote.signal.posture.PostureFlagDetector
@@ -60,6 +69,15 @@ class PostureService : LifecycleService() {
     private var provider: ProcessCameraProvider? = null
     private var detector: PostureFlagDetector? = null
     private var picker: StudentPicker? = null
+    private var baseline: PostureMetrics? = null
+    /** Quietly taking a new baseline after the phone moved or a photo, with why. */
+    private var settler: Pair<BaselineSettler, String>? = null
+    /** The spoken "Recalibrate posture" check, and when its countdown ends. */
+    private var calibration: Pair<FramingCheck, Long>? = null
+    private val motion = MotionWatch()
+    /** Which way up the phone is now, from gravity; null until known. */
+    private var gravityRotation: Int? = null
+    private var speaker: Speaker? = null
     private val backOff = PostureBackOff()
     private var poseOut: BufferedWriter? = null
     private var eventsOut: BufferedWriter? = null
@@ -73,6 +91,27 @@ class PostureService : LifecycleService() {
     private val thermal = PowerManager.OnThermalStatusChangedListener { s ->
         backOff.onThermal(SystemClock.elapsedRealtime(), s)
         reconcile()
+    }
+
+    private val accel = object : SensorEventListener {
+        override fun onSensorChanged(e: SensorEvent) {
+            val (x, y, z) = Triple(e.values[0], e.values[1], e.values[2])
+            when (motion.onAccel(SystemClock.elapsedRealtime(), x, y, z)) {
+                MotionWatch.Change.StartedMoving -> {
+                    backOff.hold(MOVING)
+                    synchronized(lock) { calibration = null } // someone is handling the phone: drop a check in progress
+                    reconcile()
+                }
+                MotionWatch.Change.Settled -> {
+                    backOff.release(MOVING)
+                    startSettling("moved")
+                    reconcile()
+                }
+                null -> Unit
+            }
+            if (!motion.moving) rotationFromGravity(x, y, z)?.let { gravityRotation = it }
+        }
+        override fun onAccuracyChanged(s: Sensor?, a: Int) = Unit
     }
 
     private val tick = object : Runnable {
@@ -91,7 +130,11 @@ class PostureService : LifecycleService() {
             ACTION_HEARTBEAT -> { lastHeartbeat = now; singing = intent.getBooleanExtra(EXTRA_SINGING, false) }
             ACTION_GAP -> backOff.onGap(now)
             ACTION_HOLD -> intent.getStringExtra(EXTRA_REASON)?.let(backOff::hold)
-            ACTION_RELEASE -> intent.getStringExtra(EXTRA_REASON)?.let(backOff::release)
+            ACTION_RELEASE -> intent.getStringExtra(EXTRA_REASON)?.let { why ->
+                backOff.release(why)
+                if (why == "photo") startSettling("photo") // the phone was probably picked up for it
+            }
+            ACTION_RECALIBRATE -> recalibrate()
             ACTION_STOP -> { finish(); return START_NOT_STICKY }
         }
         if (dir == null) { stopSelf(); return START_NOT_STICKY } // a stray command with no lesson running
@@ -101,7 +144,7 @@ class PostureService : LifecycleService() {
 
     private fun begin(intent: Intent) {
         val lessonDir = intent.getStringExtra(EXTRA_DIR)?.let(::File) ?: return
-        val baseline = decodePostureMetrics(intent.getStringExtra(EXTRA_BASELINE)) ?: return
+        val start = decodePostureMetrics(intent.getStringExtra(EXTRA_BASELINE)) ?: return
         try {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
         } catch (e: Exception) {
@@ -115,7 +158,8 @@ class PostureService : LifecycleService() {
         startedAt = intent.getLongExtra(EXTRA_STARTED_AT, SystemClock.elapsedRealtime())
         rotation = intent.getIntExtra(EXTRA_ROTATION, Surface.ROTATION_0)
         front = intent.getBooleanExtra(EXTRA_FRONT, true)
-        detector = PostureFlagDetector(baseline)
+        baseline = start
+        detector = PostureFlagDetector(start)
         picker = StudentPicker(
             intent.getFloatExtra(EXTRA_CENTER_X, -1f).takeIf { it >= 0 },
             intent.getFloatExtra(EXTRA_CENTER_Y, -1f).takeIf { it >= 0 },
@@ -128,6 +172,9 @@ class PostureService : LifecycleService() {
         val pm = getSystemService(PowerManager::class.java)
         backOff.onThermal(lastHeartbeat, pm.currentThermalStatus)
         pm.addThermalStatusListener(ContextCompat.getMainExecutor(this), thermal)
+        getSystemService(SensorManager::class.java).let { sm ->
+            sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let { sm.registerListener(accel, it, SensorManager.SENSOR_DELAY_UI) }
+        }
         runCatching { engine = PoseEngine(this) }.onFailure {
             Log.w(TAG, "pose model failed to load", it)
             backOff.hold("pose model failed to load")
@@ -148,12 +195,15 @@ class PostureService : LifecycleService() {
             if (reason != null) log(PostureEvent.Paused(lessonMs(), reason)) else if (lastReason != null) log(PostureEvent.Resumed(lessonMs()))
             lastReason = reason
         }
-        val want = singing && reason == null && engine != null
+        val calibrating = calibration != null
+        val want = (singing || calibrating) && reason == null && engine != null
         if (want && !cameraOn) cameraUp()
         if (!want && cameraOn) cameraDown()
         broadcast(
             when {
                 reason != null -> "paused: $reason"
+                calibrating -> "recalibrating"
+                cameraOn && settler != null -> "finding the student again"
                 cameraOn -> "watching"
                 else -> "waiting for singing"
             },
@@ -164,7 +214,7 @@ class PostureService : LifecycleService() {
         val p = provider ?: return
         val f = frames ?: PoseFrames(onFrame = ::onFrame).also { frames = it }
         try {
-            p.bindToLifecycle(this, PoseFrames.selector(front), f.useCase(rotation))
+            p.bindToLifecycle(this, PoseFrames.selector(front), f.useCase(gravityRotation ?: rotation))
             cameraOn = true
             log(PostureEvent.CameraOn(lessonMs()))
         } catch (e: Exception) {
@@ -191,6 +241,14 @@ class PostureService : LifecycleService() {
             val student = engine?.detect(upright, elapsedMs)?.let { picker?.pick(it, t) }
             val metrics = student?.let(PostureMetrics::of)
             if (student != null) poseOut?.apply { write(PoseTsv.line(t, student)); newLine() }
+            calibration?.let { (check, from) ->
+                if (elapsedMs >= from) calibrationFrame(check, t, student)
+                return@synchronized
+            }
+            settler?.let { (s, why) ->
+                s.onFrame(t, student)?.let { newBaseline(it, why, student) }
+                return@synchronized
+            }
             detector?.onFrame(t, metrics)?.forEach { e ->
                 when (e) {
                     is PostureFlagDetector.Event.Started -> {
@@ -209,6 +267,62 @@ class PostureService : LifecycleService() {
         }
     }
 
+    /** Under [lock]: a frame of the spoken recalibration. */
+    private fun calibrationFrame(check: FramingCheck, t: Long, student: Pose?) {
+        when (val step = check.onFrame(t, student)) {
+            is FramingCheck.Step.Speak -> say(step.advice.spoken)
+            is FramingCheck.Step.Done -> {
+                calibration = null
+                newBaseline(step.baseline, "manual", student)
+                say("Posture reset. Carry on.")
+                main.post(::reconcile)
+            }
+            FramingCheck.Step.TimedOut -> {
+                calibration = null
+                picker = StudentPicker(null, null)
+                say("I couldn't find you, so I kept the posture from before.")
+                main.post(::reconcile)
+            }
+            null -> Unit
+        }
+    }
+
+    /** Under [lock]: flags from here on compare with [m]. */
+    private fun newBaseline(m: PostureMetrics, why: String, student: Pose?) {
+        detector?.endAll()?.forEach { log(PostureEvent.FlagEnded(lessonMs(), it.flag)) }
+        baseline = m
+        detector = PostureFlagDetector(m)
+        settler = null
+        if (student != null) picker = StudentPicker(student.shoulderCenterX, student.shoulderCenterY)
+        log(PostureEvent.Rebaselined(lessonMs(), why))
+    }
+
+    /** After the phone moved or a photo: no flags until a fresh baseline is in. */
+    private fun startSettling(why: String) = synchronized(lock) {
+        val b = baseline ?: return@synchronized
+        if (calibration != null) return@synchronized
+        detector?.endAll()?.forEach { log(PostureEvent.FlagEnded(lessonMs(), it.flag)) }
+        settler = BaselineSettler(b) to why
+        picker = StudentPicker(null, null) // the camera may now see the room differently
+    }
+
+    /** The mid-lesson button: a spoken framing check whose result becomes the new baseline. */
+    private fun recalibrate() {
+        if (dir == null || engine == null) return
+        synchronized(lock) {
+            detector?.endAll()?.forEach { log(PostureEvent.FlagEnded(lessonMs(), it.flag)) }
+            settler = null
+            picker = StudentPicker(null, null)
+            calibration = FramingCheck() to SystemClock.elapsedRealtime() + RECALIBRATE_COUNTDOWN_MS
+        }
+        say("Let's reset posture. Go to where you sing, stand tall and relaxed, and face the phone.")
+    }
+
+    private fun say(text: String) = main.post {
+        val s = speaker ?: Speaker(this).also { speaker = it }
+        s.say(text)
+    }
+
     private fun saveSnapshot(frame: Bitmap, name: String) {
         val d = dir ?: return
         val scale = 640f / maxOf(frame.width, frame.height)
@@ -222,6 +336,9 @@ class PostureService : LifecycleService() {
         if (dir != null) {
             if (cameraOn) cameraDown()
             runCatching { getSystemService(PowerManager::class.java).removeThermalStatusListener(thermal) }
+            runCatching { getSystemService(SensorManager::class.java).unregisterListener(accel) }
+            speaker?.close()
+            speaker = null
             frames?.close()
             frames = null
             synchronized(lock) {
@@ -230,6 +347,7 @@ class PostureService : LifecycleService() {
                 runCatching { eventsOut?.close() }
                 runCatching { engine?.close() }
                 poseOut = null; eventsOut = null; engine = null; detector = null
+                settler = null; calibration = null
             }
             dir = null
             broadcast("off")
@@ -283,6 +401,9 @@ class PostureService : LifecycleService() {
         private const val ACTION_HOLD = "com.cuenote.posture.HOLD"
         private const val ACTION_RELEASE = "com.cuenote.posture.RELEASE"
         private const val ACTION_STOP = "com.cuenote.posture.STOP"
+        private const val ACTION_RECALIBRATE = "com.cuenote.posture.RECALIBRATE"
+        private const val MOVING = "phone moving"
+        private const val RECALIBRATE_COUNTDOWN_MS = 5_000L
         /** Broadcast to the app's main process whenever posture's state changes. */
         const val ACTION_STATUS = "com.cuenote.posture.STATUS"
         const val EXTRA_STATUS = "status"
@@ -335,6 +456,10 @@ class PostureService : LifecycleService() {
 
         fun resumeAfter(context: Context, reason: String) =
             send(context, Intent(context, PostureService::class.java).setAction(ACTION_RELEASE).putExtra(EXTRA_REASON, reason))
+
+        /** Mid-lesson: talk the student back into place and take a new baseline. */
+        fun recalibrate(context: Context) =
+            send(context, Intent(context, PostureService::class.java).setAction(ACTION_RECALIBRATE))
 
         fun stop(context: Context) {
             if (!_running.value) return

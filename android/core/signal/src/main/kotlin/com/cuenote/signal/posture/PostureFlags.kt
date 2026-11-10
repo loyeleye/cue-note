@@ -60,8 +60,11 @@ class PostureFlagDetector(
     /** Call for each analyzed frame; [m] is null when the student wasn't clearly in view. */
     fun onFrame(tMs: Long, m: PostureMetrics?): List<Event> {
         val out = mutableListOf<Event>()
+        // Turned away from the phone, the shoulders look narrower and the head
+        // angles shift: those moments aren't judged at all.
+        val judged = m?.takeUnless { it.turnedAwayFrom(baseline) }
         for ((flag, track) in tracks) {
-            val (on, detail) = if (m == null) false to "" else check(flag, m)
+            val (on, detail) = if (judged == null) false to "" else check(flag, judged)
             track.window.addLast(tMs to on)
             while (track.window.isNotEmpty() && tMs - track.window.first().first > t.holdMs) track.window.removeFirst()
             if (on) track.lastTrueMs = tMs
