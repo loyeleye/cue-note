@@ -97,8 +97,11 @@ Deno.serve(async (req) => {
   if (takeErr) return json({ error: takeErr.message }, 500);
   const takes = (takeRows ?? []) as TakeRow[];
   const takeIds = new Set(takes.map((t) => t.id));
+  // A card a teacher deleted stays deleted when the notes are made again.
+  const { data: removedRows } = await db.from('feedback_removed').select('feedback_id').eq('lesson_id', lesson.id);
+  const removed = new Set((removedRows ?? []).map((r) => r.feedback_id as string));
   // A link to a take that never uploaded would break the foreign key.
-  const blocks: Block[] = body.blocks.map((b) => ({ ...b, take_id: b.take_id && takeIds.has(b.take_id) ? b.take_id : null }));
+  const blocks: Block[] = body.blocks.filter((b) => !removed.has(b.id)).map((b) => ({ ...b, take_id: b.take_id && takeIds.has(b.take_id) ? b.take_id : null }));
 
   const log = async (row: Record<string, unknown>, model = MODEL) => {
     await db.from('cue_extraction').insert({ lesson_id: lesson.id, model, ...row });
@@ -168,7 +171,9 @@ Deno.serve(async (req) => {
 
   // ---------------------------------------------------------------- write the cards
   const ids = blocks.map((b) => b.id);
-  const { data: existing } = await db.from('feedback').select('id').eq('lesson_id', lesson.id);
+  const { data: existing } = await db.from('feedback').select('id, audio_removed_at').eq('lesson_id', lesson.id);
+  // Audio a teacher removed isn't linked again; the note stays.
+  const muted = new Set((existing ?? []).filter((r) => r.audio_removed_at).map((r) => r.id as string));
   const { data: versions } = await db.from('card_version')
     .select('feedback_id, author, payload, created_at, id')
     .in('feedback_id', (existing ?? []).map((r) => r.id))
@@ -183,7 +188,7 @@ Deno.serve(async (req) => {
     local_id: c.block.local_id,
     span_start_ms: c.block.span_start_ms,
     span_end_ms: c.block.span_end_ms,
-    clip_path: c.block.clip_path,
+    clip_path: muted.has(c.block.id) ? null : c.block.clip_path,
     transcript: c.block.transcript,
     link_confidence: c.block.link_confidence,
   });

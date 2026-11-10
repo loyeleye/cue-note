@@ -191,6 +191,28 @@
     if (p.feedback_id) flashCard(p.feedback_id, null);
   }
 
+  let removeError = $state<{ card: string; message: string } | null>(null);
+  async function removeAudio(c: Feedback) {
+    if (!confirm('Remove the audio from this card? The note stays, but the clip of you saying it is deleted for good.')) return;
+    removeError = null;
+    try {
+      const f = await api().removeCardAudio(c);
+      cards = cards.map((x) => (x.id === f.id ? f : x));
+    } catch (err) {
+      removeError = { card: c.id, message: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  async function removeCard(c: Feedback) {
+    if (!confirm('Delete this card and its clip for good? It won\'t come back, even if the notes are made again.')) return;
+    removeError = null;
+    try {
+      await api().removeCard(c);
+      cards = cards.filter((x) => x.id !== c.id);
+    } catch (err) {
+      removeError = { card: c.id, message: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   const studentCards = $derived(cards.map((c) => ({ ...c, recorded_at: lesson?.recorded_at ?? '' })));
 </script>
 
@@ -235,7 +257,14 @@
       </div>
       {#if c.clip_path}
         <div class="her-clip"><span class="muted small">Feedback clip</span><ClipPlayer path={c.clip_path} compact /></div>
+      {:else if c.audio_removed_at}
+        <p class="muted small">Audio removed {ago(c.audio_removed_at)}. The note stays.</p>
       {/if}
+      <div class="card-remove">
+        {#if c.clip_path}<button class="link small" onclick={() => removeAudio(c)}>Remove audio</button>{/if}
+        <button class="link small danger" onclick={() => removeCard(c)}>Delete card</button>
+      </div>
+      {#if removeError?.card === c.id}<p class="error small" role="alert">{removeError.message}</p>{/if}
       {#each sketches as p (p.id)}{@render photoView(p)}{/each}
       {#each suggestions.filter((s) => s.feedback_id === c.id) as s (s.id)}
         <DiagramSuggestionView suggestion={s} ondecide={(u) => (suggestions = suggestions.map((x) => (x.id === u.id ? u : x)))} />
@@ -367,4 +396,5 @@
     .timeline > li::before { left: 19px; }
     .cue-card { margin-left: 0; }
   }
+  .card-remove { display: flex; gap: 14px; justify-content: flex-end; margin-top: 6px; }
 </style>

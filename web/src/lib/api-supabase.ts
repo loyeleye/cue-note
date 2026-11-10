@@ -181,6 +181,19 @@ export const supabaseApi: Api = {
     return check(await supabase.from('feedback').select('*').eq('id', feedbackId).single()) as Feedback;
   },
 
+  async removeCard(card) {
+    // The file first: the storage rule checks that a card still names it.
+    if (card.clip_path) check(await supabase.storage.from('clips').remove([card.clip_path]));
+    check(await supabase.rpc('remove_card', { card: card.id }));
+  },
+
+  async removeCardAudio(card) {
+    if (card.clip_path) check(await supabase.storage.from('clips').remove([card.clip_path]));
+    return check(await supabase.from('feedback')
+      .update({ clip_path: null, audio_removed_at: new Date().toISOString() })
+      .eq('id', card.id).select('*').single()) as Feedback;
+  },
+
   async listCheckpoints(lessonId) {
     return check(await supabase.from('lesson_checkpoint').select('*').eq('lesson_id', lessonId)
       .order('created_at', { ascending: false })) as Checkpoint[];

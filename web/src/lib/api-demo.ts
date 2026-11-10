@@ -336,6 +336,26 @@ export const demoApi: Api = {
     return row;
   },
 
+  async removeCard(card) {
+    await wait();
+    const s = load();
+    s.feedback = s.feedback.filter((x) => x.id !== card.id);
+    s.versions = s.versions.filter((v) => v.feedback_id !== card.id);
+    if (card.clip_path) delete s.files[card.clip_path];
+    save();
+  },
+
+  async removeCardAudio(card) {
+    await wait();
+    const s = load();
+    const f = s.feedback.find((x) => x.id === card.id);
+    if (!f) throw new Error('card not found');
+    if (f.clip_path) delete s.files[f.clip_path];
+    Object.assign(f, { clip_path: null, audio_removed_at: now(), updated_at: now() });
+    save();
+    return f;
+  },
+
   async deleteComment(c) {
     const s = load();
     s.comments = s.comments.filter((x) => x.id !== c.id);

@@ -159,7 +159,16 @@ private fun AppNav(app: CueNoteApp) {
                         Toast.makeText(app, msg, Toast.LENGTH_LONG).show()
                     }
                 },
-                onDelete = { l -> scope.launch { app.lessons.delete(l.id) } },
+                onDelete = { l ->
+                    scope.launch {
+                        runCatching { app.lessons.delete(l.id) }.onFailure {
+                            Toast.makeText(
+                                app, "Couldn't delete it online, so it's still here. Check your connection and try again.",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                    }
+                },
                 onOpen = { l -> nav.navigate("lesson/${l.id}") },
                 modelStatus = modelStatus(app.lessons.modelsReady(), download),
                 onDownloadModels = if (app.lessons.modelsReady() || download?.first == WorkInfo.State.RUNNING ||

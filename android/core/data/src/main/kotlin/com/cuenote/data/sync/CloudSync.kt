@@ -179,10 +179,58 @@ class CloudSync(private val auth: AuthRepository) {
         @SerialName("bar_end") val barEnd: Int? = null,
         val transcript: String = "",
         @SerialName("updated_at") val updatedAt: String = "",
+        @SerialName("audio_removed_at") val audioRemovedAt: String? = null,
     )
 
     @Serializable
     private data class VersionRow(@SerialName("feedback_id") val feedbackId: String)
+
+    @Serializable
+    private data class RemovedRow(@SerialName("feedback_id") val feedbackId: String)
+
+    @Serializable
+    private data class MutedRow(val id: String, @SerialName("audio_removed_at") val audioRemovedAt: String? = null)
+
+    @Serializable
+    private data class ClipRow(@SerialName("clip_path") val clipPath: String? = null)
+
+    /**
+     * Cards whose clip must not go up again: ones a teacher deleted, and ones
+     * whose audio a teacher removed. Matters when a lesson is processed again.
+     */
+    suspend fun removedClipIds(lessonId: String): Set<String> {
+        val gone = client.from("feedback_removed").select(Columns.list("feedback_id")) { filter { eq("lesson_id", lessonId) } }
+            .decodeList<RemovedRow>().map { it.feedbackId }
+        val muted = client.from("feedback").select(Columns.list("id", "audio_removed_at")) { filter { eq("lesson_id", lessonId) } }
+            .decodeList<MutedRow>().filter { it.audioRemovedAt != null }.map { it.id }
+        return (gone + muted).toSet()
+    }
+
+    /**
+     * Deletes a lesson online: its clips and photos, the teacher voice notes
+     * left on it, then the lesson row, which takes its takes, cards, versions
+     * and notes with it. Throws if any step fails, so the caller can keep the
+     * phone's copy and say so.
+     */
+    suspend fun deleteLesson(studentId: String, lessonId: String) {
+        val exists = client.from("lesson").select(Columns.list("id")) { filter { eq("id", lessonId) } }
+            .decodeList<IdRow>().isNotEmpty()
+        if (!exists) return
+        val folder = "$studentId/$lessonId"
+        for (name in listOf("clips", "photos")) {
+            val bucket = client.storage.from(name)
+            while (true) {
+                val page = bucket.list(folder) { limit = 500 }.map { "$folder/${it.name}" }
+                if (page.isEmpty()) break
+                bucket.delete(page)
+                if (page.size < 500) break
+            }
+        }
+        val notes = client.from("comment").select(Columns.list("clip_path")) { filter { eq("lesson_id", lessonId) } }
+            .decodeList<ClipRow>().mapNotNull { it.clipPath }
+        if (notes.isNotEmpty()) client.storage.from("clips").delete(notes)
+        client.from("lesson").delete { filter { eq("id", lessonId) } }
+    }
 
     /** The lesson's cards as the cloud has them now, her edits included. */
     suspend fun cards(lessonId: String): List<CardEntity> {
