@@ -48,7 +48,7 @@ import java.util.Date
 import java.util.Locale
 
 /** Brass from the art pass: the one warm accent, for the moment that matters. */
-private val Brass = Color(0xFFE0A94A)
+internal val Brass = Color(0xFFE0A94A)
 private val LogoPlum = Color(0xFF5B3A8C)
 
 @Composable
