@@ -1,6 +1,5 @@
 package com.cuenote.record
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -69,6 +69,7 @@ import com.cuenote.ui.Plum
 import com.cuenote.ui.StartButton
 import com.cuenote.ui.TicketRow
 import com.cuenote.ui.Topic
+import com.cuenote.ui.colors
 import com.cuenote.ui.rememberClipPlayer
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -150,6 +151,9 @@ fun HomeScreen(
                     lessons, recordingInProgress, setlist, studentName, teacherName, hasTeacher, player,
                     modelStatus, onDownloadModels, onStartLesson, onReturnToRecording, onSetupCheck, onTeachers,
                     onAllNotes = { tab = 1 },
+                    cardCounts = cardCounts,
+                    onOpen = onOpen,
+                    onAllLessons = { tab = 2 },
                 )
                 1 -> setlistTab(setlist, teacherName, player)
                 else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen)
@@ -173,8 +177,12 @@ private fun LazyListScope.homeTab(
     onSetupCheck: () -> Unit,
     onTeachers: () -> Unit,
     onAllNotes: () -> Unit,
+    cardCounts: Map<String, CardCount>,
+    onOpen: (LessonEntity) -> Unit,
+    onAllLessons: () -> Unit,
 ) {
     val firstRun = lessons.isEmpty()
+    val last = lessons.firstOrNull()
     item(key = "mast") {
         val name = studentName?.trim()?.substringBefore(' ')?.takeIf { it.isNotEmpty() }
         when {
@@ -206,7 +214,9 @@ private fun LazyListScope.homeTab(
         SectionHead("This week's setlist", if (setlist.size > HOME_NOTES) "All ${setlist.size} notes" else null, onAllNotes)
     }
     if (setlist.isEmpty()) {
-        item(key = "empty") { EmptySetlist(firstRun) }
+        item(key = "empty") {
+            EmptySetlist(firstRun, last?.takeIf { it.pipelineState == "processing" || it.pipelineState == "recorded" } != null, last?.let { teacherName(it.id) })
+        }
     } else {
         items(setlist.take(HOME_NOTES), key = { "n-" + it.card.id }) { SetlistNote(it, teacherName, player) }
     }
@@ -216,12 +226,18 @@ private fun LazyListScope.homeTab(
     } else if (!recordingInProgress) {
         item(key = "start") { StartCard(onStartLesson, onSetupCheck) }
     }
+    if (last != null && last.pipelineState != "recording") {
+        item(key = "lasth") { SectionHead("Your last lesson", if (lessons.size > 1) "All ${lessons.size}" else null, onAllLessons) }
+        item(key = "last") { LastLesson(last, cardCounts[last.id], teacherName(last.id), onOpen) }
+    }
+    item(key = "warmh") { SectionHead("Today's warm-up", null) {} }
+    item(key = "warm") { WarmUpCard(warmUpFor(Calendar.getInstance())) }
 }
 
 private fun LazyListScope.setlistTab(setlist: List<SetlistRow>, teacherName: (String) -> String?, player: ClipPlayer) {
     item(key = "mast") { Masthead("Your ", "setlist") }
     if (setlist.isEmpty()) {
-        item(key = "empty") { EmptySetlist(firstRun = false) }
+        item(key = "empty") { EmptySetlist(firstRun = false, notesOnTheWay = false, teacher = null) }
         return
     }
     item(key = "hint") {
@@ -324,25 +340,98 @@ private fun SetlistNote(r: SetlistRow, teacherName: (String) -> String?, player:
     }
 }
 
-/** No grey void: a ghost of a note, and what will land here. */
+/**
+ * No grey void: an example of the note that will land here, marked as an
+ * example, and a line on when the real ones come.
+ */
 @Composable
-private fun EmptySetlist(firstRun: Boolean) {
+private fun EmptySetlist(firstRun: Boolean, notesOnTheWay: Boolean, teacher: String?) {
     val m = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box {
+            NoteCard(
+                topic = Topic.BREATH,
+                topicLabel = Topic.BREATH.label,
+                where = "Example",
+                quote = "Breathe low, like filling a rubber ring around your waist.",
+                teacherName = teacher ?: "Your teacher",
+                checkedByTeacher = false,
+                modifier = Modifier
+                    .padding(end = 6.dp)
+                    .graphicsLayer { rotationZ = -1f; alpha = 0.92f }
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "An example note: breathe low, like filling a rubber ring around your waist."
+                    },
+            )
+        }
+        Text(
+            when {
+                notesOnTheWay -> "Your notes from the last lesson are on their way. They'll land here, in your teacher's words and voice."
+                firstRun -> "After each lesson, your teacher's notes land here, in their words and their voice."
+                else -> "Your setlist fills up after your next lesson, in your teacher's words and voice."
+            },
+            color = m.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+/** The latest lesson in one row, so Home always shows where you are. */
+@Composable
+private fun LastLesson(l: LessonEntity, counts: CardCount?, teacher: String?, onOpen: (LessonEntity) -> Unit) {
+    val m = MaterialTheme.colorScheme
+    TicketRow(onClick = { onOpen(l) }) {
+        Column(Modifier.size(width = 44.dp, height = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(SimpleDateFormat("MMM", Locale.getDefault()).format(Date(l.recordedAt)).uppercase(), color = m.primary, style = MaterialTheme.typography.labelSmall)
+            Text(SimpleDateFormat("d", Locale.getDefault()).format(Date(l.recordedAt)), fontFamily = Fraunces, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(l.recordedAt)) + (teacher?.let { " with $it" } ?: ""),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            val line = when {
+                counts != null && counts.cards > 0 ->
+                    "${counts.cards} notes" + (if (counts.practice > 0) " · ${counts.practice} to practice" else "") + " · ${minutes(l.durationMs)}"
+                else -> listOfNotNull(statusText(l), minutes(l.durationMs)).joinToString(" · ")
+            }
+            Text(line, color = if (l.pipelineState == "failed") m.error else m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
+        Text("Open", color = m.primary, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+/** A short, gentle warm-up, a different one each day. */
+internal data class WarmUp(val topic: Topic, val name: String, val how: String)
+
+internal val WARM_UPS = listOf(
+    WarmUp(Topic.ONSET, "Lip trills", "Blow through loose lips so they buzz, then slide up and down an easy five-note scale."),
+    WarmUp(Topic.RESONANCE, "Hum and slide", "Hum on \"mm\" from low to high and back. Feel the buzz on your lips and nose."),
+    WarmUp(Topic.REGISTERS, "Sirens on \"ng\"", "Say \"sing\" and hold the \"ng\". Slide up and down like a far-off siren, light and easy."),
+    WarmUp(Topic.BREATH, "Hiss it out", "Breathe in low for four counts, then hiss out slowly for eight. Keep your shoulders easy."),
+    WarmUp(Topic.ONSET, "Straw slides", "Sing a slide through a straw, low to high and back. It takes the pressure off."),
+    WarmUp(Topic.VOWELS, "Yawn and sigh", "Start a yawn, then sigh it out from high to low on \"ah\"."),
+    WarmUp(Topic.DICTION, "Tongue twisters", "Say \"red leather, yellow leather\" slowly, then quicker, keeping your jaw loose."),
+)
+
+internal fun warmUpFor(day: Calendar): WarmUp = WARM_UPS[day.get(Calendar.DAY_OF_YEAR) % WARM_UPS.size]
+
+@Composable
+private fun WarmUpCard(w: WarmUp) {
+    val c = w.topic.colors()
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .border(BorderStroke(1.5.dp, m.outlineVariant), RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .background(c.container)
+            .semantics(mergeDescendants = true) {}
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Box(Modifier.fillMaxWidth(0.7f).height(10.dp).background(m.surfaceVariant, RoundedCornerShape(50)))
-        Box(Modifier.fillMaxWidth(0.45f).height(10.dp).background(m.surfaceVariant, RoundedCornerShape(50)))
-        Text(
-            if (firstRun) "After each lesson, your teacher's notes land here, in their words and their voice."
-            else "Your setlist fills up after your next lesson.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        Eyebrow("${w.topic.label} · 2 minutes", c.content)
+        Text(w.name, fontFamily = Fraunces, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurface)
+        Text(w.how, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text("Easy and light. Stop if anything feels tight.", style = MaterialTheme.typography.bodySmall, color = c.content)
     }
 }
 
