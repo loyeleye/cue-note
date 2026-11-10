@@ -147,7 +147,7 @@
     <textarea rows="2" bind:value={draft.cue} placeholder="The cue in a few words"></textarea>
   </label>
   <label>
-    <span>Her exact words</span>
+    <span>The teacher's exact words</span>
     <textarea rows="3" bind:value={draft.her_words}></textarea>
   </label>
 

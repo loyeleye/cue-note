@@ -11,7 +11,7 @@
   // Supabase's free plan includes 1 GB of file storage.
   const FREE_PLAN_BYTES = 1024 ** 3;
   const LABEL: Record<StorageRow['category'], string> = {
-    clips: 'Lesson clips (takes and her feedback)',
+    clips: 'Lesson clips (takes and teacher feedback)',
     photos: 'Sketch photos',
     scores: 'Scores',
     voice_notes: 'Your voice notes'

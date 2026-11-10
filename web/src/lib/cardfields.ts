@@ -5,7 +5,7 @@ import type { CardFields, Song, Take } from './types';
 import { CARD_FIELDS } from './types';
 
 export const FIELD_LABEL: Record<keyof CardFields, string> = {
-  cue: 'Cue', her_words: 'Her words', category: 'Category', practice_flag: 'Practice',
+  cue: 'Cue', her_words: "Teacher's words", category: 'Category', practice_flag: 'Practice',
   take_id: 'Take', song_id: 'Song', bar_start: 'Bars', bar_end: 'Bars'
 };
 

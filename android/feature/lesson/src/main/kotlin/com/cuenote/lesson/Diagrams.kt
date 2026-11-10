@@ -94,7 +94,7 @@ fun DiagramSuggestionCard(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(onClick = {}, label = { Text("Suggested diagram") })
                 Text(
-                    if (suggestion.source == "sketch") "Matched to her sketch" else "Matched to her words",
+                    if (suggestion.source == "sketch") "Matched by AI to your teacher's sketch" else "Matched by AI to what your teacher said",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -105,7 +105,7 @@ fun DiagramSuggestionCard(
                 )
             }
             Text(diagram.title, style = MaterialTheme.typography.titleSmall)
-            Text("${diagram.shows}. A standard drawing, not her sketch.", style = MaterialTheme.typography.bodySmall)
+            Text("${diagram.shows}. A standard drawing, not your teacher's sketch.", style = MaterialTheme.typography.bodySmall)
             if (suggestion.accepted) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Kept on this card.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))

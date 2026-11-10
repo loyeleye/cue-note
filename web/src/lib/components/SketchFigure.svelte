@@ -58,7 +58,7 @@
     </div>
     {#if photo.caption}
       <span class="caption">{photo.caption}</span>
-      <span class="muted tiny">AI caption from the sketch and her words</span>
+      <span class="muted tiny">AI caption from the sketch and what the teacher said</span>
     {/if}
     <label class="move">
       <span class="muted tiny">{placedBy}. Move to</span>

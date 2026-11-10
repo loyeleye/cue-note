@@ -94,7 +94,7 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
     var shutterOpen by rememberSaveable { mutableStateOf(false) }
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) shutterOpen = true
-        else Toast.makeText(context, "Cue Note needs the camera to photograph her sketches.", Toast.LENGTH_LONG).show()
+        else Toast.makeText(context, "Cue Note needs the camera to photograph your teacher's sketches.", Toast.LENGTH_LONG).show()
     }
 
     val rec = state as? RecordingState.Recording
