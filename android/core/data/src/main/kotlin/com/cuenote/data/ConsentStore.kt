@@ -35,7 +35,7 @@ class ConsentStore(context: Context) {
 
             • The full recording stays on the student's phone, and the phone turns it into text itself.
             • After the lesson, short clips of singing and feedback, photos of sketches and the text are saved online for the teacher's dashboard.
-            • Claude, an AI made by Anthropic, reads the text and sketch photos to draft cue cards. It gets no sound, and no one trains an AI on your lessons.
+            • From the text and sketch photos, the app drafts cue cards with the help of AI. Your lessons aren't used to train it.
             • The teacher can fix any card, and their version always wins.
             • Nothing records unless you both say yes, before every lesson.
         """.trimIndent()
