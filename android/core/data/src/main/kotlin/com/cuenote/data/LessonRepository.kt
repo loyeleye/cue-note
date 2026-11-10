@@ -14,6 +14,7 @@ import com.cuenote.pipeline.cards.ModelTrials
 import kotlinx.serialization.json.Json
 import com.cuenote.data.sync.LessonUploadWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -29,6 +30,11 @@ class LessonRepository(
 ) {
 
     val lessons = dao.observeAll()
+
+    /** Card and practice counts per lesson, for the badges on the home screen. */
+    val cardCounts: kotlinx.coroutines.flow.Flow<Map<String, CardCount>> =
+        cardDao?.observeCounts()?.map { list -> list.associateBy { it.lessonId } }
+            ?: kotlinx.coroutines.flow.flowOf(emptyMap())
 
     /** Lesson folders live in the app's own storage: lessons/<id>/audio/chunk_*.wav, events.tsv, photos/. */
     private val root: File get() = File(context.getExternalFilesDir(null), "lessons")

@@ -62,8 +62,18 @@ data class CardEntity(
     val updatedAt: String,
 )
 
+/** How many cards a lesson has, and how many she marked to practice. */
+data class CardCount(val lessonId: String, val cards: Int, val practice: Int)
+
 @Dao
 interface CardDao {
+    @Query(
+        "select lessonId, count(*) as cards, " +
+            "sum(case when practiceFlag = 'practice_this' then 1 else 0 end) as practice " +
+            "from card group by lessonId",
+    )
+    fun observeCounts(): Flow<List<CardCount>>
+
     @Query("select * from card where lessonId = :lessonId order by spanStartMs")
     fun observeCards(lessonId: String): Flow<List<CardEntity>>
 

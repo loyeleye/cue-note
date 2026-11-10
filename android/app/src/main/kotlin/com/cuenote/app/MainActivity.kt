@@ -80,6 +80,7 @@ private fun AppNav(app: CueNoteApp) {
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
     val lessons by app.lessons.lessons.collectAsStateWithLifecycle(emptyList())
+    val cardCounts by app.lessons.cardCounts.collectAsStateWithLifecycle(emptyMap())
     val email by app.auth.signedInEmail.collectAsStateWithLifecycle(null)
     val linkStatus by app.auth.linkStatus.collectAsStateWithLifecycle()
     val recState by RecordingSession.state.collectAsStateWithLifecycle()
@@ -126,6 +127,7 @@ private fun AppNav(app: CueNoteApp) {
         composable("home") {
             HomeScreen(
                 lessons = lessons,
+                cardCounts = cardCounts,
                 recordingInProgress = recState is RecordingState.Recording,
                 signedInEmail = email,
                 onStartLesson = { withPermission { nav.navigate("consent") } },
