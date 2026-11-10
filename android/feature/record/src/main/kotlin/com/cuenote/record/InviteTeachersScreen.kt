@@ -168,7 +168,7 @@ private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit
                     if (t.title != t.email) Text(t.email, style = MaterialTheme.typography.bodySmall)
                     Text(
                         when {
-                            !t.active -> "Pending: waiting for them to accept"
+                            !t.active -> "Invite sent. Waiting on them."
                             t.restrictedToTaught -> "Active: sees only the lessons they teach"
                             else -> "Active: can see all your lessons"
                         },

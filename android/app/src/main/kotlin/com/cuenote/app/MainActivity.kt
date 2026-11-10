@@ -63,11 +63,11 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun modelStatus(ready: Boolean, download: Pair<WorkInfo.State, Int>?): String = when {
-    ready -> "Speech models are on the phone. Lessons can be processed offline."
+    ready -> "Speech models are on this phone, so your notes can be made offline."
     download?.first == WorkInfo.State.RUNNING -> "Downloading speech models… ${download.second}%"
     download?.first == WorkInfo.State.ENQUEUED -> "Speech models will download when the phone is online."
-    download?.first == WorkInfo.State.FAILED -> "The download failed. Try again on Wi-Fi."
-    else -> "Download the speech models on Wi-Fi before your first lesson, or they download when it is first processed."
+    download?.first == WorkInfo.State.FAILED -> "The download didn't finish. Try again on Wi-Fi."
+    else -> "Grab the speech models on Wi-Fi before your first lesson."
 }
 
 private val runtimePermissions = buildList {

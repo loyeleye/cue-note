@@ -60,7 +60,7 @@ fun ConsentScreen(
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
     ) {
-        Text("Consent to record", style = MaterialTheme.typography.headlineSmall)
+        Text("Happy to record today?", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.padding(4.dp))
         Text(ConsentStore.TEXT, style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.padding(8.dp))
@@ -93,7 +93,7 @@ fun ConsentScreen(
             }
             Spacer(Modifier.padding(8.dp))
             Button(onClick = { onConsented(System.currentTimeMillis(), picked, posture) }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (posture) "We both agree: record, with posture" else "We both agree: start recording")
+                Text(if (posture) "We're both in. Record, with posture" else "We're both in. Let's record")
             }
         }
         TextButton(onClick = onCancel) { Text("Cancel") }

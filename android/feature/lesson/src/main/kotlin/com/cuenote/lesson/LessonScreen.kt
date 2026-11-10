@@ -3,6 +3,8 @@ package com.cuenote.lesson
 import com.cuenote.ui.ClipPlayer
 import com.cuenote.ui.rememberClipPlayer
 import com.cuenote.data.SetlistStore
+import com.cuenote.ui.Topic
+import com.cuenote.ui.TopicChip
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.toggleable
@@ -129,10 +131,10 @@ fun LessonScreen(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (lesson.pipelineState == "processed" || lesson.pipelineState == "cards") {
                         Button(onClick = { repo.makeCards(lesson.id) }, enabled = !busy) {
-                            Text(if (cards.isEmpty()) "Make cards" else "Make cards again")
+                            Text(if (cards.isEmpty()) "Make my notes" else "Make my notes again")
                         }
                     } else {
-                        Button(onClick = { repo.process(lesson.id) }, enabled = !busy) { Text("Process now") }
+                        Button(onClick = { repo.process(lesson.id) }, enabled = !busy) { Text("Make my notes now") }
                     }
                     if (cards.isNotEmpty()) OutlinedButton(onClick = {
                         scope.launch {
@@ -166,7 +168,7 @@ fun LessonScreen(
                 }
                 if (talk.isNotEmpty()) item {
                     TextButton(onClick = { showTalk = !showTalk }) {
-                        Text(if (showTalk) "Hide the talk between exercises" else "Show the talk between exercises (${talk.size})")
+                        Text(if (showTalk) "Hide chat between songs" else "Chat between songs (${talk.size})")
                     }
                 }
                 if (showTalk) items(talk, key = { it.id }) { TalkCard(it, clipFile[it.id], player) }
@@ -217,17 +219,17 @@ private fun Status(
     val text = when {
         processing -> (LessonPipelineWorker.STAGE_NAMES[p?.stage] ?: "Processing") + "… ${p?.percent ?: 0}%"
         carding -> (LessonUploadWorker.STAGE_NAMES[c?.stage] ?: "Making cards") + "… ${c?.percent ?: 0}%"
-        p?.state == WorkInfo.State.ENQUEUED -> "Waiting to process. It starts when the phone is charging, or tap Process now."
-        c?.state == WorkInfo.State.ENQUEUED -> "Waiting for a network to make the cards."
+        p?.state == WorkInfo.State.ENQUEUED -> "Your notes will be ready after the phone's next charge, or tap Make my notes now."
+        c?.state == WorkInfo.State.ENQUEUED -> "Waiting for the internet to finish your notes."
         cards.isNotEmpty() -> {
             val n = cards.count { it.category != "chat" }
             val edited = cards.count { it.editedByTeacher }
             "$n cards from ${takes.size} takes." + if (edited > 0) " Your teacher has edited $edited." else ""
         }
-        needsSignIn -> "Processed. Sign in on the home screen to make the cards."
+        needsSignIn -> "Almost there. Sign in on the home screen to finish your notes."
         lesson.pipelineState == "processed" -> "Processed: ${takes.size} takes and ${feedback.size} feedback blocks. Cards come next."
-        lesson.pipelineState == "failed" -> "Processing failed. Details below say where."
-        else -> "Not processed yet."
+        lesson.pipelineState == "failed" -> "We couldn't make your notes this time. The details below say why, and you can try again."
+        else -> "Your notes haven't been made yet."
     }
     Text(text, style = MaterialTheme.typography.bodyLarge)
     if (processing) LinearProgressIndicator(progress = { (p?.percent ?: 0) / 100f }, modifier = Modifier.fillMaxWidth())
@@ -281,16 +283,16 @@ private fun CueCard(
                 Text("“${card.herWords}”", style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic))
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                card.category?.let { Tag(it) }
+                card.category?.let { TopicChip(Topic.of(it), Topic.of(it)?.label ?: it.replaceFirstChar { c -> c.uppercase() }, Modifier.align(Alignment.CenterVertically)) }
                 when (card.practiceFlag) {
                     "practice_this" -> Tag("Practice this")
                     "just_listen" -> Tag("Just listen")
                 }
                 bars(card.barStart, card.barEnd)?.let { Tag(it) }
-                if (card.editedByTeacher) Tag("Edited by your teacher")
+                if (card.editedByTeacher) Tag("✓ Checked by your teacher")
             }
             Row {
-                PlayButton(clip, player, "Hear the feedback")
+                PlayButton(clip, player, "Their words")
                 Spacer(Modifier.width(8.dp))
                 if (card.transcript.isNotBlank() && card.transcript.trim() != card.herWords.trim()) {
                     TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything your teacher said") }
