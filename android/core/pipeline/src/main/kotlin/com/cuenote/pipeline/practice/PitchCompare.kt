@@ -234,6 +234,8 @@ object PitchSummary {
         val main = when {
             off == 0 -> "Right with their demo all the way through."
             off * 4 <= judged.size -> "Mostly with their demo. " + which(flat, sharp) + "."
+            off * 2 > judged.size && (flat == 0 || sharp == 0) ->
+                "Most of it sat a little " + (if (flat > 0) "flat" else "sharp") + " of their demo. Try it slower, with their demo in your ear."
             else -> which(flat, sharp) + ". Try it slower, with their demo in your ear."
         }
         return main + unclearNote
@@ -242,8 +244,10 @@ object PitchSummary {
     private fun which(flat: Int, sharp: Int): String = when {
         flat > 0 && sharp > 0 -> "A few notes drifted a little off"
         flat == 1 -> "One note ran a little flat"
-        flat > 1 -> "$flat notes ran a little flat"
+        flat in 2..3 -> "$flat notes ran a little flat"
+        flat > 3 -> "Several notes ran a little flat"
         sharp == 1 -> "One note ran a little sharp"
-        else -> "$sharp notes ran a little sharp"
+        sharp in 2..3 -> "$sharp notes ran a little sharp"
+        else -> "Several notes ran a little sharp"
     }
 }

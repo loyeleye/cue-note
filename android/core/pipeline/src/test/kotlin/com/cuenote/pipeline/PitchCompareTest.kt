@@ -96,4 +96,9 @@ class PitchCompareTest {
         val p = PitchCompare.compare(Contour(semis, conf), null)
         assertTrue(PitchSummary.of(p).contains("A lot of it was hard to hear clearly"))
     }
+
+    @Test fun `a take that is sharp throughout says so without a count`() {
+        val p = PitchCompare.compare(PitchTrack.of(sing(tune.map { it + 0.5 to 0.5 })), PitchTrack.of(sing(tune.map { it to 0.5 }, seed = 5)))
+        assertEquals("Most of it sat a little sharp of their demo. Try it slower, with their demo in your ear.", PitchSummary.of(p))
+    }
 }
