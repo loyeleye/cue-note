@@ -26,12 +26,15 @@ import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
 import com.cuenote.ui.CueNoteTheme
 import com.cuenote.audio.RecordingState
+import com.cuenote.data.AgeGate
 import com.cuenote.data.InvitedTeacher
 import com.cuenote.lesson.CornerEditorScreen
 import com.cuenote.lesson.LessonScreen
 import com.cuenote.lesson.SketchScreen
 import com.cuenote.lesson.TimelineScreen
 import com.cuenote.posture.PostureSetup
+import com.cuenote.record.AgeBlockedScreen
+import com.cuenote.record.AgeGateScreen
 import com.cuenote.record.ConsentScreen
 import com.cuenote.record.FramingCheckScreen
 import com.cuenote.record.HomeScreen
@@ -51,7 +54,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) app.auth.handleDeepLink(intent)
         setContent {
             CueNoteTheme {
-                Surface { AppNav(app) }
+                Surface { AgeGated(app) { AppNav(app) } }
             }
         }
     }
@@ -74,6 +77,22 @@ private val runtimePermissions = buildList {
     add(Manifest.permission.RECORD_AUDIO)
     if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
 }.toTypedArray()
+
+/** Nothing else in the app shows until the age question is answered, and never for under-13s. */
+@Composable
+private fun AgeGated(app: CueNoteApp, content: @Composable () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf(app.ageGate.status()) }
+    when (status) {
+        AgeGate.Status.OLD_ENOUGH -> content()
+        AgeGate.Status.BLOCKED -> AgeBlockedScreen()
+        AgeGate.Status.UNKNOWN -> AgeGateScreen { birth ->
+            status = app.ageGate.answer(birth)
+            // A sign-in link opened before answering shouldn't leave an under-13 signed in.
+            if (status == AgeGate.Status.BLOCKED) scope.launch { runCatching { app.auth.signOut() } }
+        }
+    }
+}
 
 @Composable
 private fun AppNav(app: CueNoteApp) {

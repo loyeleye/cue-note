@@ -4,6 +4,7 @@ import android.app.Application
 import com.cuenote.audio.RecordingSession
 import com.cuenote.audio.RecordingState
 import com.cuenote.data.AuthRepository
+import com.cuenote.data.AgeGate
 import com.cuenote.data.ConsentStore
 import com.cuenote.data.LessonDatabase
 import com.cuenote.data.LessonRepository
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 class CueNoteApp : Application() {
     lateinit var lessons: LessonRepository private set
     lateinit var consent: ConsentStore private set
+    lateinit var ageGate: AgeGate private set
     lateinit var auth: AuthRepository private set
     lateinit var shares: ShareRepository private set
     lateinit var lessonTeachers: LessonTeacherStore private set
@@ -42,6 +44,7 @@ class CueNoteApp : Application() {
         sketches = SketchRepository(this, db.photos())
         diagrams = DiagramRepository(AuthRepository.get())
         consent = ConsentStore(this)
+        ageGate = AgeGate(this)
         auth = AuthRepository.get()
         shares = ShareRepository(auth)
         lessonTeachers = LessonTeacherStore(this)
