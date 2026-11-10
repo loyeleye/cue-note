@@ -40,6 +40,15 @@ internal fun LazyListScope.postureSection(lessonDir: File) {
                 "Watched for %.1f minutes of singing. %d flagged moments.".format(minutes, summary.flags.size),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (summary.rebaselines.isNotEmpty()) {
+                val why = summary.rebaselines.groupingBy {
+                    when (it.why) { "manual" -> "recalibrated"; "moved" -> "phone moved"; "photo" -> "after a photo"; else -> it.why }
+                }.eachCount()
+                Text(
+                    "New baseline: " + why.entries.joinToString { (w, n) -> if (n == 1) w else "$w ($n times)" },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             val pauses = summary.pauses.groupingBy { it.reason }.eachCount()
             if (pauses.isNotEmpty()) {
                 Text(

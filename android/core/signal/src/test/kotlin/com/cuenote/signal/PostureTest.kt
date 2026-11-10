@@ -15,6 +15,9 @@ import com.cuenote.signal.posture.PostureSummary
 import com.cuenote.signal.posture.SingingGate
 import com.cuenote.signal.posture.StudentPicker
 import com.cuenote.signal.posture.decodePostureMetrics
+import com.cuenote.signal.posture.BaselineSettler
+import com.cuenote.signal.posture.MotionWatch
+import com.cuenote.signal.posture.rotationFromGravity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -31,10 +34,12 @@ object Poses {
         tiltEars: Float = 0f,
         noseZ: Float = -0.3f,
         noseLift: Float = 0f,
+        /** Below 1: turned partly away from the phone, so everything looks narrower side to side. */
+        turn: Float = 1f,
     ): Pose {
         val l = MutableList(Pose.COUNT) { Landmark(0.5f + dx, 0.6f, 0f, 0.9f) }
         fun put(i: Int, x: Float, y: Float, z: Float = 0f) {
-            l[i] = Landmark(0.5f + dx + (x - 0.5f) * scale, 0.3f + (y - 0.3f) * scale, z, 0.95f)
+            l[i] = Landmark(0.5f + dx + (x - 0.5f) * scale * turn, 0.3f + (y - 0.3f) * scale, z, 0.95f)
         }
         put(Pose.NOSE, 0.5f, 0.3f - noseLift, noseZ)
         put(Pose.LEFT_EAR, 0.54f, 0.29f - tiltEars)
@@ -258,5 +263,73 @@ class PostureControlTest {
         assertEquals(90_000L, s.trackedMs)
         assertEquals(PostureFlag.HEAD_TILT, s.flags.single().flag)
         assertEquals("phone warm", s.pauses.single().reason)
+    }
+}
+
+class RecalibrationTest {
+    private val baseline = PostureMetrics.of(Poses.standing())!!
+
+    @Test fun `turned away from the phone isn't judged, so no false chin flag`() {
+        val turned = PostureMetrics.of(Poses.standing(turn = 0.5f))!!
+        assertTrue(turned.turnedAwayFrom(baseline))
+        val d = PostureFlagDetector(baseline)
+        var t = 0L
+        val events = mutableListOf<PostureFlagDetector.Event>()
+        while (t < 5_000) { events += d.onFrame(t, turned); t += 200 }
+        assertTrue(events.isEmpty())
+    }
+
+    @Test fun `facing the phone a little off square still counts`() {
+        assertFalse(PostureMetrics.of(Poses.standing(turn = 0.9f))!!.turnedAwayFrom(baseline))
+    }
+
+    @Test fun `a baseline from before this change still decodes`() {
+        val old = "1.0,2.0,0.5,0.1"
+        assertEquals(PostureMetrics(1f, 2f, 0.5f, 0.1f, null), decodePostureMetrics(old))
+        assertEquals(baseline.facing, decodePostureMetrics(baseline.encode())!!.facing)
+    }
+
+    @Test fun `picking the phone up is movement, and three calm seconds settle it`() {
+        val m = MotionWatch()
+        assertNull(m.onAccel(0, 0f, 9.81f, 0f))
+        assertEquals(MotionWatch.Change.StartedMoving, m.onAccel(100, 3f, 11f, 1f))
+        assertNull(m.onAccel(1_000, 0f, 9.8f, 0.2f))
+        assertNull(m.onAccel(3_000, 0f, 9.8f, 0.2f))
+        assertEquals(MotionWatch.Change.Settled, m.onAccel(4_100, 0f, 9.8f, 0.2f))
+    }
+
+    @Test fun `piano vibrations through the stand aren't movement`() {
+        val m = MotionWatch()
+        listOf(9.5f, 10.1f, 9.7f, 10.2f).forEachIndexed { i, y -> assertNull(m.onAccel(i * 60L, 0f, y, 0f)) }
+        assertFalse(m.moving)
+    }
+
+    @Test fun `gravity says which way up the phone is`() {
+        assertEquals(0, rotationFromGravity(0f, 9.8f, 0.5f))
+        assertEquals(1, rotationFromGravity(9.8f, 0.3f, 0.5f))
+        assertEquals(3, rotationFromGravity(-9.8f, 0.3f, 0.5f))
+        assertEquals(2, rotationFromGravity(0.2f, -9.8f, 0.5f))
+        assertNull(rotationFromGravity(0.2f, 0.3f, 9.8f)) // lying flat
+    }
+
+    @Test fun `a quiet re-baseline takes three seconds of the student in view`() {
+        val s = BaselineSettler(baseline)
+        val moved = Poses.standing(dx = -0.25f, scale = 0.8f) // the camera now sees them off to one side
+        var got: PostureMetrics? = null
+        var t = 0L
+        while (got == null && t < 5_000) { got = s.onFrame(t, moved); t += 200 }
+        assertNotNull(got)
+        assertTrue(t in 3_000..3_400)
+    }
+
+    @Test fun `the re-baseline waits while the student is turned away`() {
+        val s = BaselineSettler(baseline)
+        var t = 0L
+        while (t < 5_000) { assertNull(s.onFrame(t, Poses.standing(turn = 0.5f))); t += 200 }
+    }
+
+    @Test fun `a new baseline is logged and counted`() {
+        val log = listOf(PostureEvent.Started(0), PostureEvent.Rebaselined(60_000, "manual")).joinToString("\n") { it.toLine() }
+        assertEquals("manual", PostureSummary.parse(log).rebaselines.single().why)
     }
 }

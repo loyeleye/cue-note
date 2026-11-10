@@ -1,8 +1,11 @@
 package com.cuenote.record
 
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Handler
 import android.os.Looper
-import android.speech.tts.TextToSpeech
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -39,12 +42,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.cuenote.posture.PoseEngine
 import com.cuenote.posture.PoseFrames
 import com.cuenote.posture.PostureSetup
+import com.cuenote.posture.Speaker
 import com.cuenote.posture.withCameraProvider
 import com.cuenote.signal.posture.FramingAdvice
 import com.cuenote.signal.posture.FramingCheck
 import com.cuenote.signal.posture.StudentPicker
+import com.cuenote.signal.posture.rotationFromGravity
 import kotlinx.coroutines.delay
-import java.util.Locale
 
 private sealed interface Framing {
     data object Idle : Framing
@@ -70,7 +74,23 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
     var state by remember { mutableStateOf<Framing>(Framing.Idle) }
     var front by remember { mutableStateOf(true) }
     var attempt by remember { mutableIntStateOf(0) }
-    val rotation = view.display?.rotation ?: 0
+    // Which way up the phone is, from gravity, so a phone mounted sideways
+    // still gives the pose model upright pictures, even with auto-rotate off.
+    val rotationNow = remember { java.util.concurrent.atomic.AtomicInteger(view.display?.rotation ?: 0) }
+    var rotationKey by remember { mutableIntStateOf(rotationNow.get()) }
+    DisposableEffect(Unit) {
+        val sm = context.getSystemService(SensorManager::class.java)
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(e: SensorEvent) {
+                rotationFromGravity(e.values[0], e.values[1], e.values[2])?.let {
+                    if (it != rotationNow.get()) { rotationNow.set(it); rotationKey = it }
+                }
+            }
+            override fun onAccuracyChanged(s: Sensor?, a: Int) = Unit
+        }
+        sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let { sm.registerListener(listener, it, SensorManager.SENSOR_DELAY_UI) }
+        onDispose { sm.unregisterListener(listener) }
+    }
 
     val tts = remember { Speaker(context) }
     DisposableEffect(Unit) {
@@ -108,7 +128,7 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
                         is FramingCheck.Step.Done -> {
                             checking.set(false)
                             tts.say("You're all set.")
-                            state = Framing.Done(PostureSetup(step.baseline, step.centerX, step.centerY, rotation, front))
+                            state = Framing.Done(PostureSetup(step.baseline, step.centerX, step.centerY, rotationNow.get(), front))
                             return@post
                         }
                         FramingCheck.Step.TimedOut -> {
@@ -129,14 +149,14 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
     DisposableEffect(Unit) { onDispose { checking.set(false); frames.close() } }
 
     val preview = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FIT_CENTER } }
-    DisposableEffect(front) {
+    DisposableEffect(front, rotationKey) {
         var bound: ProcessCameraProvider? = null
         var gone = false
         withCameraProvider(context) { provider ->
             if (gone) return@withCameraProvider
             provider.unbindAll()
             val p = Preview.Builder().build().also { it.surfaceProvider = preview.surfaceProvider }
-            runCatching { provider.bindToLifecycle(lifecycle, PoseFrames.selector(front), p, frames.useCase(rotation)) }
+            runCatching { provider.bindToLifecycle(lifecycle, PoseFrames.selector(front), p, frames.useCase(rotationNow.get())) }
             bound = provider
         }
         onDispose { gone = true; bound?.unbindAll() }
@@ -189,28 +209,3 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
 }
 
 private const val COUNTDOWN = 5
-
-/** Spoken prompts, so the student doesn't have to come back to the phone to read them. */
-private class Speaker(context: android.content.Context) {
-    private var ready = false
-    private var pending: String? = null
-    private lateinit var tts: TextToSpeech
-
-    init {
-        tts = TextToSpeech(context.applicationContext) { status ->
-            ready = status == TextToSpeech.SUCCESS
-            if (ready) {
-                tts.language = Locale.US
-                pending?.let { say(it) }
-                pending = null
-            }
-        }
-    }
-
-    fun say(text: String) {
-        if (!ready) { pending = text; return }
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, text)
-    }
-
-    fun close() { tts.stop(); tts.shutdown() }
-}

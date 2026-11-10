@@ -86,7 +86,16 @@ adds a camera step after "Who's on which mic?":
 3. **Flags.** *Chin forward* (jutting out or lifting), *shoulders raised* and
    *head tilt*, each compared with the baseline and only after holding for
    about 1.5 seconds. Each flag saves one still snapshot.
-4. **Audio always wins.** Posture pauses when the phone gets warm (Android's
+4. **When things move.** Moments when the student is turned away from the
+   phone aren't judged. If the phone is picked up or moved (the motion sensor
+   notices), posture pauses, and once it's still again it quietly takes a
+   fresh baseline from the student's first three seconds back in view. It
+   does the same after an in-app photo. Which way up the phone is comes from
+   gravity, so a sideways mount works even with auto-rotate off.
+   **Recalibrate posture** on the recording screen is for a lesson that's
+   about posture: a spoken framing check like the first one, whose result
+   becomes the new baseline.
+5. **Audio always wins.** Posture pauses when the phone gets warm (Android's
    thermal status "moderate" or worse, until it has cooled for a minute) and
    for 3 minutes after any audio gap; after two gaps it stays off for the
    lesson. It runs in its own process, so a camera crash can't stop the
