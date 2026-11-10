@@ -27,3 +27,4 @@ include(":core:sketch")   // pure Kotlin: find the page in a sketch photo, strai
 include(":core:ui")      // Android: the shared look (theme, note cards, level bars)
 include(":feature:record")
 include(":feature:lesson")
+include(":feature:practice") // practice between lessons: takes, the headphone timing check

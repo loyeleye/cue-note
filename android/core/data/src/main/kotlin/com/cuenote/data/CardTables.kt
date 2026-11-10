@@ -89,6 +89,16 @@ interface CardDao {
     )
     fun observeWithLessons(): Flow<List<SetlistRow>>
 
+    /** One card with its lesson's date and clips, for the practice screen. */
+    @Query(
+        """select card.*, lesson.recordedAt as recordedAt,
+           (select file from clip where clip.id = card.id) as wordsFile,
+           (select file from clip where clip.id = card.takeId) as takeFile
+           from card join lesson on lesson.id = card.lessonId
+           where card.id = :cardId""",
+    )
+    fun observeRow(cardId: String): Flow<SetlistRow?>
+
     @Query(
         "select lessonId, count(*) as cards, " +
             "sum(case when practiceFlag = 'practice_this' then 1 else 0 end) as practice " +

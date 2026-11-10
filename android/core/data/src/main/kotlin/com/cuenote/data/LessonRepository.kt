@@ -28,6 +28,7 @@ class LessonRepository(
     val pipelineDao: PipelineDao? = null,
     val cardDao: CardDao? = null,
     private val photoDao: PhotoDao? = null,
+    private val practiceDao: PracticeDao? = null,
 ) {
 
     val lessons = dao.observeAll()
@@ -146,6 +147,9 @@ class LessonRepository(
         pipelineDao?.clearAll(id)
         photoDao?.clear(id)
         cardDao?.clearAll(id)
+        // Practice takes of the lesson's notes go with it.
+        practiceDao?.takesForLesson(id)?.forEach { File(it.file).delete() }
+        practiceDao?.deleteLessonTakes(id)
         dao.delete(id)
     }
 

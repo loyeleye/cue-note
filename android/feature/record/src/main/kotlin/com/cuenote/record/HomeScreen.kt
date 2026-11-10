@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
@@ -113,6 +114,8 @@ fun HomeScreen(
     teacherName: (String) -> String? = { null },
     /** True once a teacher has accepted an invite. */
     hasTeacher: Boolean = false,
+    /** Opens practice for a note (by card id). */
+    onPractice: (String) -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val player = rememberClipPlayer()
@@ -154,8 +157,9 @@ fun HomeScreen(
                     cardCounts = cardCounts,
                     onOpen = onOpen,
                     onAllLessons = { tab = 2 },
+                    onPractice = onPractice,
                 )
-                1 -> setlistTab(setlist, teacherName, player)
+                1 -> setlistTab(setlist, teacherName, player, onPractice)
                 else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen)
             }
         }
@@ -180,6 +184,7 @@ private fun LazyListScope.homeTab(
     cardCounts: Map<String, CardCount>,
     onOpen: (LessonEntity) -> Unit,
     onAllLessons: () -> Unit,
+    onPractice: (String) -> Unit,
 ) {
     val firstRun = lessons.isEmpty()
     val last = lessons.firstOrNull()
@@ -218,7 +223,7 @@ private fun LazyListScope.homeTab(
             EmptySetlist(firstRun, last?.takeIf { it.pipelineState == "processing" || it.pipelineState == "recorded" } != null, last?.let { teacherName(it.id) })
         }
     } else {
-        items(setlist.take(HOME_NOTES), key = { "n-" + it.card.id }) { SetlistNote(it, teacherName, player) }
+        items(setlist.take(HOME_NOTES), key = { "n-" + it.card.id }) { SetlistNote(it, teacherName, player, onPractice) }
     }
 
     if (firstRun) {
@@ -234,7 +239,12 @@ private fun LazyListScope.homeTab(
     item(key = "warm") { WarmUpCard(warmUpFor(Calendar.getInstance())) }
 }
 
-private fun LazyListScope.setlistTab(setlist: List<SetlistRow>, teacherName: (String) -> String?, player: ClipPlayer) {
+private fun LazyListScope.setlistTab(
+    setlist: List<SetlistRow>,
+    teacherName: (String) -> String?,
+    player: ClipPlayer,
+    onPractice: (String) -> Unit,
+) {
     item(key = "mast") { Masthead("Your ", "setlist") }
     if (setlist.isEmpty()) {
         item(key = "empty") { EmptySetlist(firstRun = false, notesOnTheWay = false, teacher = null) }
@@ -247,7 +257,7 @@ private fun LazyListScope.setlistTab(setlist: List<SetlistRow>, teacherName: (St
             style = MaterialTheme.typography.bodyMedium,
         )
     }
-    items(setlist, key = { "s-" + it.card.id }) { SetlistNote(it, teacherName, player) }
+    items(setlist, key = { "s-" + it.card.id }) { SetlistNote(it, teacherName, player, onPractice) }
 }
 
 private fun LazyListScope.lessonsTab(
@@ -309,9 +319,9 @@ private fun SectionHead(title: String, action: String?, onAction: () -> Unit) {
     }
 }
 
-/** One setlist note: the teacher's words, then two buttons to hear them and your take. */
+/** One setlist note: the teacher's words, buttons to hear them and your take, and Practice. */
 @Composable
-private fun SetlistNote(r: SetlistRow, teacherName: (String) -> String?, player: ClipPlayer) {
+private fun SetlistNote(r: SetlistRow, teacherName: (String) -> String?, player: ClipPlayer, onPractice: (String) -> Unit) {
     val c = r.card
     val topic = Topic.of(c.category)
     val bars = when {
@@ -336,6 +346,19 @@ private fun SetlistNote(r: SetlistRow, teacherName: (String) -> String?, player:
                 r.wordsFile?.let { f -> PlayPill("Their words", player.playing == f, filled = true, onClick = { player.toggle(f) }) }
                 r.takeFile?.let { f -> PlayPill("Your take", player.playing == f, filled = false, onClick = { player.toggle(f) }) }
             }
+        }
+        // A footer of its own, so the play pills keep the whole row.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClickLabel = "Practice this note") { player.stop(); onPractice(c.id) }
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.6f))
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Practice this note", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         }
     }
 }

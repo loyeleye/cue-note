@@ -57,6 +57,7 @@ dependencies {
     implementation(project(":core:posture"))
     implementation(project(":feature:record"))
     implementation(project(":feature:lesson"))
+    implementation(project(":feature:practice"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

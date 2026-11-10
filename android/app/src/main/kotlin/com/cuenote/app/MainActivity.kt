@@ -33,6 +33,8 @@ import com.cuenote.lesson.LessonScreen
 import com.cuenote.lesson.SketchScreen
 import com.cuenote.lesson.TimelineScreen
 import com.cuenote.posture.PostureSetup
+import com.cuenote.practice.PracticeScreen
+import com.cuenote.practice.TimingCheckScreen
 import com.cuenote.record.AgeBlockedScreen
 import com.cuenote.record.AgeGateScreen
 import com.cuenote.record.ConsentScreen
@@ -157,11 +159,7 @@ private fun AppNav(app: CueNoteApp) {
                 setlist = setlist,
                 studentName = firstSetup?.studentName,
                 hasTeacher = myTeachers.any { it.active },
-                teacherName = { lessonId ->
-                    val id = app.lessonTeachers.get(lessonId)
-                    myTeachers.firstOrNull { it.teacherId != null && it.teacherId == id }?.teacherName?.takeIf { it.isNotBlank() }
-                        ?: firstSetup?.teacherName?.takeIf { it.isNotBlank() }
-                },
+                teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId) },
                 recordingInProgress = recState is RecordingState.Recording,
                 signedInEmail = email,
                 onStartLesson = { withPermission { nav.navigate("consent") } },
@@ -189,6 +187,7 @@ private fun AppNav(app: CueNoteApp) {
                     }
                 },
                 onOpen = { l -> nav.navigate("lesson/${l.id}") },
+                onPractice = { cardId -> withPermission { nav.navigate("practice/$cardId") } },
                 modelStatus = modelStatus(app.lessons.modelsReady(), download),
                 onDownloadModels = if (app.lessons.modelsReady() || download?.first == WorkInfo.State.RUNNING ||
                     download?.first == WorkInfo.State.ENQUEUED
@@ -242,6 +241,17 @@ private fun AppNav(app: CueNoteApp) {
                 onBack = { nav.popBackStack() },
             )
         }
+        composable("practice/{card}") { entry ->
+            PracticeScreen(
+                cardId = entry.arguments?.getString("card")!!,
+                repo = app.practice,
+                teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId) },
+                lessonRecording = recState is RecordingState.Recording,
+                onTimingCheck = { nav.navigate("timing") },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable("timing") { TimingCheckScreen(app.practice, onDone = { nav.popBackStack() }) }
         composable("setup") { SetupCheckScreen(onDone = { nav.popBackStack() }) }
         composable("consent") {
             // The student's teachers, for "Who's teaching today?". Offline or
@@ -301,6 +311,13 @@ private fun AppNav(app: CueNoteApp) {
         }
         composable("signin") { SignInScreen(app.auth, email, linkStatus, onBack = { nav.popBackStack() }) }
     }
+}
+
+/** Who taught a lesson: the teacher picked for it, else the one named at first setup. */
+private fun teacherNameFor(app: CueNoteApp, teachers: List<InvitedTeacher>, firstTeacher: String?, lessonId: String): String? {
+    val id = app.lessonTeachers.get(lessonId)
+    return teachers.firstOrNull { it.teacherId != null && it.teacherId == id }?.teacherName?.takeIf { it.isNotBlank() }
+        ?: firstTeacher?.takeIf { it.isNotBlank() }
 }
 
 private data class PendingLesson(val consentAt: Long, val teacherId: String?, val posture: Boolean)
