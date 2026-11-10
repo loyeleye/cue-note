@@ -291,6 +291,21 @@ result is saved per pair of headphones and stored with each take, for lining
 sing-along takes up with backing tracks. Over 250 ms counts as too slow to
 sing along with comfortably.
 
+**Music from the lesson.** The practice screen cuts tracks from the
+teacher's channel of the lesson recording (right = teacher), once, into
+`lessons/<id>/practice/<block>/`: **The piano** (the teacher's channel while
+the student sang the take the note is about, with a 1.5 s lead-in; only when
+the pipeline heard the piano under that take) and **Their demo** (each sung
+demo in the feedback block). **Starting note** plays the first steady note
+of the lesson take as a soft tone. **Slower** plays at 75% with the pitch
+unchanged (WSOLA time-stretch, `TimeStretch` in `:core:pipeline`), and
+**Loop** repeats a track. With headphones in, **Sing along with the piano**
+records a take while the piano plays, and stops a second after it ends;
+**Sing on your own** records without it. Notes the phone didn't make, or
+whose lesson audio is gone, have no tracks. The student's voice leaking into
+the teacher's mic stays in the piano track for now; how much to duck it is
+for tuning on real lessons.
+
 ## Sketches (M6)
 
 **Taking them.** The lesson screen's **Photo** button opens a camera inside the
