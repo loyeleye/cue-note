@@ -1,6 +1,8 @@
 package com.cuenote.record
 
-import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,12 +48,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import com.cuenote.posture.PostureService
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cuenote.audio.RecordingService
 import com.cuenote.audio.RecordingSession
@@ -71,7 +74,6 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
     val levels by RecordingSession.levels.collectAsStateWithLifecycle()
     var elapsed by remember { mutableLongStateOf(0L) }
     var confirmStop by remember { mutableStateOf(false) }
-    var pendingPhoto by rememberSaveable { mutableStateOf<Pair<Long, String>?>(null) }
 
     LaunchedEffect(Unit) {
         while (true) { elapsed = RecordingSession.elapsedMs(); delay(500) }
@@ -88,10 +90,11 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
         if (!sawRecording) onFinished() // the service could not start the mic
     }
 
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val p = pendingPhoto
-        if (ok && p != null) RecordingSession.photo(p.first, p.second)
-        pendingPhoto = null
+    // The in-app shutter needs the camera permission the first time.
+    var shutterOpen by rememberSaveable { mutableStateOf(false) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) shutterOpen = true
+        else Toast.makeText(context, "Cue Note needs the camera to photograph her sketches.", Toast.LENGTH_LONG).show()
     }
 
     val rec = state as? RecordingState.Recording
@@ -133,12 +136,9 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
             ) { Text("Mark this moment", fontSize = 24.sp, fontWeight = FontWeight.SemiBold) }
             Button(
                 onClick = {
-                    val at = RecordingSession.elapsedMs()
-                    val dir = File(lessonDir, "photos").apply { mkdirs() }
-                    val name = "photo_%06d.jpg".format(at / 1000)
-                    val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.files", File(dir, name))
-                    pendingPhoto = at to name
-                    camera.launch(uri)
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        shutterOpen = true
+                    } else cameraPermission.launch(Manifest.permission.CAMERA)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = StageRaised, contentColor = StageText),
                 shape = RoundedCornerShape(20.dp),
@@ -153,6 +153,18 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(60.dp),
             ) { Text("Stop", fontSize = 18.sp) }
         }
+    }
+
+    if (shutterOpen && rec != null) {
+        ShutterOverlay(
+            photosDir = File(lessonDir, "photos"),
+            nowMs = RecordingSession::elapsedMs,
+            onTaken = { at, name -> RecordingSession.photo(at, name) },
+            onClose = { shutterOpen = false },
+            // posture's camera steps aside while the shutter has it
+            onCameraOpening = { PostureService.pauseFor(context, "photo") },
+            onCameraClosed = { PostureService.resumeAfter(context, "photo") },
+        )
     }
 
     if (confirmStop) {

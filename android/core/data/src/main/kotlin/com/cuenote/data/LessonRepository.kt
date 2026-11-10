@@ -25,6 +25,7 @@ class LessonRepository(
     private val dao: LessonDao,
     val pipelineDao: PipelineDao? = null,
     val cardDao: CardDao? = null,
+    private val photoDao: PhotoDao? = null,
 ) {
 
     val lessons = dao.observeAll()
@@ -54,6 +55,7 @@ class LessonRepository(
             gaps = s.gapCount, marks = s.markCount, photos = s.photoCount, mic = s.micName,
         )
         if (s.chunkCount > 0) PipelineScheduler.enqueue(context, s.lessonId)
+        if (s.photoCount > 0) com.cuenote.data.sketch.SketchWorker.enqueue(context, s.lessonId)
     }
 
     /** Runs the pipeline now instead of waiting for the charger; [again] starts it over. */
@@ -110,6 +112,7 @@ class LessonRepository(
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         lessonDir(id).deleteRecursively()
         pipelineDao?.clearAll(id)
+        photoDao?.clear(id)
         cardDao?.clearAll(id)
         dao.delete(id)
     }

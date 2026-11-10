@@ -1,5 +1,9 @@
 package com.cuenote.lesson
 
+import com.cuenote.data.sketch.SketchRepository
+import com.cuenote.data.PhotoEntity
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -59,7 +63,9 @@ import java.io.File
 fun LessonScreen(
     lesson: LessonEntity,
     repo: LessonRepository,
+    sketches: SketchRepository,
     onOpenTimeline: () -> Unit,
+    onOpenSketch: (photoId: String) -> Unit,
     onBack: () -> Unit,
 ) {
     val dao = repo.pipelineDao!!
@@ -77,6 +83,11 @@ fun LessonScreen(
     var refreshNote by remember { mutableStateOf<String?>(null) }
     var showTalk by rememberSaveable { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
+
+    val photos by sketches.observe(lesson.id).collectAsStateWithLifecycle(emptyList())
+    val lessonDir = File(lesson.dirPath)
+    LaunchedEffect(lesson.id) { sketches.refresh(lesson.id, lessonDir) }
+    val onCard: (String?) -> List<PhotoEntity> = { local -> if (local == null) emptyList() else photos.filter { it.feedbackId == local } }
 
     // Her latest edits, each time the lesson is opened.
     LaunchedEffect(lesson.id) {
@@ -116,18 +127,23 @@ fun LessonScreen(
                 player.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
 
+            if (photos.isNotEmpty()) {
+                item { SectionTitle("Her sketches") }
+                item { SketchStrip(photos, lessonDir, feedback) { onOpenSketch(it.id) } }
+            }
+
             if (cards.isNotEmpty()) {
                 val (talk, cues) = cards.partition { it.category == "chat" }
                 val opening = cues.filter { it.takeId == null || it.takeId !in takeNo }
                 if (opening.isNotEmpty()) {
                     item { SectionTitle("Before the first take") }
-                    items(opening, key = { it.id }) { CueCard(it, clipFile[it.id], player) }
+                    items(opening, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch) }
                 }
                 for ((i, t) in takes.withIndex()) {
                     val id = CloudIds.take(t.id)
                     val mine = cues.filter { it.takeId == id }
                     item(key = "take-${t.id}") { TakeRow(i + 1, t, clipFile[id], player) }
-                    items(mine, key = { it.id }) { CueCard(it, clipFile[it.id], player) }
+                    items(mine, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch) }
                 }
                 if (talk.isNotEmpty()) item {
                     TextButton(onClick = { showTalk = !showTalk }) {
@@ -139,8 +155,8 @@ fun LessonScreen(
                 // Processed, no cards yet: what the pipeline found.
                 val opening = feedback.filter { it.takeId == null }
                 item { SectionTitle("Takes and feedback") }
-                items(opening, key = { it.id }) { FoundCard(null, listOf(it)) }
-                items(takes, key = { it.id }) { t -> FoundCard(t, feedback.filter { it.takeId == t.id }) }
+                items(opening, key = { it.id }) { FoundCard(null, listOf(it), photos, lessonDir, onOpenSketch) }
+                items(takes, key = { it.id }) { t -> FoundCard(t, feedback.filter { it.takeId == t.id }, photos, lessonDir, onOpenSketch) }
             }
 
             postureSection(File(lesson.dirPath))
@@ -226,7 +242,14 @@ private fun TakeRow(number: Int, take: TakeEntity, clip: String?, player: ClipPl
 }
 
 @Composable
-private fun CueCard(card: CardEntity, clip: String?, player: ClipPlayer) {
+private fun CueCard(
+    card: CardEntity,
+    clip: String?,
+    player: ClipPlayer,
+    sketches: List<PhotoEntity>,
+    lessonDir: File,
+    onOpenSketch: (String) -> Unit,
+) {
     var showAll by rememberSaveable(card.id) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -251,6 +274,7 @@ private fun CueCard(card: CardEntity, clip: String?, player: ClipPlayer) {
                 }
             }
             if (showAll) Text(card.transcript, style = MaterialTheme.typography.bodyMedium)
+            SketchRow(sketches, lessonDir, onOpenSketch)
         }
     }
 }
@@ -273,7 +297,13 @@ private fun Tag(text: String) {
 
 /** Before cards: a take with the feedback the pipeline linked to it. */
 @Composable
-private fun FoundCard(take: TakeEntity?, feedback: List<FeedbackEntity>) {
+private fun FoundCard(
+    take: TakeEntity?,
+    feedback: List<FeedbackEntity>,
+    photos: List<PhotoEntity>,
+    lessonDir: File,
+    onOpenSketch: (String) -> Unit,
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -285,6 +315,7 @@ private fun FoundCard(take: TakeEntity?, feedback: List<FeedbackEntity>) {
             for (f in feedback) {
                 Text(f.words.ifBlank { "(no words transcribed)" }, style = MaterialTheme.typography.bodyMedium)
                 Text("${clock(f.spanStartMs)} · ${f.linkReason}", style = MaterialTheme.typography.bodySmall)
+                SketchRow(photos.filter { it.feedbackId == f.id }, lessonDir, onOpenSketch)
             }
         }
     }
@@ -298,3 +329,12 @@ private fun bars(a: Int?, b: Int?): String? = when {
 }
 
 private fun clock(ms: Long) = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)
+
+/** Her sketches on this card, as thumbnails; tap one to open it. */
+@Composable
+private fun SketchRow(sketches: List<PhotoEntity>, lessonDir: File, onOpenSketch: (String) -> Unit) {
+    if (sketches.isEmpty()) return
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+        for (p in sketches) SketchThumb(p, lessonDir, Modifier.size(96.dp, 72.dp).clickable { onOpenSketch(p.id) })
+    }
+}

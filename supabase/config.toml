@@ -47,6 +47,10 @@ otp_expiry = 3600
 [functions.notify]
 verify_jwt = false
 
+# The phone calls caption-sketch with the student's session; it reads the photo as them.
+[functions.caption-sketch]
+verify_jwt = true
+
 # The phone calls extract-cues with the student's session; the function checks
 # the lesson is theirs.
 [functions.extract-cues]

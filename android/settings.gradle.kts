@@ -23,5 +23,6 @@ include(":core:ml")       // pure Kotlin: Silero VAD and whisper.cpp behind inte
 include(":core:ml-android") // Android: builds the native library for the phone
 include(":core:posture")  // Android: camera service and MediaPipe Pose, in its own process
 include(":core:pipeline") // pure Kotlin: segmenter, pitch, linker, debug timeline
+include(":core:sketch")   // pure Kotlin: find the page in a sketch photo, straighten and whiten it
 include(":feature:record")
 include(":feature:lesson")

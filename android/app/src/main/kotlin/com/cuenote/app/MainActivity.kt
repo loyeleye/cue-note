@@ -27,7 +27,9 @@ import com.cuenote.audio.RecordingSession
 import com.cuenote.app.ui.CueNoteTheme
 import com.cuenote.audio.RecordingState
 import com.cuenote.data.InvitedTeacher
+import com.cuenote.lesson.CornerEditorScreen
 import com.cuenote.lesson.LessonScreen
+import com.cuenote.lesson.SketchScreen
 import com.cuenote.lesson.TimelineScreen
 import com.cuenote.posture.PostureSetup
 import com.cuenote.record.ConsentScreen
@@ -154,10 +156,36 @@ private fun AppNav(app: CueNoteApp) {
                 LessonScreen(
                     lesson = lesson,
                     repo = app.lessons,
+                    sketches = app.sketches,
                     onOpenTimeline = { nav.navigate("timeline/$id") },
+                    onOpenSketch = { photoId -> nav.navigate("sketch/$id/$photoId") },
                     onBack = { nav.popBackStack() },
                 )
             }
+        }
+        composable("sketch/{lesson}/{photo}") { entry ->
+            val id = entry.arguments?.getString("lesson")!!
+            val photoId = entry.arguments?.getString("photo")!!
+            val feedback by app.lessons.pipelineDao!!.observeFeedback(id).collectAsStateWithLifecycle(emptyList())
+            SketchScreen(
+                photoId = photoId,
+                lessonDir = app.lessons.lessonDir(id),
+                feedback = feedback,
+                repo = app.sketches,
+                lessonId = id,
+                onFixCorners = { nav.navigate("corners/$id/$photoId") },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable("corners/{lesson}/{photo}") { entry ->
+            val id = entry.arguments?.getString("lesson")!!
+            CornerEditorScreen(
+                photoId = entry.arguments?.getString("photo")!!,
+                lessonId = id,
+                lessonDir = app.lessons.lessonDir(id),
+                repo = app.sketches,
+                onDone = { nav.popBackStack() },
+            )
         }
         composable("timeline/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!

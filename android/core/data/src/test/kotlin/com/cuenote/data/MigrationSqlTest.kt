@@ -32,4 +32,20 @@ class MigrationSqlTest {
         // The tables version 2 already had are unchanged.
         assertEquals(createSql(2, emptySet()).sorted(), createSql(3, setOf("clip", "card")).sorted())
     }
+
+    @Test fun `migration 3 to 4 matches the exported schema`() {
+        val three = tables(3)
+        val four = tables(4)
+        assertEquals(four.filterKeys { it !in three.keys }.values.sorted(), MIGRATION_3_4_SQL.sorted())
+        // The tables version 3 already had are unchanged.
+        assertEquals(three, four.filterKeys { it in three.keys })
+    }
+
+    private fun tables(version: Int): Map<String, String> {
+        val schema = Json.parseToJsonElement(File("schemas/com.cuenote.data.LessonDatabase/$version.json").readText())
+        return schema.jsonObject["database"]!!.jsonObject["entities"]!!.jsonArray.map { it.jsonObject }.associate {
+            val name = it["tableName"]!!.jsonPrimitive.content
+            name to it["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", name)
+        }
+    }
 }

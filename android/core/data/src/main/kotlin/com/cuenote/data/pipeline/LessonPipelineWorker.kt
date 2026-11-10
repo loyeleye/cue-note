@@ -12,6 +12,8 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.cuenote.data.LessonDatabase
 import com.cuenote.data.PipelineStageEntity
+import com.cuenote.data.sketch.SketchRepository
+import com.cuenote.data.sketch.SketchWorker
 import com.cuenote.data.sync.LessonUploadWorker
 import com.cuenote.ml.ModelFiles
 import com.cuenote.ml.WhisperNative
@@ -84,6 +86,9 @@ class LessonPipelineWorker(context: Context, params: WorkerParameters) : Corouti
                     isStopped = { isStopped },
                 )
                 ResultImporter.import(dao, lessonId, out, pipeline.state())
+                // photos onto the cards they follow, then clean and upload them
+                SketchRepository.importLinks(db.photos(), lessonId, File(lesson.dirPath), out.events)
+                SketchWorker.enqueue(applicationContext, lessonId)
                 dao.setLessonState(lessonId, "processed")
                 // Next: clips, upload and cards, once there is a network.
                 LessonUploadWorker.enqueue(applicationContext, lessonId)

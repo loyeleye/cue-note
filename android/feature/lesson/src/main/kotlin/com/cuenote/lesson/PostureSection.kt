@@ -80,4 +80,3 @@ private fun FlagCard(lessonDir: File, f: PostureEvent.Flagged) {
     }
 }
 
-private fun clockOf(ms: Long) = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)

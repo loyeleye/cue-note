@@ -41,6 +41,7 @@ dependencies {
     api(project(":core:audio"))
     api(project(":core:pipeline"))
     api(project(":core:ml-android"))
+    api(project(":core:sketch"))
     implementation(libs.androidx.work.runtime)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.core.ktx)
