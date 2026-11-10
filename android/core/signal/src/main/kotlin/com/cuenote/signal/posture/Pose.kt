@@ -30,6 +30,25 @@ data class Pose(val landmarks: List<Landmark>, val aspect: Float) {
     val shoulderCenterX get() = (landmarks[LEFT_SHOULDER].x + landmarks[RIGHT_SHOULDER].x) / 2
     val shoulderCenterY get() = (landmarks[LEFT_SHOULDER].y + landmarks[RIGHT_SHOULDER].y) / 2
 
+    /**
+     * Middle of whichever shoulders are clearly seen (both from the front,
+     * often just the near one side-on), or null if neither is.
+     */
+    val bodyCenter: Pair<Float, Float>? get() {
+        val seen = listOf(LEFT_SHOULDER, RIGHT_SHOULDER).filter { seen(it) }
+        if (seen.isEmpty()) return null
+        return seen.map { landmarks[it].x }.average().toFloat() to seen.map { landmarks[it].y }.average().toFloat()
+    }
+
+    /** How big the person looks: the diagonal around their clearly seen points, in frame-height units. */
+    val size: Float get() {
+        val seen = landmarks.indices.filter { seen(it) }
+        if (seen.size < 2) return 0f
+        val xs = seen.map { px(it) }
+        val ys = seen.map { py(it) }
+        return hypot(xs.max() - xs.min(), ys.max() - ys.min())
+    }
+
     /** Shoulder to shoulder, in frame-height units. The ruler for everything else. */
     val shoulderWidth: Float get() = hypot(px(LEFT_SHOULDER) - px(RIGHT_SHOULDER), py(LEFT_SHOULDER) - py(RIGHT_SHOULDER))
 
@@ -66,9 +85,19 @@ data class PostureMetrics(
      * aren't in view.
      */
     val facing: Float? = null,
+    /** Which way the student stands to the phone; the side view uses the two fields below instead. */
+    val view: PostureView = PostureView.FRONT,
+    /** Side view: how far the ear sits ahead of the shoulder, in torso lengths. Grows with a forward head. */
+    val earForward: Float = 0f,
+    /** Side view: degrees the ear-to-nose line points above level. Up is a lifted chin, down a dropped one. */
+    val headPitchDeg: Float = 0f,
 ) {
     companion object {
-        /** The metrics for [pose], or null when the head and shoulders aren't clearly in view. */
+        /** The metrics for [pose] seen from [view], or null when the points needed aren't clearly in view. */
+        fun of(pose: Pose, view: PostureView): PostureMetrics? =
+            if (view == PostureView.SIDE) SideView.metrics(pose) else of(pose)
+
+        /** The front-view metrics for [pose], or null when the head and shoulders aren't clearly in view. */
         fun of(pose: Pose): PostureMetrics? {
             val need = intArrayOf(Pose.NOSE, Pose.LEFT_EAR, Pose.RIGHT_EAR, Pose.LEFT_SHOULDER, Pose.RIGHT_SHOULDER)
             if (need.any { !pose.seen(it) }) return null
@@ -106,6 +135,7 @@ data class PostureMetrics(
             return PostureMetrics(
                 med { it.headTiltDeg }, med { it.neckLength }, med { it.noseForward }, med { it.chinLift },
                 facings.getOrNull(facings.size / 2),
+                all.first().view, med { it.earForward }, med { it.headPitchDeg },
             )
         }
 
@@ -126,18 +156,26 @@ data class PostureMetrics(
     fun turnedAwayFrom(baseline: PostureMetrics, keep: Float = 0.75f): Boolean {
         val now = facing ?: return false
         val then = baseline.facing ?: return false
+        // Side-on, "turned away" is the other way round: turning to face the
+        // phone makes the shoulders look wider.
+        if (baseline.view == PostureView.SIDE) return now > maxOf(then / keep, then + SideView.TURN_MARGIN)
         return now < then * keep
     }
 
     /** The numbers on one line, for handing the baseline to the camera service. */
-    fun encode(): String = "$headTiltDeg,$neckLength,$noseForward,$chinLift,${facing ?: ""}"
+    fun encode(): String =
+        "$headTiltDeg,$neckLength,$noseForward,$chinLift,${facing ?: ""},${view.name},$earForward,$headPitchDeg"
 }
 
 fun decodePostureMetrics(s: String?): PostureMetrics? {
     val raw = s?.split(',') ?: return null
     val p = raw.take(4).mapNotNull { it.toFloatOrNull() }
     if (p.size != 4) return null
-    return PostureMetrics(p[0], p[1], p[2], p[3], raw.getOrNull(4)?.toFloatOrNull())
+    val view = raw.getOrNull(5)?.let { v -> PostureView.entries.firstOrNull { it.name == v } } ?: PostureView.FRONT
+    return PostureMetrics(
+        p[0], p[1], p[2], p[3], raw.getOrNull(4)?.toFloatOrNull(),
+        view, raw.getOrNull(6)?.toFloatOrNull() ?: 0f, raw.getOrNull(7)?.toFloatOrNull() ?: 0f,
+    )
 }
 
 /**
@@ -151,22 +189,22 @@ class StudentPicker(startX: Float?, startY: Float?) {
     private var lastSeenMs = -1L
 
     fun pick(poses: List<Pose>, tMs: Long): Pose? {
-        val usable = poses.filter { it.seen(Pose.LEFT_SHOULDER) && it.seen(Pose.RIGHT_SHOULDER) }
+        val usable = poses.mapNotNull { p -> p.bodyCenter?.let { p to it } }
         if (usable.isEmpty()) return null
         val lx = lastX
         val ly = lastY
-        val chosen = if (lx == null || ly == null) {
-            usable.maxBy { it.shoulderWidth } // nearest the camera
+        val (chosen, center) = if (lx == null || ly == null) {
+            usable.maxBy { (p, _) -> p.size } // nearest the camera
         } else {
-            val best = usable.minBy { hypot(it.shoulderCenterX - lx, it.shoulderCenterY - ly) }
-            val jump = hypot(best.shoulderCenterX - lx, best.shoulderCenterY - ly)
+            val best = usable.minBy { (_, c) -> hypot(c.first - lx, c.second - ly) }
+            val jump = hypot(best.second.first - lx, best.second.second - ly)
             // A lone person far from where the student just was is more likely the teacher.
             val recent = lastSeenMs >= 0 && tMs - lastSeenMs < 10_000
             if (recent && jump > MAX_JUMP) return null
             best
         }
-        lastX = chosen.shoulderCenterX
-        lastY = chosen.shoulderCenterY
+        lastX = center.first
+        lastY = center.second
         lastSeenMs = tMs
         return chosen
     }

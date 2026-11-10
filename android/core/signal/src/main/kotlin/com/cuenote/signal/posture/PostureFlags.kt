@@ -7,6 +7,8 @@ enum class PostureFlag(val key: String, val label: String) {
     CHIN_FORWARD("chin_forward", "Chin forward"),
     SHOULDERS_RAISED("shoulders_raised", "Shoulders raised"),
     HEAD_TILT("head_tilt", "Head tilt"),
+    /** Side view only: the chin lifting or dropping. */
+    CHIN_PITCH("chin_pitch", "Chin lifted or dropped"),
 }
 
 /**
@@ -20,6 +22,10 @@ data class FlagThresholds(
     val neckShorterBy: Float = 0.18f,
     val noseForwardBy: Float = 0.25f,
     val chinLiftBy: Float = 0.15f,
+    /** Side view: ear ahead of the shoulder by this many more torso lengths than at the baseline. */
+    val earForwardBy: Float = 0.08f,
+    /** Side view: the head tipped up or down by this many degrees. */
+    val headPitchDeg: Float = 12f,
     /** The condition has to hold for this long, on most frames, before it is flagged. */
     val holdMs: Long = 1_500,
     val holdFraction: Float = 0.8f,
@@ -92,7 +98,24 @@ class PostureFlagDetector(
         Event.Ended(flag)
     }
 
-    private fun check(flag: PostureFlag, m: PostureMetrics): Pair<Boolean, String> = when (flag) {
+    private fun check(flag: PostureFlag, m: PostureMetrics): Pair<Boolean, String> =
+        if (baseline.view == PostureView.SIDE) checkSide(flag, m) else checkFront(flag, m)
+
+    private fun checkSide(flag: PostureFlag, m: PostureMetrics): Pair<Boolean, String> = when (flag) {
+        PostureFlag.CHIN_FORWARD -> {
+            val d = m.earForward - baseline.earForward
+            (d >= t.earForwardBy) to "ear ${"%.2f".format(d)} further forward"
+        }
+        PostureFlag.SHOULDERS_RAISED -> checkFront(flag, m) // ear-to-shoulder height works the same side-on
+        PostureFlag.CHIN_PITCH -> {
+            val d = m.headPitchDeg - baseline.headPitchDeg
+            (abs(d) >= t.headPitchDeg) to (if (d > 0) "lifted" else "dropped") + " ${"%.0f".format(abs(d))} deg"
+        }
+        PostureFlag.HEAD_TILT -> false to "" // a side-to-side tilt can't be seen side-on
+    }
+
+    private fun checkFront(flag: PostureFlag, m: PostureMetrics): Pair<Boolean, String> = when (flag) {
+        PostureFlag.CHIN_PITCH -> false to "" // judged side-on only
         PostureFlag.HEAD_TILT -> {
             val d = m.headTiltDeg - baseline.headTiltDeg
             (abs(d) >= t.headTiltDeg) to "tilt ${"%.0f".format(d)} deg"

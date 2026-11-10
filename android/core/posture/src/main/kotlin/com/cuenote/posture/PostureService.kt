@@ -28,6 +28,7 @@ import com.cuenote.signal.posture.FramingCheck
 import com.cuenote.signal.posture.MotionWatch
 import com.cuenote.signal.posture.Pose
 import com.cuenote.signal.posture.PoseTsv
+import com.cuenote.signal.posture.PostureView
 import com.cuenote.signal.posture.VoiceLine
 import com.cuenote.signal.posture.rotationFromGravity
 import com.cuenote.signal.posture.PostureBackOff
@@ -240,7 +241,8 @@ class PostureService : LifecycleService() {
         try {
             val t = elapsedMs - startedAt
             val student = engine?.detect(upright, elapsedMs)?.let { picker?.pick(it, t) }
-            val metrics = student?.let(PostureMetrics::of)
+            val view = baseline?.view ?: PostureView.FRONT
+            val metrics = student?.let { PostureMetrics.of(it, view) }
             if (student != null) poseOut?.apply { write(PoseTsv.line(t, student)); newLine() }
             calibration?.let { (check, from) ->
                 if (elapsedMs >= from) calibrationFrame(check, t, student)
@@ -314,7 +316,7 @@ class PostureService : LifecycleService() {
             detector?.endAll()?.forEach { log(PostureEvent.FlagEnded(lessonMs(), it.flag)) }
             settler = null
             picker = StudentPicker(null, null)
-            calibration = FramingCheck() to SystemClock.elapsedRealtime() + RECALIBRATE_COUNTDOWN_MS
+            calibration = FramingCheck(baseline?.view ?: PostureView.FRONT) to SystemClock.elapsedRealtime() + RECALIBRATE_COUNTDOWN_MS
         }
         say(VoiceLine.RECAL_INTRO)
     }
