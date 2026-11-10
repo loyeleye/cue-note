@@ -318,6 +318,24 @@ flat."). No numbers or percentages are shown. Results are kept as
 `<take>.pitch.json`. The thresholds (`PitchCompare`, `PitchTrack` in
 `:core:pipeline`) are starting points to tune on real lessons.
 
+**Before the next lesson.** Practice stays on the phone unless the student
+shares something. Once a teacher has accepted their invite, a take's ⋮ menu
+has **Share with Marigold**: the take goes up as a small .m4a in the lesson's
+clip folder (`clips/<student>/<lesson>/practice-<take>.m4a`) with its pitch
+per note and any note on how it felt. Up to three shared takes wait at a
+time; one frees up once the teacher has listened. **Ask** on the practice
+screen pins a question to the note (and a bar, if the student knows it), and
+the **Next lesson** screen (from Home) takes general ones, shows the week's
+practice, what's shared, the questions with their answers, and the lesson
+date the teacher set. The log summary goes up too: each sitting's start, end,
+minutes and which notes, no audio. `PracticeSyncWorker` sends it all when
+there's a network and brings answers and "listened" back. In the database,
+`practice_session`, `practice_take` and `student_question` belong to the
+student; teachers with an active share read them, mark takes heard and
+answer questions, and a teacher limited to their own lessons sees only the
+takes and questions from those lessons
+(`supabase/migrations/20261114000001_m5_practice.sql`).
+
 ## Sketches (M6)
 
 **Taking them.** The lesson screen's **Photo** button opens a camera inside the

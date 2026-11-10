@@ -33,6 +33,7 @@ import com.cuenote.lesson.LessonScreen
 import com.cuenote.lesson.SketchScreen
 import com.cuenote.lesson.TimelineScreen
 import com.cuenote.posture.PostureSetup
+import com.cuenote.practice.NextLessonScreen
 import com.cuenote.practice.PracticeScreen
 import com.cuenote.practice.TimingCheckScreen
 import com.cuenote.record.AgeBlockedScreen
@@ -41,6 +42,7 @@ import com.cuenote.record.ConsentScreen
 import com.cuenote.record.FramingCheckScreen
 import com.cuenote.record.HomeScreen
 import com.cuenote.record.InviteTeachersScreen
+import com.cuenote.record.NextLessonPeek
 import com.cuenote.record.RecordingScreen
 import com.cuenote.record.SetupCheckScreen
 import com.cuenote.record.SignInScreen
@@ -110,6 +112,13 @@ private fun AppNav(app: CueNoteApp) {
         myTeachers = if (email == null) emptyList() else runCatching { app.shares.list() }.getOrDefault(emptyList())
     }
     val firstSetup = remember(lessons.size) { app.consent.firstSetup() }
+    // Before the next lesson: shared takes, questions, and the date a teacher set.
+    val sharing = email != null && myTeachers.any { it.active }
+    val waiting by remember { app.practice.waiting() }.collectAsStateWithLifecycle(emptyList())
+    val questions by remember { app.practice.questions() }.collectAsStateWithLifecycle(emptyList())
+    val nextLessonAt by app.practice.agenda.nextLessonAt.collectAsStateWithLifecycle()
+    LaunchedEffect(sharing) { if (sharing) app.practice.refresh() }
+    val onlyTeacher = myTeachers.filter { it.active }.singleOrNull()?.teacherName?.takeIf { it.isNotBlank() }
     val linkStatus by app.auth.linkStatus.collectAsStateWithLifecycle()
     val recState by RecordingSession.state.collectAsStateWithLifecycle()
     val download by app.lessons.modelDownload().collectAsStateWithLifecycle(null)
@@ -188,6 +197,8 @@ private fun AppNav(app: CueNoteApp) {
                 },
                 onOpen = { l -> nav.navigate("lesson/${l.id}") },
                 onPractice = { cardId -> withPermission { nav.navigate("practice/$cardId") } },
+                nextLesson = if (!sharing) null else NextLessonPeek(nextLessonAt, waiting.size, questions.count { it.open }),
+                onNextLesson = { nav.navigate("next") },
                 modelStatus = modelStatus(app.lessons.modelsReady(), download),
                 onDownloadModels = if (app.lessons.modelsReady() || download?.first == WorkInfo.State.RUNNING ||
                     download?.first == WorkInfo.State.ENQUEUED
@@ -247,7 +258,17 @@ private fun AppNav(app: CueNoteApp) {
                 repo = app.practice,
                 teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId) },
                 lessonRecording = recState is RecordingState.Recording,
+                sharing = sharing,
                 onTimingCheck = { nav.navigate("timing") },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable("next") {
+            NextLessonScreen(
+                repo = app.practice,
+                setlist = setlist,
+                teacher = onlyTeacher,
+                onPractice = { cardId -> withPermission { nav.navigate("practice/$cardId") } },
                 onBack = { nav.popBackStack() },
             )
         }

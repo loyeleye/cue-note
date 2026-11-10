@@ -12,6 +12,13 @@ import com.cuenote.pipeline.practice.BackingSpan
 import com.cuenote.pipeline.practice.PitchCompare
 import com.cuenote.pipeline.practice.PitchTrack
 import com.cuenote.pipeline.practice.TakePitch
+import com.cuenote.pipeline.practice.LoggedSession
+import com.cuenote.pipeline.practice.LoggedTake
+import com.cuenote.pipeline.practice.PracticeLog
+import com.cuenote.pipeline.practice.PracticeWeek
+import com.cuenote.pipeline.practice.Questions
+import com.cuenote.data.sync.PracticeSyncWorker
+import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.Json
 import com.cuenote.pipeline.practice.StartingNote
 import com.cuenote.pipeline.practice.TimeStretch
@@ -79,6 +86,7 @@ class PracticeRepository(
             shared = false,
         )
         dao.upsertTake(row)
+        PracticeSyncWorker.enqueue(context)   // the log summary
         row
     }
 
@@ -143,6 +151,12 @@ class PracticeRepository(
         result
     }
 
+    /** The pitch worked out after the take, if it was. */
+    fun cachedPitch(take: PracticeTakeEntity): TakePitch? = runCatching {
+        val cache = File(take.file.removeSuffix(".wav") + ".pitch.json")
+        pitchJson.decodeFromString(CachedPitch.serializer(), cache.readText()).pitch
+    }.getOrNull()
+
     @kotlinx.serialization.Serializable
     private data class CachedPitch(val demo: String, val pitch: TakePitch)
 
@@ -159,10 +173,67 @@ class PracticeRepository(
         tmp.renameTo(f)
     }
 
+    /**
+     * Deletes a take from the phone. One the teacher has (or is about to
+     * have) is taken out of the cloud at the next sync.
+     */
     suspend fun deleteTake(id: String) = withContext(Dispatchers.IO) {
-        dao.take(id)?.let { File(it.file).delete(); File(it.file.removeSuffix(".wav") + ".pitch.json").delete() }
-        dao.deleteTake(id)
+        val t = dao.take(id) ?: return@withContext
+        File(t.file).delete(); File(t.file.removeSuffix(".wav") + ".pitch.json").delete()
+        if (t.shared || t.cloudShared) dao.markDeleted(id) else dao.deleteTake(id)
+        PracticeSyncWorker.enqueue(context)
     }
+
+    // ------------------------------------------------------------ The next lesson
+
+    /** Shared takes the teacher hasn't listened to yet. */
+    fun waiting(): Flow<List<PracticeTakeEntity>> = dao.observeWaiting()
+
+    /** Shares a take with the student's teachers, or stops sharing it. Goes up at the next sync. */
+    suspend fun share(take: PracticeTakeEntity, on: Boolean) = withContext(Dispatchers.IO) {
+        dao.setShared(take.id, on)
+        PracticeSyncWorker.enqueue(context)
+    }
+
+    /** The questions not dropped, newest first. */
+    fun questions(): Flow<List<PracticeQuestionEntity>> = dao.observeQuestions()
+
+    /** Asks the teacher a question, about [card] (and maybe a bar of it) or about nothing in particular. */
+    suspend fun ask(card: CardEntity?, bar: Int?, body: String): PracticeQuestionEntity? = withContext(Dispatchers.IO) {
+        val text = Questions.clean(body) ?: return@withContext null
+        val q = PracticeQuestionEntity(
+            id = UUID.randomUUID().toString(), cardId = card?.id, lessonId = card?.lessonId, bar = bar,
+            body = text, status = "open", answer = null, answeredAt = null,
+            createdAt = System.currentTimeMillis(), dirty = true,
+        )
+        dao.upsertQuestion(q)
+        PracticeSyncWorker.enqueue(context)
+        q
+    }
+
+    /** Takes a question back. */
+    suspend fun drop(id: String) = withContext(Dispatchers.IO) {
+        val q = dao.question(id) ?: return@withContext
+        dao.upsertQuestion(q.copy(status = "dropped", dirty = true))
+        PracticeSyncWorker.enqueue(context)
+    }
+
+    /** The practice of the last seven days. */
+    fun week(now: Long = System.currentTimeMillis()): Flow<PracticeWeek> {
+        val since = now - 7 * 86_400_000L
+        return combine(dao.observeSessions(), dao.observeTakesSince(since)) { sessions, takes ->
+            PracticeLog.week(
+                sessions.map { LoggedSession(it.id, it.startedAt, it.endedAt) },
+                takes.map { LoggedTake(it.cardId, it.sessionId, it.recordedAt, it.durationMs) },
+                since,
+            )
+        }
+    }
+
+    /** Fetches answers, the teacher's listening and the lesson date now (when online). */
+    fun refresh() = PracticeSyncWorker.enqueue(context)
+
+    val agenda = PracticeAgenda(context)
 
     companion object {
         /** Takes closer together than this count as one sitting of practice. */
@@ -175,6 +246,21 @@ class PracticeRepository(
 
 /** Pitch lines have gaps (NaN) where nothing was sung. */
 private val pitchJson = Json { allowSpecialFloatingPointValues = true; ignoreUnknownKeys = true }
+
+/** What the teachers set for the next lesson, kept from the last sync. */
+class PracticeAgenda(context: Context) {
+    private val prefs = context.getSharedPreferences("practice_agenda", Context.MODE_PRIVATE)
+    private val _nextLessonAt = MutableStateFlow(prefs.getLong(KEY_NEXT, 0L).takeIf { it > 0 })
+    /** Epoch ms of the next lesson, when a teacher has set one. */
+    val nextLessonAt: StateFlow<Long?> = _nextLessonAt.asStateFlow()
+
+    fun setNextLesson(at: Long?) {
+        prefs.edit().apply { if (at == null) remove(KEY_NEXT) else putLong(KEY_NEXT, at) }.apply()
+        _nextLessonAt.value = at
+    }
+
+    private companion object { const val KEY_NEXT = "next_lesson_at" }
+}
 
 /**
  * The timing check's result for each pair of headphones the student has

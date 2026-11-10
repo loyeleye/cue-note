@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,6 +69,7 @@ import com.cuenote.audio.PracticeRecorder
 import com.cuenote.data.PracticeRepository
 import com.cuenote.data.PracticeTakeEntity
 import com.cuenote.data.SetlistRow
+import com.cuenote.pipeline.practice.PracticeLog
 import com.cuenote.ui.Brass
 import com.cuenote.ui.ClipPlayer
 import com.cuenote.ui.Masthead
@@ -104,11 +106,17 @@ fun PracticeScreen(
     teacherName: (lessonId: String) -> String?,
     /** A lesson is being recorded, so the mic is busy. */
     lessonRecording: Boolean,
+    /** Signed in with a teacher who has accepted, so takes can be shared and questions asked. */
+    sharing: Boolean = false,
     onTimingCheck: () -> Unit,
     onBack: () -> Unit,
 ) {
     val row by repo.card(cardId).collectAsStateWithLifecycle(null)
     val takes by repo.takes(cardId).collectAsStateWithLifecycle(emptyList())
+    val waiting by remember { repo.waiting() }.collectAsStateWithLifecycle(emptyList())
+    val allQuestions by remember { repo.questions() }.collectAsStateWithLifecycle(emptyList())
+    val questions = allQuestions.filter { it.cardId == cardId }
+    var asking by remember { mutableStateOf(false) }
     val devices = rememberDevices()
     val timingVersion by repo.timing.changes.collectAsStateWithLifecycle()
     val latency = remember(devices.output, timingVersion) { repo.timing.latencyMs(devices.output) }
@@ -294,7 +302,35 @@ fun PracticeScreen(
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 }
             }
-            takesList(takes, r, player, { pitches[it] }, { it in pitches }) { confirmDelete = it }
+            val teacher = teacherName(r.card.lessonId) ?: "your teacher"
+            takesList(
+                takes, r, player, { pitches[it] }, { it in pitches },
+                share = if (!sharing) null else TakeSharing(
+                    teacher = teacher,
+                    canShareMore = PracticeLog.canShare(waiting.size),
+                    onShare = { t, on ->
+                        scope.launch { repo.share(t, on) }
+                        note = if (on) "Shared. $teacher can listen before your lesson." else null
+                    },
+                ),
+            ) { confirmDelete = it }
+            if (sharing) {
+                item(key = "askh") {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        Text("Questions for $teacher", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { asking = true }) { Text("Ask") }
+                    }
+                }
+                if (questions.isEmpty()) {
+                    item(key = "askhint") {
+                        Text("Stuck on something here? Ask, and it goes on their list for your next lesson.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                items(questions, key = { "q-" + it.id }) { q ->
+                    QuestionRow(q, teacher.replaceFirstChar { it.uppercase() }, where = "This note", onDrop = { scope.launch { repo.drop(q.id) } })
+                }
+            }
         }
     }
 
@@ -308,11 +344,26 @@ fun PracticeScreen(
         )
     }
 
+    if (asking) {
+        val c = row?.card
+        AskDialog(
+            teacher = c?.let { teacherName(it.lessonId) } ?: "your teacher",
+            aboutNote = true,
+            onSend = { body, bar -> asking = false; scope.launch { repo.ask(c, bar, body) } },
+            onDismiss = { asking = false },
+        )
+    }
+
     confirmDelete?.let { t ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text("Delete this take?") },
-            text = { Text("It's only on this phone, so it can't be brought back.") },
+            text = {
+                Text(
+                    if (t.shared) "It's taken back from your teacher too, and can't be brought back."
+                    else "It's only on this phone, so it can't be brought back.",
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     if (player.playing == t.file) player.stop()
@@ -332,6 +383,7 @@ private fun LazyListScope.takesList(
     player: ClipPlayer,
     pitch: (String) -> com.cuenote.pipeline.practice.TakePitch?,
     analysed: (String) -> Boolean,
+    share: TakeSharing?,
     onDelete: (PracticeTakeEntity) -> Unit,
 ) {
     if (takes.isEmpty()) return
@@ -347,7 +399,7 @@ private fun LazyListScope.takesList(
     }
     itemsIndexed(takes, key = { _, t -> t.id }) { i, t ->
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            TakeRow(takes.size - i, t, player.playing == t.file, onPlay = { player.toggle(t.file) }, onDelete = { onDelete(t) })
+            TakeRow(takes.size - i, t, player.playing == t.file, share, onPlay = { player.toggle(t.file) }, onDelete = { onDelete(t) })
             val p = pitch(t.id)
             when {
                 p != null -> PitchStrip(p, Modifier.padding(horizontal = 12.dp))
@@ -357,7 +409,7 @@ private fun LazyListScope.takesList(
         }
     }
     item(key = "private") {
-        Text("Practice takes stay on this phone.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Text(if (share == null) "Practice takes stay on this phone." else "Practice takes stay on this phone unless you share one.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -541,9 +593,17 @@ private fun HearingYou(level: () -> Double?) {
     }
 }
 
-/** A take: play on the left, then its number and when, and a ⋯ menu with Delete. */
+/** Sharing takes with the teacher before the lesson; null when there's no teacher to share with. */
+private class TakeSharing(
+    val teacher: String,
+    /** Fewer than three shared takes are waiting for the teacher. */
+    val canShareMore: Boolean,
+    val onShare: (PracticeTakeEntity, Boolean) -> Unit,
+)
+
+/** A take: play on the left, then its number and when, and a ⋯ menu with Share and Delete. */
 @Composable
-private fun TakeRow(number: Int, take: PracticeTakeEntity, playing: Boolean, onPlay: () -> Unit, onDelete: () -> Unit) {
+private fun TakeRow(number: Int, take: PracticeTakeEntity, playing: Boolean, share: TakeSharing?, onPlay: () -> Unit, onDelete: () -> Unit) {
     val exists = remember(take.file) { File(take.file).isFile }
     var menu by remember { mutableStateOf(false) }
     val m = MaterialTheme.colorScheme
@@ -561,10 +621,34 @@ private fun TakeRow(number: Int, take: PracticeTakeEntity, playing: Boolean, onP
                 color = m.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
             )
+            if (take.shared && share != null) {
+                Text(
+                    when {
+                        take.heardAt != null -> "${share.teacher.replaceFirstChar { it.uppercase() }} listened"
+                        take.cloudShared -> "Shared with ${share.teacher}"
+                        else -> "Shares when you're online"
+                    },
+                    color = if (take.heardAt != null) m.primary else Brass,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
         }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for take $number", tint = m.onSurfaceVariant) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                if (share != null && exists) {
+                    when {
+                        take.shared && take.heardAt == null ->
+                            DropdownMenuItem(text = { Text("Stop sharing") }, onClick = { menu = false; share.onShare(take, false) })
+                        take.shared -> Unit
+                        share.canShareMore ->
+                            DropdownMenuItem(text = { Text("Share with ${share.teacher}") }, onClick = { menu = false; share.onShare(take, true) })
+                        else -> DropdownMenuItem(
+                            text = { Text("Three takes are waiting for ${share.teacher}") },
+                            onClick = { menu = false }, enabled = false,
+                        )
+                    }
+                }
                 DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
             }
         }
