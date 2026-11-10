@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Builds the app's few shared objects once (a hand-written "container"
@@ -29,12 +30,16 @@ class CueNoteApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        lessons = LessonDatabase.get(this).let { db -> LessonRepository(this, db.lessons(), db.pipeline()) }
+        lessons = LessonDatabase.get(this).let { db -> LessonRepository(this, db.lessons(), db.pipeline(), db.cards()) }
         consent = ConsentStore(this)
         auth = AuthRepository.create()
         shares = ShareRepository(auth)
         lessonTeachers = LessonTeacherStore(this)
 
+        // Lessons processed while signed out get their cards once someone signs in.
+        scope.launch {
+            auth.signedInEmail.distinctUntilChanged().collect { if (it != null) lessons.makeMissingCards() }
+        }
         scope.launch {
             RecordingSession.state.collect { s ->
                 when (s) {

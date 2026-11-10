@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 
 /*
  * What the after-lesson pipeline produced, mirrored into Room so the app can
- * show it and, in M3, upload it. take and feedback match the cloud tables;
+ * show it and upload it (M3). take and feedback match the cloud tables;
  * segment, transcript_line and pipeline_stage are phone-only, as in the
  * design doc's data model.
  */
@@ -24,7 +24,7 @@ data class SegmentEntity(
     val label: String,
 )
 
-/** The student singing. Mirrors the cloud `take` table (clip_path arrives in M3). */
+/** The student singing. Mirrors the cloud `take` table; its clip is in the clip table. */
 @Entity(tableName = "take", primaryKeys = ["id"])
 data class TakeEntity(
     val id: String,
@@ -38,9 +38,9 @@ data class TakeEntity(
 )
 
 /**
- * The teacher's feedback block. The cue, category and her_words columns of
- * the cloud table come from extract-cues in M3; here it carries the link and
- * the raw words.
+ * The teacher's feedback block as the pipeline found it: the link and the
+ * raw words. The card made from it (cue, category, her words) comes back
+ * from extract-cues into the card table.
  */
 @Entity(tableName = "feedback", primaryKeys = ["id"])
 data class FeedbackEntity(
@@ -87,6 +87,9 @@ interface PipelineDao {
 
     @Query("select * from feedback where lessonId = :lessonId order by spanStartMs")
     fun observeFeedback(lessonId: String): Flow<List<FeedbackEntity>>
+
+    @Query("select * from take where lessonId = :lessonId order by startMs")
+    suspend fun takes(lessonId: String): List<TakeEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertStage(s: PipelineStageEntity)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertSegments(s: List<SegmentEntity>)

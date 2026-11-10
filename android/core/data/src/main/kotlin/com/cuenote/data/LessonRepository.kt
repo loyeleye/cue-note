@@ -6,6 +6,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.cuenote.audio.RecordingSummary
 import com.cuenote.data.pipeline.PipelineScheduler
+import com.cuenote.data.sync.CloudSync
+import com.cuenote.data.sync.LessonUploadWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -15,6 +17,7 @@ class LessonRepository(
     private val context: Context,
     private val dao: LessonDao,
     val pipelineDao: PipelineDao? = null,
+    val cardDao: CardDao? = null,
 ) {
 
     val lessons = dao.observeAll()
@@ -51,6 +54,21 @@ class LessonRepository(
 
     fun progress(id: String) = PipelineScheduler.progress(context, id)
 
+    /** Cuts the clips, uploads the lesson and asks for its cards (again, if it has them). */
+    fun makeCards(id: String) = LessonUploadWorker.enqueue(context, id)
+
+    fun cardProgress(id: String) = LessonUploadWorker.progress(context, id)
+
+    /** Lessons that were processed but have no cards yet, for after signing in. */
+    suspend fun makeMissingCards() = dao.withState("processed").forEach { makeCards(it.id) }
+
+    /** Copies the lesson's cards from the cloud again, her latest edits included. */
+    suspend fun refreshCards(id: String) = withContext(Dispatchers.IO) {
+        val cloud = CloudSync(AuthRepository.get())
+        if (cloud.studentId() == null) return@withContext
+        cardDao?.replaceCards(id, cloud.cards(id))
+    }
+
     /** True once the speech models are on the phone. */
     fun modelsReady() = com.cuenote.ml.ModelFiles.missing(PipelineScheduler.modelsDir(context), PipelineScheduler.MODELS).isEmpty()
 
@@ -63,6 +81,7 @@ class LessonRepository(
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
         lessonDir(id).deleteRecursively()
         pipelineDao?.clearAll(id)
+        cardDao?.clearAll(id)
         dao.delete(id)
     }
 

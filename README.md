@@ -5,8 +5,8 @@ records each in-person lesson on two microphones and turns it into a timeline of
 cards; the teacher corrects those cards and sets practice from a web dashboard.
 
 The full design is in the project's design doc. This repository is built in
-milestones; **M1 (foundations and recorder)**, **M2 (the on-phone pipeline)** and
-**M4 (teacher dashboard)** are here so far.
+milestones; **M1 (foundations and recorder)**, **M2 (the on-phone pipeline)**,
+**M3 (cards)** and **M4 (teacher dashboard)** are here so far.
 
 ### Several teachers on one student
 
@@ -25,8 +25,7 @@ more than one teacher. A teacher can switch on "Only my lessons" for a student
 on the dashboard to hide the others' lessons, notes and practice, and can mark
 an older lesson as theirs. The student can go further from "Your teachers" on
 the phone: "Only lessons they teach" limits that teacher, and the database
-enforces it. Until lessons upload (M3), the phone keeps who taught each one
-locally.
+enforces it. The phone sends who taught each lesson when it uploads it.
 
 ## Layout
 
@@ -111,7 +110,8 @@ It starts by itself the next time the phone charges after a lesson (which also
 means the mic receiver is unplugged), or from **Process now** on the lesson's
 screen. The first run downloads the speech models once (about 150 MB, on
 Wi-Fi). Every stage saves its result, so a run that Android stops picks up
-where it left off. The results go into Room; uploading them is M3.
+where it left off. The results go into Room, and then the phone makes the
+lesson's cards (M3, below).
 
 ### On a laptop
 
@@ -149,6 +149,57 @@ override them while tuning.
 Real lessons are too big for git (an hour is about 700 MB), so the golden set
 lives outside the repository. CI runs three synthetic lessons on every change
 instead; the report is on each run's summary page.
+
+## Cards (M3)
+
+Once a lesson is processed and there is a network, the phone turns it into
+cards by itself (or from **Make cards** on the lesson's screen):
+
+1. **Clips.** Each take and each feedback block is cut into a small replay
+   clip: both mics mixed to one track, AAC at 64 kbps in an `.m4a`, which
+   plays on the phone and in any browser, Safari included. About 0.5 MB a
+   minute. The full recording never leaves the phone.
+2. **Upload.** The lesson, its takes (with their pitch lines) and the clips go
+   to the student's own folder in Supabase. Takes and blocks get cloud ids
+   derived from the phone's own ids (`CloudIds` in `:core:pipeline`), so
+   uploading twice updates the same rows.
+3. **Cards.** The phone sends each feedback block's words and the lesson's
+   transcript to the `extract-cues` edge function. It asks Claude, with text
+   only, for one card per block: her cue as a short instruction, her exact
+   words, a category, "practice this" or "just listen", and bars when she
+   named them. It checks the answer (her words must really be hers; a quote
+   that isn't is replaced with her own sentence) and writes the cards, with
+   the AI's version kept in the card history. Cards she has already edited
+   keep her version. Her past corrections go into the request as examples,
+   so the cards get closer to how she talks.
+
+The lesson screen then shows the timeline: each take with **Hear take**, and
+under it her cue, her words in quotes and **Hear her**. Talk that isn't about
+the singing is folded away under "Show the talk between exercises". Opening a
+lesson fetches her latest edits from the dashboard.
+
+Each run is logged in `cue_extraction` with its tokens and cost, to check the
+design doc's estimate of $0.03 a lesson.
+
+**Setting up the function.** It deploys with the others on merge. It needs the
+Claude API key as a secret, once:
+
+```
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-… --project-ref tgytbytwofiymsvajdkd
+# optional: CUE_MODEL (default claude-opus-5-5), CUE_EFFORT (default low)
+```
+
+Without the key, the phone's lesson screen says "cue extraction is not set
+up yet" and tries again later.
+
+**Tests.** `node --experimental-strip-types --test supabase/functions/extract-cues/cues.test.ts`
+checks the prompt, the answer schema and the checks on the answer, on a
+sample lesson in `extract-cues/fixtures/`. `test/index.test.ts` runs the
+whole function against a fake database and model (the command is in CI).
+
+## M3 gate
+
+She reads one lesson's cards and agrees they say what she said.
 
 ## M2 gate
 
