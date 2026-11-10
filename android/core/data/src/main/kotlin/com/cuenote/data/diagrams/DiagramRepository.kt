@@ -63,7 +63,7 @@ data class DiagramSuggestion(
     @SerialName("feedback_id") val feedbackId: String,
     @SerialName("diagram_id") val diagramId: String,
     val confidence: Float,
-    /** "cues" (her words) or "sketch" (her sketch). */
+    /** "cues" (the teacher's words) or "sketch" (the teacher's sketch). */
     val source: String,
     @SerialName("teacher_status") val teacherStatus: String,
     @SerialName("student_status") val studentStatus: String,

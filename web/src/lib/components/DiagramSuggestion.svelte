@@ -14,7 +14,7 @@
   let busy = $state(false);
   let error = $state('');
 
-  const from = $derived(suggestion.source === 'sketch' ? 'her sketch' : 'her words');
+  const from = $derived(suggestion.source === 'sketch' ? 'the sketch' : 'what the teacher said');
   const studentSays = $derived(
     suggestion.student_status === 'accepted' ? 'The student found it helpful.'
       : suggestion.student_status === 'dismissed' ? 'The student hid it for themselves.' : ''
@@ -43,12 +43,12 @@
     <div class="suggestion" role="group" aria-label="Suggested diagram" aria-busy={busy}>
       <div class="head">
         <span class="chip accent">Suggested diagram</span>
-        <span class="muted small">Matched to {from}, {Math.round(suggestion.confidence * 100)}% sure</span>
+        <span class="muted small">Matched by AI to {from}</span>
       </div>
       <img src={diagramUrl(d.id)} alt={`${d.title}: ${d.shows}`} width="360" height="240" loading="lazy" />
       <div class="caption">
         <strong>{d.title}</strong>
-        <span class="muted small">{d.shows}. A standard drawing, not her sketch.</span>
+        <span class="muted small">{d.shows}. A standard drawing, not the teacher's sketch.</span>
         {#if studentSays}<span class="small">{studentSays}</span>{/if}
       </div>
       {#if suggestion.teacher_status === 'open'}

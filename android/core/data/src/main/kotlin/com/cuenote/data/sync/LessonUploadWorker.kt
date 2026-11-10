@@ -129,7 +129,7 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
             cardsDao.replaceCards(lessonId, cloud.cards(lessonId))
             stages.setLessonState(lessonId, "cards")
             val cost = r.costUsd?.let { " for $%.3f".format(it) } ?: ""
-            val kept = if (r.keptTeacher > 0) ", kept ${r.keptTeacher} she had edited" else ""
+            val kept = if (r.keptTeacher > 0) ", kept ${r.keptTeacher} your teacher had edited" else ""
             stages.upsertStage(record("cards", "done", started, "${r.cards} cards by ${r.model ?: "the model"}$cost$kept"))
             Result.success()
         } catch (e: CloudSync.CueError) {

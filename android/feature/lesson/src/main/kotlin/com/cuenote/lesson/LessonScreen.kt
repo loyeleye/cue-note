@@ -127,7 +127,7 @@ fun LessonScreen(
                         scope.launch {
                             runCatching { diagrams.refresh(lesson.id) }
                             refreshNote = runCatching { repo.refreshCards(lesson.id) }
-                                .fold({ "Up to date with her edits." }, { "Couldn't refresh: ${it.message}" })
+                                .fold({ "Up to date with your teacher's edits." }, { "Couldn't refresh: ${it.message}" })
                         }
                     }) { Text("Refresh") }
                 }
@@ -136,7 +136,7 @@ fun LessonScreen(
             }
 
             if (photos.isNotEmpty()) {
-                item { SectionTitle("Her sketches") }
+                item { SectionTitle("Your teacher's sketches") }
                 item { SketchStrip(photos, lessonDir, feedback) { onOpenSketch(it.id) } }
             }
 
@@ -277,10 +277,10 @@ private fun CueCard(
                 if (card.editedByTeacher) Tag("Edited by your teacher")
             }
             Row {
-                PlayButton(clip, player, "Hear her")
+                PlayButton(clip, player, "Hear the feedback")
                 Spacer(Modifier.width(8.dp))
                 if (card.transcript.isNotBlank() && card.transcript.trim() != card.herWords.trim()) {
-                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything she said") }
+                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything your teacher said") }
                 }
             }
             if (showAll) Text(card.transcript, style = MaterialTheme.typography.bodyMedium)

@@ -170,7 +170,7 @@ fun SketchScreen(
             }
             p.caption?.let {
                 Text(it, style = MaterialTheme.typography.bodyLarge)
-                Text("Caption written by AI from the sketch and her words.", style = MaterialTheme.typography.labelSmall)
+                Text("Caption written by AI from the sketch and what your teacher said.", style = MaterialTheme.typography.labelSmall)
             }
             Text("Card", style = MaterialTheme.typography.titleMedium)
             Text(card?.let(::cardLabel) ?: "Not on a card yet.", style = MaterialTheme.typography.bodyMedium)

@@ -98,7 +98,7 @@ fun CompareSection(lessonId: String, repo: LessonRepository, cards: List<CardEnt
                     )
                     if (c.herWords.isNotBlank()) {
                         Text(
-                            "“${c.herWords}”" + if (c.repaired) "  (its quote wasn't hers; her sentence shown)" else "",
+                            "“${c.herWords}”" + if (c.repaired) "  (its quote wasn't in the transcript, so the real sentence is shown)" else "",
                             style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                         )
                     }

@@ -234,7 +234,7 @@
         {#if c.bar_start != null}<span class="chip">{bars(c.bar_start, c.bar_end)}{songTitle(c.song_id) ? ` · ${songTitle(c.song_id)}` : ''}</span>{/if}
       </div>
       {#if c.clip_path}
-        <div class="her-clip"><span class="muted small">Her clip</span><ClipPlayer path={c.clip_path} compact /></div>
+        <div class="her-clip"><span class="muted small">Feedback clip</span><ClipPlayer path={c.clip_path} compact /></div>
       {/if}
       {#each sketches as p (p.id)}{@render photoView(p)}{/each}
       {#each suggestions.filter((s) => s.feedback_id === c.id) as s (s.id)}
