@@ -71,6 +71,21 @@ class PracticeRecorder(private val context: Context) {
     val isRecording: Boolean get() = running
 
     /**
+     * How far the playback has got in ms, from what the speaker has actually
+     * played (not what was handed to it), so on-screen cues match what is heard.
+     */
+    fun playbackHeardMs(): Long? {
+        val t = track ?: return null
+        val ts = AudioTimestamp()
+        return if (t.getTimestamp(ts)) {
+            val since = (System.nanoTime() - ts.nanoTime).coerceAtLeast(0)
+            ts.framePosition * 1000L / SAMPLE_RATE + since / 1_000_000
+        } else {
+            runCatching { t.playbackHeadPosition.toLong() * 1000L / SAMPLE_RATE }.getOrNull()
+        }
+    }
+
+    /**
      * Starts a take into [out]. [playback], if given, is 48 kHz mono played
      * from the start of the take.
      */

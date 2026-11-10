@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,6 +28,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -74,12 +78,13 @@ fun TimingCheckScreen(repo: PracticeRepository, onDone: () -> Unit) {
                 step = Step.Done(LatencyCheck.Result.TooQuiet)
                 return@LaunchedEffect
             }
-            val t0 = System.currentTimeMillis()
-            // Light up a dot for each click as it plays.
+            // Light up a dot for each click as it is heard: from what the
+            // headphones have actually played, so the dots never run ahead
+            // of the sound (which would tempt an early "ta").
             while (!recorder.playbackDone.value) {
-                val ms = System.currentTimeMillis() - t0
+                val ms = recorder.playbackHeardMs() ?: -1L
                 click = LatencyCheck.clickTimesMs.indexOfLast { it <= ms }
-                delay(30)
+                delay(16)
             }
             val take = recorder.stop()
             val result = withContext(Dispatchers.Default) {
@@ -127,18 +132,31 @@ fun TimingCheckScreen(repo: PracticeRepository, onDone: () -> Unit) {
                     StartButton("Start the clicks", { click = -1; step = Step.Running }, Modifier.fillMaxWidth(), enabled = !noHeadphones, dot = false)
                 }
                 Step.Running -> {
+                    val sung = LatencyCheck.CLICKS - LatencyCheck.LISTEN_CLICKS
                     Text(
-                        if (click < LatencyCheck.LISTEN_CLICKS) "Listen…" else "Sing \"ta\" on each click",
-                        style = MaterialTheme.typography.titleLarge,
+                        if (click < LatencyCheck.LISTEN_CLICKS) "Listen…"
+                        else "Sing \"ta\" · ${click - LatencyCheck.LISTEN_CLICKS + 1} of $sung",
+                        style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                     ClickDots(click)
+                    Text(
+                        "Listen to two clicks, then a short, light \"ta\" right on each one.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    OutlinedButton(
+                        onClick = { recorder.stop()?.file?.delete(); click = -1; step = Step.Intro },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    ) { Text("Stop") }
                 }
                 is Step.Done -> {
                     val (title, body, ok) = describe(s.result)
                     Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     Text(body, style = MaterialTheme.typography.bodyLarge)
                     if (ok) {
+                        Spacer(Modifier.weight(1f))
                         StartButton("Back to practice", onDone, Modifier.fillMaxWidth(), dot = false)
                         TextButton(onClick = { step = Step.Running }) { Text("Check again") }
                     } else {
@@ -151,26 +169,41 @@ fun TimingCheckScreen(repo: PracticeRepository, onDone: () -> Unit) {
     }
 }
 
-/** One dot per click: the listen-only ones hollow, the sung ones filled as they play. */
+/**
+ * One dot per click, each in a fixed slot so nothing shifts: the two
+ * listen-only clicks in grey under "Listen", the sung ones in plum under
+ * "Sing", filled as each click is heard and the current one ringed.
+ */
 @Composable
 private fun ClickDots(current: Int) {
     val m = MaterialTheme.colorScheme
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    Column(
+        verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.padding(vertical = 8.dp).semantics { contentDescription = "Click ${current + 1} of ${LatencyCheck.CLICKS}" },
     ) {
-        for (i in 0 until LatencyCheck.CLICKS) {
-            val on = i <= current
-            val listen = i < LatencyCheck.LISTEN_CLICKS
-            Box(
-                Modifier.size(if (i == current) 22.dp else 16.dp).then(
-                    when {
-                        on && !listen -> Modifier.background(m.primary, CircleShape)
-                        on -> Modifier.background(m.onSurfaceVariant, CircleShape)
-                        else -> Modifier.border(1.5.dp, m.outline, CircleShape)
-                    },
-                ),
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            for (i in 0 until LatencyCheck.CLICKS) {
+                val on = i <= current
+                val listen = i < LatencyCheck.LISTEN_CLICKS
+                Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier.size(18.dp)
+                            .then(if (i == current) Modifier.border(2.dp, if (listen) m.onSurfaceVariant else m.primary, CircleShape).padding(3.dp) else Modifier)
+                            .then(
+                                when {
+                                    on && !listen -> Modifier.background(m.primary, CircleShape)
+                                    on -> Modifier.background(m.onSurfaceVariant, CircleShape)
+                                    else -> Modifier.border(1.5.dp, m.outline, CircleShape)
+                                },
+                            ),
+                    )
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Listen", style = MaterialTheme.typography.labelMedium, color = m.onSurfaceVariant,
+                modifier = Modifier.width(24.dp * LatencyCheck.LISTEN_CLICKS + 8.dp * (LatencyCheck.LISTEN_CLICKS - 1)))
+            Text("Sing", style = MaterialTheme.typography.labelMedium, color = m.primary)
         }
     }
 }
@@ -187,7 +220,7 @@ private fun describe(r: LatencyCheck.Result): Triple<String, String, Boolean> = 
         )
     LatencyCheck.Result.TooQuiet -> Triple(
         "The mic didn't catch you",
-        "Hold the phone a little closer and sing each \"ta\" a bit louder.",
+        "Hold the phone a little closer, then try again. A short, clear \"ta\" is plenty.",
         false,
     )
     is LatencyCheck.Result.TooFewHits -> Triple(
