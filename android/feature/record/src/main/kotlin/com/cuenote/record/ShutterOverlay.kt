@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.cuenote.posture.withCameraProvider
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -80,16 +81,15 @@ fun ShutterOverlay(
     DisposableEffect(Unit) {
         onCameraOpening()
         var provider: ProcessCameraProvider? = null
-        val future = ProcessCameraProvider.getInstance(context)
-        future.addListener({
+        withCameraProvider(context) { p ->
             runCatching {
-                val p = future.get().also { provider = it }
+                provider = p
                 val pv = Preview.Builder().build().also { it.surfaceProvider = preview.surfaceProvider }
                 p.unbindAll()
                 p.bindToLifecycle(lifecycle, CameraSelector.DEFAULT_BACK_CAMERA, pv, capture)
                 ready = true
             }.onFailure { status = "The camera didn't open: ${it.message}" }
-        }, ContextCompat.getMainExecutor(context))
+        }
         onDispose {
             runCatching { provider?.unbindAll() }
             onCameraClosed()

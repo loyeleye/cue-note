@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import com.cuenote.posture.PostureService
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -119,6 +120,7 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
             }
             if ((rec?.gaps ?: 0) > 0) Text("${rec!!.gaps} audio gaps so far", color = StageWarn)
             Text("${rec?.marks ?: 0} marks · ${rec?.photos ?: 0} photos", color = StageMuted)
+            PostureLine()
         }
 
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -159,6 +161,9 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
             nowMs = RecordingSession::elapsedMs,
             onTaken = { at, name -> RecordingSession.photo(at, name) },
             onClose = { shutterOpen = false },
+            // posture's camera steps aside while the shutter has it
+            onCameraOpening = { PostureService.pauseFor(context, "photo") },
+            onCameraClosed = { PostureService.resumeAfter(context, "photo") },
         )
     }
 
