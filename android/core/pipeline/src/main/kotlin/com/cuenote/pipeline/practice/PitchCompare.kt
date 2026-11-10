@@ -89,6 +89,8 @@ data class TakePitch(
     val notes: List<NoteResult>,
     /** The demo line, moved to the take's octave and time, for drawing under the take; null without a demo. */
     val demoAligned: List<Float>? = null,
+    /** False when the take's notes didn't line up with the demo's (another song, or another part of it), so nothing was judged. */
+    val matched: Boolean = true,
 )
 
 object PitchCompare {
@@ -97,6 +99,13 @@ object PitchCompare {
     /** A note: frames within this many semitones of their running middle. */
     const val NOTE_SPREAD = 0.7
     const val MIN_NOTE_FRAMES = 5
+    /**
+     * At least this share of the take's clear notes must line up with a demo
+     * note, or the take is treated as not matching the demo. On the Morning
+     * Light samples, a demo against itself lined up fully; a different melody
+     * or a backing track lined up 55-65%.
+     */
+    const val MIN_MATCHED = 0.75
 
     /**
      * Splits [take] into notes and judges each against [demo] (a sung demo's
@@ -115,6 +124,13 @@ object PitchCompare {
         // Line the notes up in order (a sung phrase keeps its order), so a
         // note sung off pitch is still compared with the note it should be.
         val match = alignNotes(notes.map { it.semis }, demoNotes.map { it.semis })
+        val clearNotes = notes.indices.filter { notes[it].clear }
+        val lined = clearNotes.count { match[it] != null && abs(notes[it].semis - demoNotes[match[it]!!].semis) < 3f }
+        if (clearNotes.isNotEmpty() && lined < MIN_MATCHED * clearNotes.size) {
+            return TakePitch(take, notes.map { (a, b, s, clear) ->
+                NoteResult(a, b, s, null, if (clear) NoteResult.Verdict.NO_TARGET else NoteResult.Verdict.UNCLEAR)
+            }, matched = false)
+        }
         val aligned = MutableList(take.size) { Float.NaN }
         val results = notes.mapIndexed { k, (a, b, sung, clear) ->
             val target = match[k]?.let { demoNotes[it].semis }
@@ -205,7 +221,12 @@ object PitchSummary {
         val flat = judged.count { it.verdict == NoteResult.Verdict.FLAT }
         val sharp = judged.count { it.verdict == NoteResult.Verdict.SHARP }
         val unclear = p.notes.count { it.verdict == NoteResult.Verdict.UNCLEAR }
-        val unclearNote = if (unclear > 0) " A few notes weren't clear enough to judge; they're marked." else ""
+        val unclearNote = when {
+            unclear == 0 -> ""
+            unclear * 3 >= p.notes.size -> " A lot of it was hard to hear clearly, so those notes are marked rather than judged."
+            else -> " A few notes weren't clear enough to judge; they're marked."
+        }
+        if (!p.matched) return "This take didn't line up with their demo, so here's just its pitch.$unclearNote"
         if (p.demoAligned == null || judged.isEmpty()) {
             return if (p.notes.isEmpty()) "No clear notes were heard in this take." else "Here's the pitch of your take.$unclearNote"
         }
