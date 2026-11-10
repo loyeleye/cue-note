@@ -9,6 +9,7 @@ import com.cuenote.data.ConsentStore
 import com.cuenote.data.LessonDatabase
 import com.cuenote.data.LessonRepository
 import com.cuenote.data.LessonTeacherStore
+import com.cuenote.data.PracticeRepository
 import com.cuenote.data.ShareRepository
 import com.cuenote.data.sketch.SketchRepository
 import com.cuenote.data.diagrams.DiagramRepository
@@ -33,6 +34,7 @@ class CueNoteApp : Application() {
     lateinit var sketches: SketchRepository private set
     lateinit var diagrams: DiagramRepository private set
     lateinit var posture: PostureLink private set
+    lateinit var practice: PracticeRepository private set
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
@@ -40,7 +42,8 @@ class CueNoteApp : Application() {
         // The posture camera runs in its own process; it needs none of this.
         if (getProcessName().endsWith(":posture")) return
         val db = LessonDatabase.get(this)
-        lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.cards(), db.photos())
+        lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.cards(), db.photos(), db.practice())
+        practice = PracticeRepository(this, db.practice(), db.cards())
         sketches = SketchRepository(this, db.photos())
         diagrams = DiagramRepository(AuthRepository.get())
         consent = ConsentStore(this)

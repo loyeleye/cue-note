@@ -6,8 +6,8 @@ cards; the teacher corrects those cards and sets practice from a web dashboard.
 
 The full design is in the project's design doc. This repository is built in
 milestones; **M1 (foundations and recorder)**, **M2 (the on-phone pipeline)**,
-**M3 (cards)**, **M4 (teacher dashboard)**, **M6 (sketches)** and the posture part
-of **M5** are here so far.
+**M3 (cards)**, **M4 (teacher dashboard)**, **M6 (sketches)**, the posture part of **M5**
+and the start of M5's practice between lessons are here so far.
 
 ### Several teachers on one student
 
@@ -262,6 +262,34 @@ whole function against a fake database and model (the command is in CI).
 ## M3 gate
 
 She reads one lesson's cards and agrees they say what she said.
+
+## Practice between lessons (M5)
+
+**Practice a note.** Every note on the setlist has a **Practice** button. The
+practice screen plays the teacher's words and the lesson take again, then
+**Sing a practice take** records one: 48 kHz mono from the phone's own mic,
+or from the student's transmitter when the lesson mic receiver is plugged in
+(the left channel, or the right if today's transmitters were swapped). Takes
+are kept as `practice/<take id>.wav` in the app's storage and listed under the
+note, newest first; nothing is uploaded. Takes within 20 minutes of each
+other make one practice session (`practice_session`), which the practice log
+will build on. Deleting a lesson deletes its notes' practice takes too.
+
+**Headphones.** The screen says what the phone is playing through: wired or
+USB-C headphones (best), Bluetooth (fine on your own, usually too slow to
+sing along with) or the speaker (fine on your own; to sing along, the
+backing would leak into the take).
+
+**Timing check.** With headphones in, **Check timing** plays ten clicks; the
+student listens to two, then sings a short "ta" on each of the rest. Because
+they sing to what they hear, the gap between each click and its "ta" is the
+whole round trip a sing-along take has: the headphones' delay plus the mic's.
+`LatencyCheck` in `:core:signal` finds each "ta" (a rise out of the room's
+level, 150 ms early to 450 ms late), takes the median, and asks for another
+go when fewer than five land or the middle half spread over 45 ms. The
+result is saved per pair of headphones and stored with each take, for lining
+sing-along takes up with backing tracks. Over 250 ms counts as too slow to
+sing along with comfortably.
 
 ## Sketches (M6)
 

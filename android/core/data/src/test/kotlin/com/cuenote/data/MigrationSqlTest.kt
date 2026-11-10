@@ -41,6 +41,13 @@ class MigrationSqlTest {
         assertEquals(three, four.filterKeys { it in three.keys })
     }
 
+    @Test fun `migration 4 to 5 matches the exported schema`() {
+        val four = tables(4)
+        val five = tables(5)
+        assertEquals(five.filterKeys { it !in four.keys }.values.sorted(), MIGRATION_4_5_SQL.sorted())
+        assertEquals(four, five.filterKeys { it in four.keys })
+    }
+
     private fun tables(version: Int): Map<String, String> {
         val schema = Json.parseToJsonElement(File("schemas/com.cuenote.data.LessonDatabase/$version.json").readText())
         return schema.jsonObject["database"]!!.jsonObject["entities"]!!.jsonArray.map { it.jsonObject }.associate {

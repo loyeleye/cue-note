@@ -63,9 +63,9 @@ interface LessonDao {
     entities = [
         LessonEntity::class, SegmentEntity::class, TakeEntity::class, FeedbackEntity::class,
         TranscriptLineEntity::class, PipelineStageEntity::class, ClipEntity::class, CardEntity::class,
-        PhotoEntity::class,
+        PhotoEntity::class, PracticeSessionEntity::class, PracticeTakeEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class LessonDatabase : RoomDatabase() {
@@ -73,6 +73,7 @@ abstract class LessonDatabase : RoomDatabase() {
     abstract fun pipeline(): PipelineDao
     abstract fun photos(): PhotoDao
     abstract fun cards(): CardDao
+    abstract fun practice(): PracticeDao
 
     companion object {
         @Volatile private var instance: LessonDatabase? = null
@@ -80,7 +81,7 @@ abstract class LessonDatabase : RoomDatabase() {
         /** One database for the app and its background workers. */
         fun get(context: Context): LessonDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, LessonDatabase::class.java, "cuenote.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build().also { instance = it }
         }
 
@@ -104,6 +105,13 @@ abstract class LessonDatabase : RoomDatabase() {
                 MIGRATION_3_4_SQL.forEach(db::execSQL)
             }
         }
+
+        /** M5 adds practice sessions and takes; everything else is kept. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_4_5_SQL.forEach(db::execSQL)
+            }
+        }
     }
 }
 
@@ -125,4 +133,10 @@ internal val MIGRATION_2_3_SQL = listOf(
 /** Copied from schemas/com.cuenote.data.LessonDatabase/4.json (Room checks they match). */
 internal val MIGRATION_3_4_SQL = listOf(
     "CREATE TABLE IF NOT EXISTS `photo` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `fileName` TEXT NOT NULL, `takenAtMs` INTEGER NOT NULL, `feedbackId` TEXT, `autoFeedbackId` TEXT, `linkSource` TEXT NOT NULL, `cleanFileName` TEXT, `corners` TEXT, `pageConfidence` REAL NOT NULL, `caption` TEXT, `captionConfidence` REAL, `needsUpload` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+)
+
+/** Copied from schemas/com.cuenote.data.LessonDatabase/5.json (Room checks they match). */
+internal val MIGRATION_4_5_SQL = listOf(
+    "CREATE TABLE IF NOT EXISTS `practice_session` (`id` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `endedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+    "CREATE TABLE IF NOT EXISTS `practice_take` (`id` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `cardId` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `file` TEXT NOT NULL, `recordedAt` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `input` TEXT NOT NULL, `listening` TEXT NOT NULL, `latencyMs` INTEGER, `playbackStartFrame` INTEGER, `feelingNote` TEXT, `shared` INTEGER NOT NULL, PRIMARY KEY(`id`))",
 )

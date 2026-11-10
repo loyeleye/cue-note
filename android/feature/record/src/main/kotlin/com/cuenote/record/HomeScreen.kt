@@ -113,6 +113,8 @@ fun HomeScreen(
     teacherName: (String) -> String? = { null },
     /** True once a teacher has accepted an invite. */
     hasTeacher: Boolean = false,
+    /** Opens practice for a note (by card id). */
+    onPractice: (String) -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val player = rememberClipPlayer()
@@ -154,8 +156,9 @@ fun HomeScreen(
                     cardCounts = cardCounts,
                     onOpen = onOpen,
                     onAllLessons = { tab = 2 },
+                    onPractice = onPractice,
                 )
-                1 -> setlistTab(setlist, teacherName, player)
+                1 -> setlistTab(setlist, teacherName, player, onPractice)
                 else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen)
             }
         }
@@ -180,6 +183,7 @@ private fun LazyListScope.homeTab(
     cardCounts: Map<String, CardCount>,
     onOpen: (LessonEntity) -> Unit,
     onAllLessons: () -> Unit,
+    onPractice: (String) -> Unit,
 ) {
     val firstRun = lessons.isEmpty()
     val last = lessons.firstOrNull()
@@ -218,7 +222,7 @@ private fun LazyListScope.homeTab(
             EmptySetlist(firstRun, last?.takeIf { it.pipelineState == "processing" || it.pipelineState == "recorded" } != null, last?.let { teacherName(it.id) })
         }
     } else {
-        items(setlist.take(HOME_NOTES), key = { "n-" + it.card.id }) { SetlistNote(it, teacherName, player) }
+        items(setlist.take(HOME_NOTES), key = { "n-" + it.card.id }) { SetlistNote(it, teacherName, player, onPractice) }
     }
 
     if (firstRun) {
@@ -234,7 +238,12 @@ private fun LazyListScope.homeTab(
     item(key = "warm") { WarmUpCard(warmUpFor(Calendar.getInstance())) }
 }
 
-private fun LazyListScope.setlistTab(setlist: List<SetlistRow>, teacherName: (String) -> String?, player: ClipPlayer) {
+private fun LazyListScope.setlistTab(
+    setlist: List<SetlistRow>,
+    teacherName: (String) -> String?,
+    player: ClipPlayer,
+    onPractice: (String) -> Unit,
+) {
     item(key = "mast") { Masthead("Your ", "setlist") }
     if (setlist.isEmpty()) {
         item(key = "empty") { EmptySetlist(firstRun = false, notesOnTheWay = false, teacher = null) }
@@ -247,7 +256,7 @@ private fun LazyListScope.setlistTab(setlist: List<SetlistRow>, teacherName: (St
             style = MaterialTheme.typography.bodyMedium,
         )
     }
-    items(setlist, key = { "s-" + it.card.id }) { SetlistNote(it, teacherName, player) }
+    items(setlist, key = { "s-" + it.card.id }) { SetlistNote(it, teacherName, player, onPractice) }
 }
 
 private fun LazyListScope.lessonsTab(
@@ -309,9 +318,9 @@ private fun SectionHead(title: String, action: String?, onAction: () -> Unit) {
     }
 }
 
-/** One setlist note: the teacher's words, then two buttons to hear them and your take. */
+/** One setlist note: the teacher's words, buttons to hear them and your take, and Practice. */
 @Composable
-private fun SetlistNote(r: SetlistRow, teacherName: (String) -> String?, player: ClipPlayer) {
+private fun SetlistNote(r: SetlistRow, teacherName: (String) -> String?, player: ClipPlayer, onPractice: (String) -> Unit) {
     val c = r.card
     val topic = Topic.of(c.category)
     val bars = when {
@@ -331,11 +340,11 @@ private fun SetlistNote(r: SetlistRow, teacherName: (String) -> String?, player:
         if (c.cue.isNotBlank() && c.cue != words) {
             Text(c.cue, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (r.wordsFile != null || r.takeFile != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                r.wordsFile?.let { f -> PlayPill("Their words", player.playing == f, filled = true, onClick = { player.toggle(f) }) }
-                r.takeFile?.let { f -> PlayPill("Your take", player.playing == f, filled = false, onClick = { player.toggle(f) }) }
-            }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            r.wordsFile?.let { f -> PlayPill("Their words", player.playing == f, filled = true, onClick = { player.toggle(f) }) }
+            r.takeFile?.let { f -> PlayPill("Your take", player.playing == f, filled = false, onClick = { player.toggle(f) }) }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { player.stop(); onPractice(c.id) }) { Text("Practice") }
         }
     }
 }
