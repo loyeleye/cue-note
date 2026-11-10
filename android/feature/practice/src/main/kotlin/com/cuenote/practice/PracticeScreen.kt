@@ -138,6 +138,13 @@ fun PracticeScreen(
     val music = rememberLoopPlayer()
     var musicSpan by remember { mutableStateOf<Any?>(null) }
     val accompaniment = backing?.accompaniment
+
+    // Pitch after each take, against the teacher's demo; worked out in the background.
+    val pitches = remember { androidx.compose.runtime.mutableStateMapOf<String, com.cuenote.pipeline.practice.TakePitch?>() }
+    LaunchedEffect(takes, backing, backingLoading) {
+        if (backingLoading) return@LaunchedEffect
+        for (t in takes) if (t.id !in pitches) pitches[t.id] = runCatching { repo.pitch(t, backing) }.getOrNull()
+    }
     val canSingAlong = accompaniment != null && devices.output.listening != Listening.SPEAKER
 
     // Leaving the screen mid-take (rather than with Back) doesn't keep a half take.
@@ -287,7 +294,7 @@ fun PracticeScreen(
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 }
             }
-            takesList(takes, r, player) { confirmDelete = it }
+            takesList(takes, r, player, { pitches[it] }, { it in pitches }) { confirmDelete = it }
         }
     }
 
@@ -323,6 +330,8 @@ private fun LazyListScope.takesList(
     takes: List<PracticeTakeEntity>,
     r: SetlistRow,
     player: ClipPlayer,
+    pitch: (String) -> com.cuenote.pipeline.practice.TakePitch?,
+    analysed: (String) -> Boolean,
     onDelete: (PracticeTakeEntity) -> Unit,
 ) {
     if (takes.isEmpty()) return
@@ -337,7 +346,15 @@ private fun LazyListScope.takesList(
         }
     }
     itemsIndexed(takes, key = { _, t -> t.id }) { i, t ->
-        TakeRow(takes.size - i, t, player.playing == t.file, onPlay = { player.toggle(t.file) }, onDelete = { onDelete(t) })
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TakeRow(takes.size - i, t, player.playing == t.file, onPlay = { player.toggle(t.file) }, onDelete = { onDelete(t) })
+            val p = pitch(t.id)
+            when {
+                p != null -> PitchStrip(p, Modifier.padding(horizontal = 12.dp))
+                !analysed(t.id) -> Text("Listening back to your pitch…", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 12.dp))
+            }
+        }
     }
     item(key = "private") {
         Text("Practice takes stay on this phone.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
