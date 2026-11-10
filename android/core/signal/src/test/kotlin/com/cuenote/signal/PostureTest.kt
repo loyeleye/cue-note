@@ -333,3 +333,15 @@ class RecalibrationTest {
         assertEquals("manual", PostureSummary.parse(log).rebaselines.single().why)
     }
 }
+
+class VoiceLineTest {
+    @Test fun `every line has its own clip name`() {
+        val keys = com.cuenote.signal.posture.VoiceLine.entries.map { it.key }
+        assertEquals(keys.size, keys.toSet().size)
+        assertTrue(keys.all { it.matches(Regex("[a-z_]+")) })
+    }
+
+    @Test fun `framing advice is spoken with its line`() {
+        FramingAdvice.entries.forEach { assertEquals(it.line.text, it.spoken) }
+    }
+}

@@ -28,6 +28,7 @@ import com.cuenote.signal.posture.FramingCheck
 import com.cuenote.signal.posture.MotionWatch
 import com.cuenote.signal.posture.Pose
 import com.cuenote.signal.posture.PoseTsv
+import com.cuenote.signal.posture.VoiceLine
 import com.cuenote.signal.posture.rotationFromGravity
 import com.cuenote.signal.posture.PostureBackOff
 import com.cuenote.signal.posture.PostureEvent
@@ -270,17 +271,17 @@ class PostureService : LifecycleService() {
     /** Under [lock]: a frame of the spoken recalibration. */
     private fun calibrationFrame(check: FramingCheck, t: Long, student: Pose?) {
         when (val step = check.onFrame(t, student)) {
-            is FramingCheck.Step.Speak -> say(step.advice.spoken)
+            is FramingCheck.Step.Speak -> say(step.advice.line)
             is FramingCheck.Step.Done -> {
                 calibration = null
                 newBaseline(step.baseline, "manual", student)
-                say("Posture reset. Carry on.")
+                say(VoiceLine.RECAL_DONE)
                 main.post(::reconcile)
             }
             FramingCheck.Step.TimedOut -> {
                 calibration = null
                 picker = StudentPicker(null, null)
-                say("I couldn't find you, so I kept the posture from before.")
+                say(VoiceLine.RECAL_NOT_FOUND)
                 main.post(::reconcile)
             }
             null -> Unit
@@ -315,12 +316,12 @@ class PostureService : LifecycleService() {
             picker = StudentPicker(null, null)
             calibration = FramingCheck() to SystemClock.elapsedRealtime() + RECALIBRATE_COUNTDOWN_MS
         }
-        say("Let's reset posture. Go to where you sing, stand tall and relaxed, and face the phone.")
+        say(VoiceLine.RECAL_INTRO)
     }
 
-    private fun say(text: String) = main.post {
+    private fun say(line: VoiceLine) = main.post {
         val s = speaker ?: Speaker(this).also { speaker = it }
-        s.say(text)
+        s.say(line)
     }
 
     private fun saveSnapshot(frame: Bitmap, name: String) {

@@ -47,6 +47,7 @@ import com.cuenote.posture.withCameraProvider
 import com.cuenote.signal.posture.FramingAdvice
 import com.cuenote.signal.posture.FramingCheck
 import com.cuenote.signal.posture.StudentPicker
+import com.cuenote.signal.posture.VoiceLine
 import com.cuenote.signal.posture.rotationFromGravity
 import kotlinx.coroutines.delay
 
@@ -124,16 +125,16 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
                 mainHandler.post {
                     if (!checking.get()) return@post
                     when (step) {
-                        is FramingCheck.Step.Speak -> tts.say(step.advice.spoken)
+                        is FramingCheck.Step.Speak -> tts.say(step.advice.line)
                         is FramingCheck.Step.Done -> {
                             checking.set(false)
-                            tts.say("You're all set.")
+                            tts.say(VoiceLine.ALL_SET)
                             state = Framing.Done(PostureSetup(step.baseline, step.centerX, step.centerY, rotationNow.get(), front))
                             return@post
                         }
                         FramingCheck.Step.TimedOut -> {
                             checking.set(false)
-                            tts.say("I couldn't find you. Ask your teacher to tap try again, or record without posture.")
+                            tts.say(VoiceLine.NOT_FOUND)
                             state = Framing.TimedOut
                             return@post
                         }
@@ -165,7 +166,7 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
     LaunchedEffect(state) {
         when (val s = state) {
             is Framing.Countdown -> {
-                if (s.seconds == COUNTDOWN) tts.say("Go to where you'll sing, and face the phone.")
+                if (s.seconds == COUNTDOWN) tts.say(VoiceLine.COUNTDOWN_INTRO)
                 delay(1_000)
                 state = if (s.seconds > 1) Framing.Countdown(s.seconds - 1) else Framing.Checking(FramingAdvice.NOT_SEEN)
                 if (state is Framing.Checking) checking.set(true)

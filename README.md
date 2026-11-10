@@ -101,6 +101,11 @@ adds a camera step after "Who's on which mic?":
    lesson. It runs in its own process, so a camera crash can't stop the
    recording.
 
+**The voice.** Every spoken line is a recorded clip in `android/app/src/main/assets/voice/`
+(Gemini text-to-speech, voice Iapetus), listed with its words in `VoiceLine.kt`.
+A line without a clip is read by the phone's best installed US English voice.
+A new line waits for the one playing to finish.
+
 Files, in `lessons/<id>/posture/`: `pose.tsv` (the student's 33 body points
 per frame), `events.tsv` (camera on and off, pauses, flags) and
 `flag_<seconds>_<kind>.jpg`. No video is ever saved, and none of it is
