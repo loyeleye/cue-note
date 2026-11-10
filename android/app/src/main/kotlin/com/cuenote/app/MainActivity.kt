@@ -157,6 +157,7 @@ private fun AppNav(app: CueNoteApp) {
                     lesson = lesson,
                     repo = app.lessons,
                     sketches = app.sketches,
+                    diagrams = app.diagrams,
                     onOpenTimeline = { nav.navigate("timeline/$id") },
                     onOpenSketch = { photoId -> nav.navigate("sketch/$id/$photoId") },
                     onBack = { nav.popBackStack() },

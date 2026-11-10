@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Vocal folds: thick vs thin">
+<title>Vocal folds: thick vs thin</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M180,22 L180,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M20,60 C50,60 86,84 87,94 L87,140 C84,150 50,166 20,170 Z" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<path d="M160,60 C130,60 94,84 93,94 L93,140 C96,150 130,166 160,170 Z" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<path d="M90,92 L90,142" stroke="#c8553d" stroke-width="2" fill="none" stroke-dasharray="2 3"/>
+<text x="90" y="196" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Chest voice</text>
+<text x="90" y="212" text-anchor="middle" font-size="11" font-weight="400" fill="#2d2a32">thicker folds, deeper contact</text>
+<path d="M200,88 C230,88 266,100 267,110 L267,116 C264,126 230,142 200,146 Z" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<path d="M340,88 C310,88 274,100 273,110 L273,116 C276,126 310,142 340,146 Z" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<path d="M214,102 L196,102" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<path d="M326,102 L344,102" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<text x="270" y="160" text-anchor="middle" font-size="11" font-weight="400" fill="#c8553d">stretched</text>
+<text x="270" y="196" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Head voice</text>
+<text x="270" y="212" text-anchor="middle" font-size="11" font-weight="400" fill="#2d2a32">thinner folds, light contact</text>
+<text x="180" y="30" text-anchor="middle" font-size="11" font-weight="400" fill="#9d97a6">The two vocal folds, cut through and seen from the front</text>
+</g>
+</svg>

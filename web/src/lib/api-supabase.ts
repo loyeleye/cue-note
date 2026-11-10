@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeacher } from './api';
 import { EditConflict, scoreFormatOf } from './api';
 import type {
-  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, Feedback, Lesson, PhotoMark,
+  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramSuggestion, Feedback, Lesson, PhotoMark,
   PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
 
@@ -27,6 +27,7 @@ function safeName(name: string): string {
 }
 
 
+const SUGGESTION_COLUMNS = 'id, feedback_id, diagram_id, confidence, source, teacher_status, student_status, created_at';
 const PHOTO_COLUMNS = 'id, lesson_id, taken_at_ms, feedback_id, caption, confidence, image_path, cleaned_path, auto_feedback_id, link_source';
 export const supabaseApi: Api = {
   demo: false,
@@ -130,6 +131,18 @@ export const supabaseApi: Api = {
     // The database marks the move as hers (link_source = 'teacher').
     return check(await supabase.from('photo_mark').update({ feedback_id: feedbackId })
       .eq('id', photoId).select(PHOTO_COLUMNS).single()) as PhotoMark;
+  },
+
+  async listDiagramSuggestions(lessonId) {
+    const rows = check(await supabase.from('diagram_suggestion').select(`${SUGGESTION_COLUMNS}, feedback!inner(lesson_id)`)
+      .eq('feedback.lesson_id', lessonId).order('created_at')) as (DiagramSuggestion & { feedback: unknown })[];
+    return rows.map(({ feedback: _, ...s }) => s);
+  },
+
+  async decideDiagram(suggestionId, decision) {
+    // The database stamps who decided, and allows only the teacher's side.
+    return check(await supabase.from('diagram_suggestion').update({ teacher_status: decision })
+      .eq('id', suggestionId).select(SUGGESTION_COLUMNS).single()) as DiagramSuggestion;
   },
 
   async listStudentFeedback(studentId) {

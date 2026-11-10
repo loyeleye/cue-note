@@ -1,5 +1,7 @@
 package com.cuenote.lesson
 
+import com.cuenote.data.diagrams.DiagramSuggestion
+import com.cuenote.data.diagrams.DiagramRepository
 import com.cuenote.data.sketch.SketchRepository
 import com.cuenote.data.PhotoEntity
 import androidx.compose.foundation.layout.size
@@ -64,6 +66,7 @@ fun LessonScreen(
     lesson: LessonEntity,
     repo: LessonRepository,
     sketches: SketchRepository,
+    diagrams: DiagramRepository,
     onOpenTimeline: () -> Unit,
     onOpenSketch: (photoId: String) -> Unit,
     onBack: () -> Unit,
@@ -88,6 +91,10 @@ fun LessonScreen(
     val lessonDir = File(lesson.dirPath)
     LaunchedEffect(lesson.id) { sketches.refresh(lesson.id, lessonDir) }
     val onCard: (String?) -> List<PhotoEntity> = { local -> if (local == null) emptyList() else photos.filter { it.feedbackId == local } }
+
+    val suggestions by diagrams.observe(lesson.id).collectAsStateWithLifecycle(emptyList())
+    val onDecide: suspend (DiagramSuggestion, String) -> Unit = { s, d -> diagrams.decide(lesson.id, s, d) }
+    LaunchedEffect(lesson.id) { runCatching { diagrams.refresh(lesson.id) } }
 
     // Her latest edits, each time the lesson is opened.
     LaunchedEffect(lesson.id) {
@@ -118,6 +125,7 @@ fun LessonScreen(
                     }
                     if (cards.isNotEmpty()) OutlinedButton(onClick = {
                         scope.launch {
+                            runCatching { diagrams.refresh(lesson.id) }
                             refreshNote = runCatching { repo.refreshCards(lesson.id) }
                                 .fold({ "Up to date with her edits." }, { "Couldn't refresh: ${it.message}" })
                         }
@@ -137,13 +145,13 @@ fun LessonScreen(
                 val opening = cues.filter { it.takeId == null || it.takeId !in takeNo }
                 if (opening.isNotEmpty()) {
                     item { SectionTitle("Before the first take") }
-                    items(opening, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch) }
+                    items(opening, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch, suggestions.filter { s -> s.feedbackId == it.id }, onDecide) }
                 }
                 for ((i, t) in takes.withIndex()) {
                     val id = CloudIds.take(t.id)
                     val mine = cues.filter { it.takeId == id }
                     item(key = "take-${t.id}") { TakeRow(i + 1, t, clipFile[id], player) }
-                    items(mine, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch) }
+                    items(mine, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch, suggestions.filter { s -> s.feedbackId == it.id }, onDecide) }
                 }
                 if (talk.isNotEmpty()) item {
                     TextButton(onClick = { showTalk = !showTalk }) {
@@ -249,6 +257,8 @@ private fun CueCard(
     sketches: List<PhotoEntity>,
     lessonDir: File,
     onOpenSketch: (String) -> Unit,
+    suggestions: List<DiagramSuggestion>,
+    onDecide: suspend (DiagramSuggestion, String) -> Unit,
 ) {
     var showAll by rememberSaveable(card.id) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
@@ -275,6 +285,7 @@ private fun CueCard(
             }
             if (showAll) Text(card.transcript, style = MaterialTheme.typography.bodyMedium)
             SketchRow(sketches, lessonDir, onOpenSketch)
+            for (sg in suggestions) DiagramSuggestionCard(sg) { d -> onDecide(sg, d) }
         }
     }
 }

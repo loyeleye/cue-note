@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Soft palate lifted">
+<title>Soft palate lifted</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M180,22 L180,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M42,40 L42,214" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M54,48 L152,48" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M72,96 L152,96" stroke="#2d2a32" stroke-width="2.4" fill="none"/>
+<text x="156" y="74" text-anchor="start" font-size="11" font-weight="400" fill="#2d2a32">Nose</text>
+<text x="156" y="130" text-anchor="start" font-size="11" font-weight="400" fill="#2d2a32">Mouth</text>
+<path d="M66,214 C66,150 102,120 146,150" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<path d="M72,96 C58,94 48,88 44,78" stroke="#c8553d" stroke-width="4" fill="none"/>
+<path d="M56,208 C54,160 68,124 150,118" stroke="#3a7ca5" stroke-width="2" fill="none" marker-end="url(#aB)"/>
+<text x="90" y="222" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Lifted</text>
+<text x="90" y="236" text-anchor="middle" font-size="11" font-weight="400" fill="#2d2a32">the sound goes out the mouth</text>
+<path d="M218,40 L218,214" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M230,48 L328,48" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M248,96 L328,96" stroke="#2d2a32" stroke-width="2.4" fill="none"/>
+<text x="332" y="74" text-anchor="start" font-size="11" font-weight="400" fill="#2d2a32">Nose</text>
+<text x="332" y="130" text-anchor="start" font-size="11" font-weight="400" fill="#2d2a32">Mouth</text>
+<path d="M242,214 C242,150 278,120 322,150" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<path d="M248,96 C240,104 238,118 240,128" stroke="#c8553d" stroke-width="4" fill="none"/>
+<path d="M230,208 C228,150 226,90 326,70" stroke="#3a7ca5" stroke-width="2" fill="none" marker-end="url(#aB)"/>
+<path d="M234,180 C238,150 258,126 318,122" stroke="#3a7ca5" stroke-width="1.4" fill="none" stroke-dasharray="3 3" marker-end="url(#aB)"/>
+<text x="270" y="222" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Lowered</text>
+<text x="270" y="236" text-anchor="middle" font-size="11" font-weight="400" fill="#2d2a32">some of it goes into the nose</text>
+<text x="56" y="74" text-anchor="start" font-size="10.5" font-weight="400" fill="#c8553d">soft palate</text>
+</g>
+</svg>

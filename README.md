@@ -284,6 +284,30 @@ It needs the `ANTHROPIC_API_KEY` secret (and optionally `CUE_MODEL`).
 Most photos land on the right card without a manual fix: compare
 `photo_mark.auto_feedback_id` with `feedback_id` over real lessons.
 
+## Suggested diagrams
+
+A card can carry one "Does this diagram help?": a standard drawing from the
+app's own library (26 so far, in `web/static/diagrams/`) that matches what the
+teacher explained. It is labeled as a suggestion and shows beside her sketch,
+never in place of it.
+
+**Where they come from.** `extract-cues` shows the model the library and asks
+it, per block, for the one diagram that shows exactly what she explains, or
+none, with how sure it is. `caption-sketch` does the same for a photo of her
+sketch. Only picks at 0.7 or higher are saved (`diagram_suggestion`); the bar
+is the `DIAGRAM_MIN_CONFIDENCE` secret, to raise if most get dismissed.
+
+**Accept or dismiss.** The teacher answers on the dashboard and the student on
+the phone. A teacher's dismissal hides the diagram for both; a student's hides
+it only for the student. Rows are kept, so accept and dismiss counts can tune
+the bar.
+
+**Changing the drawings.** The list and the drawings are in
+`tools/diagrams/gen.py`. Run `python3 tools/diagrams/gen.py` (SVGs, the
+dashboard's `index.json` and the functions' `_shared/diagrams.ts`), then
+`node tools/diagrams/png.cjs` (the phone's PNGs, needs Playwright). The
+extract-cues tests check the three lists match.
+
 ## M2 gate
 
 Link accuracy on the labelled real lessons meets the threshold agreed with the

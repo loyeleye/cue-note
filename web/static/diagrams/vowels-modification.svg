@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Vowel modification">
+<title>Vowel modification</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M36,204 L36,34" stroke="#2d2a32" stroke-width="1.6" fill="none" marker-end="url(#aI)"/>
+<text x="24" y="120" text-anchor="middle" font-size="11" fill="#9d97a6" transform="rotate(-90 24 120)">Pitch goes up</text>
+<text x="140" y="24" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Opens a little</text>
+<ellipse cx="116" cy="186" rx="22" ry="6" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<text x="152" y="192" text-anchor="start" font-size="16" font-weight="700" fill="#2d2a32">ee</text>
+<path d="M116,174 L116,140" stroke="#c8553d" stroke-width="1.6" fill="none" marker-end="url(#aA)"/>
+<ellipse cx="116" cy="122" rx="22" ry="10" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<text x="152" y="128" text-anchor="start" font-size="16" font-weight="700" fill="#2d2a32">ih</text>
+<path d="M116,106 L116,81" stroke="#c8553d" stroke-width="1.6" fill="none" marker-end="url(#aA)"/>
+<ellipse cx="116" cy="58" rx="22" ry="15" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<text x="152" y="64" text-anchor="start" font-size="16" font-weight="700" fill="#2d2a32">eh</text>
+<text x="272" y="24" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Rounds a little</text>
+<ellipse cx="248" cy="186" rx="22" ry="18" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<text x="284" y="192" text-anchor="start" font-size="16" font-weight="700" fill="#2d2a32">ah</text>
+<path d="M248,162 L248,148" stroke="#c8553d" stroke-width="1.6" fill="none" marker-end="url(#aA)"/>
+<ellipse cx="248" cy="122" rx="18" ry="18" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<text x="284" y="128" text-anchor="start" font-size="16" font-weight="700" fill="#2d2a32">aw</text>
+<path d="M248,98 L248,82" stroke="#c8553d" stroke-width="1.6" fill="none" marker-end="url(#aA)"/>
+<ellipse cx="248" cy="58" rx="15" ry="16" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<text x="284" y="64" text-anchor="start" font-size="16" font-weight="700" fill="#2d2a32">oh</text>
+<text x="352" y="232" text-anchor="end" font-size="10.5" font-weight="400" fill="#9d97a6" font-style="italic">Examples only</text>
+</g>
+</svg>

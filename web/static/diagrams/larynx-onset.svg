@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Vocal folds: onset">
+<title>Vocal folds: onset</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M120,22 L120,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M240,22 L240,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M57,36 L42,104" stroke="#2d2a32" stroke-width="3" fill="none"/>
+<path d="M63,36 L78,104" stroke="#2d2a32" stroke-width="3" fill="none"/>
+<path d="M60,110 L60,46" stroke="#3a7ca5" stroke-width="1.6" fill="none" marker-end="url(#aB)"/>
+<path d="M14,152 L106,152" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<path d="M14,150.5 L16,155 L18,149 L20,153.5 L22,149 L24,155 L26,150.5 L28,155 L30,149 L32,153.5 L34,149 L36,155 L38,150.5 L40,155" stroke="#3a7ca5" stroke-width="1.4" fill="none"/>
+<path d="M42.0,152.0 L44.0,142.6 L46.0,140.3 L48.0,146.8 L50.0,157.2 L52.0,163.7 L54.0,161.4 L56.0,152.0 L58.0,142.6 L60.0,140.3 L62.0,146.8 L64.0,157.2 L66.0,163.7 L68.0,161.4 L70.0,152.0 L72.0,142.6 L74.0,140.3 L76.0,146.8 L78.0,157.2 L80.0,163.7 L82.0,161.4 L84.0,152.0 L86.0,142.6 L88.0,140.3 L90.0,146.8 L92.0,157.2 L94.0,163.7 L96.0,161.4 L98.0,152.0 L100.0,142.6 L102.0,140.3 L104.0,146.8 L106.0,157.2" stroke="#2d2a32" stroke-width="1.8" fill="none"/>
+<text x="60" y="198" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Breathy</text>
+<text x="60" y="214" text-anchor="middle" font-size="10.5" font-weight="400" fill="#2d2a32">air leaks first</text>
+<path d="M180,36 L176,104" stroke="#2d2a32" stroke-width="3" fill="none"/>
+<path d="M180,36 L184,104" stroke="#2d2a32" stroke-width="3" fill="none"/>
+<path d="M134,152 L226,152" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<path d="M134,152 L146,152" stroke="#2d2a32" stroke-width="1.8" fill="none"/>
+<path d="M146.0,152.0 L148.0,142.6 L150.0,140.3 L152.0,146.8 L154.0,157.2 L156.0,163.7 L158.0,161.4 L160.0,152.0 L162.0,142.6 L164.0,140.3 L166.0,146.8 L168.0,157.2 L170.0,163.7 L172.0,161.4 L174.0,152.0 L176.0,142.6 L178.0,140.3 L180.0,146.8 L182.0,157.2 L184.0,163.7 L186.0,161.4 L188.0,152.0 L190.0,142.6 L192.0,140.3 L194.0,146.8 L196.0,157.2 L198.0,163.7 L200.0,161.4 L202.0,152.0 L204.0,142.6 L206.0,140.3 L208.0,146.8 L210.0,157.2 L212.0,163.7 L214.0,161.4 L216.0,152.0 L218.0,142.6 L220.0,140.3 L222.0,146.8 L224.0,157.2 L226.0,163.7" stroke="#2d2a32" stroke-width="1.8" fill="none"/>
+<text x="180" y="198" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Balanced</text>
+<text x="180" y="214" text-anchor="middle" font-size="10.5" font-weight="400" fill="#2d2a32">folds meet cleanly</text>
+<path d="M299,36 L297,104" stroke="#2d2a32" stroke-width="6" fill="none"/>
+<path d="M301,36 L303,104" stroke="#2d2a32" stroke-width="6" fill="none"/>
+<path d="M270,70 L288,70" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<path d="M330,70 L312,70" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<path d="M254,152 L346,152" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<path d="M254,152 L264,152 L267,128 L270,170 L273,152" stroke="#c8553d" stroke-width="1.8" fill="none"/>
+<path d="M273.0,152.0 L275.0,142.6 L277.0,140.3 L279.0,146.8 L281.0,157.2 L283.0,163.7 L285.0,161.4 L287.0,152.0 L289.0,142.6 L291.0,140.3 L293.0,146.8 L295.0,157.2 L297.0,163.7 L299.0,161.4 L301.0,152.0 L303.0,142.6 L305.0,140.3 L307.0,146.8 L309.0,157.2 L311.0,163.7 L313.0,161.4 L315.0,152.0 L317.0,142.6 L319.0,140.3 L321.0,146.8 L323.0,157.2 L325.0,163.7 L327.0,161.4 L329.0,152.0 L331.0,142.6 L333.0,140.3 L335.0,146.8 L337.0,157.2 L339.0,163.7 L341.0,161.4 L343.0,152.0 L345.0,142.6" stroke="#2d2a32" stroke-width="1.8" fill="none"/>
+<text x="300" y="198" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Pressed</text>
+<text x="300" y="214" text-anchor="middle" font-size="10.5" font-weight="400" fill="#2d2a32">a hard, squeezed start</text>
+<text x="8" y="28" text-anchor="start" font-size="10.5" font-weight="400" fill="#9d97a6">Folds, seen from above</text>
+<text x="8" y="134" text-anchor="start" font-size="10.5" font-weight="400" fill="#9d97a6">The sound</text>
+</g>
+</svg>

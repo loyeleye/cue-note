@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Lip rounding">
+<title>Lip rounding</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<ellipse cx="60" cy="100" rx="34" ry="36" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<ellipse cx="60" cy="100" rx="26" ry="28" stroke="#2d2a32" stroke-width="1.4" fill="#2d2a32"/>
+<text x="60" y="172" text-anchor="middle" font-size="16" font-weight="700" fill="#2d2a32">ah</text>
+<text x="60" y="190" text-anchor="middle" font-size="11.5" font-weight="400" fill="#2d2a32">open, lips relaxed</text>
+<ellipse cx="180" cy="100" rx="28" ry="30" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<ellipse cx="180" cy="100" rx="18" ry="22" stroke="#2d2a32" stroke-width="1.4" fill="#2d2a32"/>
+<text x="180" y="172" text-anchor="middle" font-size="16" font-weight="700" fill="#2d2a32">oh</text>
+<text x="180" y="190" text-anchor="middle" font-size="11.5" font-weight="400" fill="#2d2a32">rounder</text>
+<ellipse cx="300" cy="100" rx="22" ry="22" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<ellipse cx="300" cy="100" rx="8" ry="9" stroke="#2d2a32" stroke-width="1.4" fill="#2d2a32"/>
+<text x="300" y="172" text-anchor="middle" font-size="16" font-weight="700" fill="#2d2a32">oo</text>
+<text x="300" y="190" text-anchor="middle" font-size="11.5" font-weight="400" fill="#2d2a32">small, pushed forward</text>
+<path d="M116,100 L136,100" stroke="#2d2a32" stroke-width="1.4" fill="none" marker-end="url(#aI)"/>
+<path d="M236,100 L256,100" stroke="#2d2a32" stroke-width="1.4" fill="none" marker-end="url(#aI)"/>
+<text x="180" y="226" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Lip shapes, seen from the front</text>
+</g>
+</svg>

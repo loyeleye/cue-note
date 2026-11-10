@@ -1,0 +1,158 @@
+[
+  {
+    "id": "breath-diaphragm",
+    "area": "Breath",
+    "title": "Diaphragm on the in-breath",
+    "shows": "The diaphragm lowering and the ribs widening as air comes in"
+  },
+  {
+    "id": "breath-low-high",
+    "area": "Breath",
+    "title": "Low breath vs high breath",
+    "shows": "The belly and back expanding, compared with the shoulders lifting"
+  },
+  {
+    "id": "breath-support",
+    "area": "Breath",
+    "title": "Appoggio / support",
+    "shows": "The ribs staying open while the voice sings, so the air is let out slowly"
+  },
+  {
+    "id": "breath-steady",
+    "area": "Breath",
+    "title": "Steady air on a long phrase",
+    "shows": "Air use spread across a phrase, compared with running out at the end"
+  },
+  {
+    "id": "posture-alignment",
+    "area": "Posture",
+    "title": "Singer's alignment, side view",
+    "shows": "Ear, shoulder, hip and ankle in one line, with the knees soft"
+  },
+  {
+    "id": "posture-head-neck",
+    "area": "Posture",
+    "title": "Head and neck",
+    "shows": "Chin level and the back of the neck long, compared with the chin pushed forward"
+  },
+  {
+    "id": "posture-shoulders",
+    "area": "Posture",
+    "title": "Shoulders and chest",
+    "shows": "Shoulders relaxed and the chest open, compared with collapsed or raised"
+  },
+  {
+    "id": "posture-feet",
+    "area": "Posture",
+    "title": "Feet and weight",
+    "shows": "Feet hip-width apart and weight balanced, not locked back on the heels"
+  },
+  {
+    "id": "larynx-height",
+    "area": "Larynx",
+    "title": "Larynx height",
+    "shows": "A low, neutral and high larynx, side view"
+  },
+  {
+    "id": "larynx-onset",
+    "area": "Larynx",
+    "title": "Vocal folds: onset",
+    "shows": "Breathy, balanced and pressed starts to a note"
+  },
+  {
+    "id": "larynx-thick-thin",
+    "area": "Larynx",
+    "title": "Vocal folds: thick vs thin",
+    "shows": "Chest voice and head voice as how the folds vibrate"
+  },
+  {
+    "id": "resonance-soft-palate",
+    "area": "Resonance",
+    "title": "Soft palate lifted",
+    "shows": "The soft palate up for an open sound, compared with down for a nasal one"
+  },
+  {
+    "id": "resonance-spaces",
+    "area": "Resonance",
+    "title": "Resonance spaces",
+    "shows": "Throat, mouth and nasal spaces, with where the sound feels like it rings"
+  },
+  {
+    "id": "resonance-mask",
+    "area": "Resonance",
+    "title": "Forward placement / mask",
+    "shows": "The buzz felt around the cheekbones and lips"
+  },
+  {
+    "id": "vowels-jaw",
+    "area": "Vowels",
+    "title": "Jaw drop",
+    "shows": "The jaw hinging down and back, compared with jutting forward"
+  },
+  {
+    "id": "vowels-tongue",
+    "area": "Vowels",
+    "title": "Tongue for each vowel",
+    "shows": "Tongue shapes for ee, eh, ah, oh and oo, side view"
+  },
+  {
+    "id": "vowels-lips",
+    "area": "Vowels",
+    "title": "Lip rounding",
+    "shows": "Lip shapes for oh and oo compared with ah"
+  },
+  {
+    "id": "vowels-modification",
+    "area": "Vowels",
+    "title": "Vowel modification",
+    "shows": "How a vowel opens up or narrows as the pitch goes up"
+  },
+  {
+    "id": "registers-map",
+    "area": "Registers",
+    "title": "Register map",
+    "shows": "Chest, mix and head ranges on a keyboard, with the passaggio marked"
+  },
+  {
+    "id": "registers-passaggio",
+    "area": "Registers",
+    "title": "Through the passaggio",
+    "shows": "Thinning and narrowing the vowel to get through the break smoothly"
+  },
+  {
+    "id": "tone-vibrato",
+    "area": "Tone",
+    "title": "Vibrato",
+    "shows": "A pitch line wobbling evenly, compared with straight or wide"
+  },
+  {
+    "id": "tone-twang",
+    "area": "Tone",
+    "title": "Twang / ring",
+    "shows": "The narrowed space above the vocal folds that gives a brighter, ringing sound"
+  },
+  {
+    "id": "line-legato",
+    "area": "Line",
+    "title": "Legato line",
+    "shows": "Notes joined by an unbroken stream of air and vowel"
+  },
+  {
+    "id": "line-phrase-arc",
+    "area": "Line",
+    "title": "Phrase arc",
+    "shows": "A phrase shaped to rise toward its high point and ease off at the end"
+  },
+  {
+    "id": "diction-consonants",
+    "area": "Diction",
+    "title": "Consonants on the beat",
+    "shows": "The vowel landing on the beat, with consonants placed just before it"
+  },
+  {
+    "id": "health-warmup",
+    "area": "Health",
+    "title": "Warm-up order",
+    "shows": "Breath, then lip trills, then sirens, then scales, then songs"
+  }
+]

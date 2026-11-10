@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Jaw drop">
+<title>Jaw drop</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M180,22 L180,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M42,100 C36,50 82,26 118,40 C136,48 142,70 146,96 L142,104" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<ellipse cx="58" cy="92" rx="6" ry="9" stroke="#2d2a32" stroke-width="1.6" fill="#ffffff"/>
+<path d="M74,92 L76,132 L136,136 L142,122 L142,104" stroke="#9d97a6" stroke-width="1.6" fill="none" stroke-dasharray="4 3"/>
+<path d="M144,132 A60,60 0 0 1 122.74340607850604,161.41367200697402" stroke="#c8553d" stroke-width="1.6" fill="none" marker-end="url(#aA)"/>
+<path d="M74.0,92.0 L59.6,129.4 L112.7,157.4 L123.9,147.1 L131.2,130.6" stroke="#c8553d" stroke-width="2.4" fill="none"/>
+<circle cx="74" cy="92" r="3.5" fill="#2d2a32"/>
+<text x="80" y="84" text-anchor="start" font-size="10.5" font-weight="400" fill="#9d97a6">hinge</text>
+<text x="90" y="204" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Down and back</text>
+<text x="90" y="220" text-anchor="middle" font-size="11.5" font-weight="400" fill="#2d2a32">swings open from the hinge</text>
+<path d="M212,100 C206,50 252,26 288,40 C306,48 312,70 316,96 L312,104" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<ellipse cx="228" cy="92" rx="6" ry="9" stroke="#2d2a32" stroke-width="1.6" fill="#ffffff"/>
+<path d="M244,92 L246,132 L306,136 L312,122 L312,104" stroke="#9d97a6" stroke-width="1.6" fill="none" stroke-dasharray="4 3"/>
+<path d="M318,142 L338,142" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<path d="M262.0,98.0 L264.0,138.0 L324.0,142.0 L330.0,128.0 L330.0,110.0" stroke="#c8553d" stroke-width="2.4" fill="none"/>
+<circle cx="244" cy="92" r="3.5" fill="#2d2a32"/>
+<text x="270" y="204" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Jutting forward</text>
+<text x="270" y="220" text-anchor="middle" font-size="11.5" font-weight="400" fill="#2d2a32">pushes out instead</text>
+</g>
+</svg>

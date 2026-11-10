@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Larynx height">
+<title>Larynx height</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M120,22 L120,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M240,22 L240,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M14,118 L346,118" stroke="#3a7ca5" stroke-width="1" fill="none" stroke-dasharray="5 4"/>
+<text x="346" y="112" text-anchor="end" font-size="10.5" font-weight="400" fill="#3a7ca5">neutral</text>
+<path d="M26,36 Q60,26 94,36" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M34,40 L34,196 M86,40 L86,196" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M20,198 Q60,206 100,198" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M52,168 L52,196 M68,168 L68,196" stroke="#9d97a6" stroke-width="1.4" fill="none"/>
+<path d="M46,146 L74,146 L70,160 L60,168 L50,160 Z" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<path d="M60,132 L60,142" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<text x="60" y="224" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Low</text>
+<path d="M146,36 Q180,26 214,36" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M154,40 L154,196 M206,40 L206,196" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M140,198 Q180,206 220,198" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M172,130 L172,196 M188,130 L188,196" stroke="#9d97a6" stroke-width="1.4" fill="none"/>
+<path d="M166,108 L194,108 L190,122 L180,130 L170,122 Z" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<text x="180" y="224" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Neutral</text>
+<path d="M266,36 Q300,26 334,36" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M274,40 L274,196 M326,40 L326,196" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M260,198 Q300,206 340,198" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M292,90 L292,196 M308,90 L308,196" stroke="#9d97a6" stroke-width="1.4" fill="none"/>
+<path d="M286,68 L314,68 L310,82 L300,90 L290,82 Z" stroke="#2d2a32" stroke-width="2" fill="#f7e2da"/>
+<path d="M300,104 L300,94" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<text x="300" y="224" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">High</text>
+<text x="60" y="22" text-anchor="middle" font-size="10.5" font-weight="400" fill="#9d97a6">jaw</text>
+</g>
+</svg>

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Forward placement / mask">
+<title>Forward placement / mask</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<ellipse cx="180" cy="120" rx="62" ry="86" stroke="#2d2a32" stroke-width="2" fill="#ece8f1"/>
+<path d="M150,96 Q160,90 170,96 M190,96 Q200,90 210,96" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M180,100 L174,136 L186,138" stroke="#2d2a32" stroke-width="1.8" fill="none"/>
+<path d="M162,164 Q180,174 198,164 Q180,158 162,164 Z" stroke="#2d2a32" stroke-width="1.8" fill="#f7e2da"/>
+<circle cx="150" cy="124" r="9" stroke="none" stroke-width="0" fill="#c8553d"/>
+<circle cx="150" cy="124" r="9" fill="#c8553d" opacity="0.28"/>
+<circle cx="150" cy="124" r="15" stroke="#c8553d" stroke-width="1.2" fill="none" stroke-dasharray="2 3"/>
+<circle cx="210" cy="124" r="9" stroke="none" stroke-width="0" fill="#c8553d"/>
+<circle cx="210" cy="124" r="9" fill="#c8553d" opacity="0.28"/>
+<circle cx="210" cy="124" r="15" stroke="#c8553d" stroke-width="1.2" fill="none" stroke-dasharray="2 3"/>
+<circle cx="180" cy="106" r="9" stroke="none" stroke-width="0" fill="#c8553d"/>
+<circle cx="180" cy="106" r="9" fill="#c8553d" opacity="0.28"/>
+<circle cx="180" cy="106" r="15" stroke="#c8553d" stroke-width="1.2" fill="none" stroke-dasharray="2 3"/>
+<circle cx="180" cy="166" r="9" stroke="none" stroke-width="0" fill="#c8553d"/>
+<circle cx="180" cy="166" r="9" fill="#c8553d" opacity="0.28"/>
+<circle cx="180" cy="166" r="15" stroke="#c8553d" stroke-width="1.2" fill="none" stroke-dasharray="2 3"/>
+<path d="M136,124 L96,124" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="92" y="128" text-anchor="end" font-size="12" font-weight="400" fill="#2d2a32">cheekbones</text>
+<path d="M224,124 L264,124" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="268" y="128" text-anchor="start" font-size="12" font-weight="400" fill="#2d2a32">cheekbones</text>
+<path d="M194,106 L264,106" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="268" y="110" text-anchor="start" font-size="12" font-weight="400" fill="#2d2a32">nose bridge</text>
+<path d="M166,166 L96,166" stroke="#9d97a6" stroke-width="1" fill="none"/>
+<text x="92" y="170" text-anchor="end" font-size="12" font-weight="400" fill="#2d2a32">lips</text>
+<text x="180" y="228" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Where the buzz is felt</text>
+</g>
+</svg>

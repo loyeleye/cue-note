@@ -153,3 +153,16 @@ test('a trial runs each model on the lesson and writes no cards', async () => {
 test('a trial can only name known models', async () => {
   assert.equal((await post({ ...sample.request, trial_models: ['gpt-9'] })).status, 400);
 });
+
+test('confident diagram picks become suggestions, once, keeping her decision', async () => {
+  const out = await (await post(sample.request)).json();
+  assert.equal(out.diagrams_suggested, 2, 'the 0.62 pick is under the bar');
+  const rows = tables.diagram_suggestion;
+  assert.deepEqual(rows.map((r) => [r.feedback_id, r.diagram_id, r.source]).sort(),
+    [[B(2), 'vowels-jaw', 'cues'], [B(4), 'line-legato', 'cues']].sort());
+  rows[0].teacher_status = 'dismissed';
+  await post(sample.request);
+  assert.equal(tables.diagram_suggestion.length, 2, 'a rerun adds no copies');
+  assert.equal(tables.diagram_suggestion[0].teacher_status, 'dismissed', 'her dismissal stands');
+  assert.match(calls[0].system, /vowels-jaw: Jaw drop/);
+});

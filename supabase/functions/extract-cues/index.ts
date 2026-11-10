@@ -15,6 +15,8 @@
 //   ANTHROPIC_API_KEY  the Claude API key
 //   CUE_MODEL          optional, default claude-opus-5-5
 //   CUE_EFFORT         optional, low | medium | high, default low
+//   DIAGRAM_MIN_CONFIDENCE  optional, 0..1, default 0.7: the bar for
+//                      suggesting a diagram on a card (diagram_suggestion)
 // With "trial_models" in the body (any of TRIAL_MODELS), it runs the lesson
 // through each of those models and returns their cards side by side without
 // writing any; each run is still logged, marked trial, with its cost.
@@ -23,13 +25,14 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@1.2.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
-  ANSWER_SCHEMA, batches, check, costUsd, examplesText, invalidRequest, labelBlocks, lessonText, samePayload,
+  ANSWER_SCHEMA, batches, check, costUsd, DIAGRAM_MIN_CONFIDENCE, examplesText, invalidRequest, labelBlocks, lessonText, samePayload,
   supportsFallback, SYSTEM_PROMPT,
   type Block, type CardPayload, type Checked, type Correction, type ModelCard, type Request, type TakeRow,
 } from './cues.ts';
 
 const MODEL = Deno.env.get('CUE_MODEL') || 'claude-opus-5-5';
 const EFFORT = (Deno.env.get('CUE_EFFORT') || 'low') as 'low' | 'medium' | 'high';
+const DIAGRAM_BAR = Number(Deno.env.get('DIAGRAM_MIN_CONFIDENCE') || DIAGRAM_MIN_CONFIDENCE);
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 
@@ -216,6 +219,16 @@ Deno.serve(async (req) => {
   const stale = (existing ?? []).map((r) => r.id as string).filter((id) => !ids.includes(id) && !edited.has(id));
   if (stale.length) await db.from('feedback').delete().in('id', stale);
 
+  // "Does this diagram help?": one per card at most, only above the bar. A
+  // suggestion already there keeps its decisions; a rerun adds no copy.
+  const picks = checked.filter((c) => c.diagram && c.diagram.confidence >= DIAGRAM_BAR).map((c) => ({
+    feedback_id: c.block.id, diagram_id: c.diagram!.diagram_id, confidence: c.diagram!.confidence, source: 'cues',
+  }));
+  if (picks.length) {
+    const { error } = await db.from('diagram_suggestion').upsert(picks, { onConflict: 'feedback_id,diagram_id', ignoreDuplicates: true });
+    if (error) return json({ error: error.message }, 500);
+  }
+
   await db.from('lesson').update({ pipeline_state: 'cards' }).eq('id', lesson.id);
   const cost = costUsd(MODEL, usage.input, usage.output);
   await log({ input_tokens: usage.input, output_tokens: usage.output, cost_usd: cost, cards: fresh.length, kept_teacher: kept.length });
@@ -225,6 +238,7 @@ Deno.serve(async (req) => {
     written: fresh.length,
     kept_teacher: kept.length,
     removed: stale.length,
+    diagrams_suggested: picks.length,
     repaired_quotes: checked.filter((c) => c.repaired).length,
     skipped_by_model: checked.filter((c) => c.missing && c.block.transcript.trim()).length,
     model: MODEL,

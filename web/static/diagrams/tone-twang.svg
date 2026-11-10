@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 240" width="360" height="240" role="img" aria-label="Twang / ring">
+<title>Twang / ring</title>
+<defs>
+<marker id="aA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c8553d"/></marker>
+<marker id="aB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a7ca5"/></marker>
+<marker id="aI" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2d2a32"/></marker>
+</defs>
+<rect width="360" height="240" rx="10" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#2d2a32" stroke-linecap="round" stroke-linejoin="round">
+<path d="M180,22 L180,218" stroke="#9d97a6" stroke-width="1" fill="none" stroke-dasharray="3 4"/>
+<path d="M64,30 L64,140 C64,152 68,158 68,170 L68,176 L64,190 L64,210" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M116,30 L116,140 C116,152 112,158 112,170 L112,176 L116,190 L116,210" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M64,192 L87,186 M116,192 L93,186" stroke="#2d2a32" stroke-width="3.4" fill="none"/>
+<path d="M80,32 A10,5.0 0 0 1 100,32" stroke="#3a7ca5" stroke-width="1.6" fill="none"/>
+<path d="M72,29 A18,9.0 0 0 1 108,29" stroke="#3a7ca5" stroke-width="1.6" fill="none"/>
+<text x="90" y="230" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Open</text>
+<path d="M244,30 L244,140 C244,152 260,158 260,170 L260,176 L244,190 L244,210" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M296,30 L296,140 C296,152 280,158 280,170 L280,176 L296,190 L296,210" stroke="#2d2a32" stroke-width="2" fill="none"/>
+<path d="M260,146 L260,178 L280,178 L280,146" stroke="none" stroke-width="0" fill="#f7e2da"/>
+<path d="M220,164 L242,164" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<path d="M320,164 L298,164" stroke="#c8553d" stroke-width="2" fill="none" marker-end="url(#aA)"/>
+<path d="M244,192 L267,186 M296,192 L273,186" stroke="#2d2a32" stroke-width="3.4" fill="none"/>
+<path d="M260,32 A10,5.0 0 0 1 280,32" stroke="#c8553d" stroke-width="1.6" fill="none"/>
+<path d="M252,29 A18,9.0 0 0 1 288,29" stroke="#c8553d" stroke-width="1.6" fill="none"/>
+<path d="M244,26 A26,13.0 0 0 1 296,26" stroke="#c8553d" stroke-width="1.6" fill="none"/>
+<path d="M236,23 A34,17.0 0 0 1 304,23" stroke="#c8553d" stroke-width="1.6" fill="none"/>
+<text x="270" y="230" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2d2a32">Narrowed: brighter, ringing</text>
+<text x="152" y="200" text-anchor="middle" font-size="10.5" font-weight="400" fill="#9d97a6">vocal folds</text>
+<text x="352" y="150" text-anchor="end" font-size="10.5" font-weight="400" fill="#c8553d">just above</text>
+<text x="352" y="186" text-anchor="end" font-size="10.5" font-weight="400" fill="#c8553d">the folds</text>
+</g>
+</svg>

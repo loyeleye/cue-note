@@ -9,7 +9,9 @@
   import type { LessonWatch, PresentTeacher } from '$lib/api';
   import { ago, bars, clock, date, FLAG_LABEL, minutes } from '$lib/format';
   import { colorVar, findTeacher, initials, softVar, teacherLabel } from '$lib/people';
-  import type { CardFields, CardVersion, Checkpoint, Feedback, Lesson, PhotoMark, Profile, Song, Take, Teacher } from '$lib/types';
+  import type {
+    CardFields, CardVersion, Checkpoint, DiagramSuggestion, Feedback, Lesson, PhotoMark, Profile, Song, Take, Teacher
+  } from '$lib/types';
   import CardEditor from '$lib/components/CardEditor.svelte';
   import LessonHistory from '$lib/components/LessonHistory.svelte';
   import Who from '$lib/components/Who.svelte';
@@ -19,6 +21,7 @@
   import PracticePanel from '$lib/components/PracticePanel.svelte';
   import VersionHistory from '$lib/components/VersionHistory.svelte';
   import SketchFigure from '$lib/components/SketchFigure.svelte';
+  import DiagramSuggestionView from '$lib/components/DiagramSuggestion.svelte';
 
   const id = $derived(page.params.id!);
   let lesson = $state<Lesson | null | undefined>(undefined);
@@ -26,6 +29,7 @@
   let takes = $state<Take[]>([]);
   let cards = $state<Feedback[]>([]);
   let photos = $state<PhotoMark[]>([]);
+  let suggestions = $state<DiagramSuggestion[]>([]);
   let songs = $state<Song[]>([]);
   let editing = $state<string | null>(null);
   let refresh = $state(0);
@@ -50,8 +54,9 @@
     const l = await api().getLesson(lessonId);
     lesson = l;
     if (!l) return;
-    [takes, cards, photos, songs] = await Promise.all([
-      api().listTakes(lessonId), api().listFeedback(lessonId), api().listPhotos(lessonId), api().listSongs(l.student_id)
+    [takes, cards, photos, songs, suggestions] = await Promise.all([
+      api().listTakes(lessonId), api().listFeedback(lessonId), api().listPhotos(lessonId), api().listSongs(l.student_id),
+      api().listDiagramSuggestions(lessonId).catch(() => [] as DiagramSuggestion[])
     ]);
     student = (await api().getStudent(l.student_id))?.student ?? null;
     teachers = await api().listTeachers(l.student_id);
@@ -232,6 +237,9 @@
         <div class="her-clip"><span class="muted small">Her clip</span><ClipPlayer path={c.clip_path} compact /></div>
       {/if}
       {#each sketches as p (p.id)}{@render photoView(p)}{/each}
+      {#each suggestions.filter((s) => s.feedback_id === c.id) as s (s.id)}
+        <DiagramSuggestionView suggestion={s} ondecide={(u) => (suggestions = suggestions.map((x) => (x.id === u.id ? u : x)))} />
+      {/each}
     {/if}
   </article>
 {/snippet}
