@@ -134,7 +134,7 @@ private fun AppNav(app: CueNoteApp) {
     // The camera is asked for only when a lesson tracks posture. Without it, the lesson records audio only.
     val afterCamera = remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) Toast.makeText(app, "No camera, so this lesson records audio only.", Toast.LENGTH_LONG).show()
+        if (!granted) Toast.makeText(app, "No camera, so posture stays off.", Toast.LENGTH_LONG).show()
         afterCamera.value?.invoke(granted)
     }
 
@@ -259,6 +259,11 @@ private fun AppNav(app: CueNoteApp) {
                 teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId) },
                 lessonRecording = recState is RecordingState.Recording,
                 sharing = sharing,
+                posture = app.practicePosture,
+                onFraming = {
+                    afterCamera.value = { granted -> if (granted) nav.navigate("framing-practice") }
+                    cameraPermission.launch(Manifest.permission.CAMERA)
+                },
                 onTimingCheck = { nav.navigate("timing") },
                 onBack = { nav.popBackStack() },
             )
@@ -316,6 +321,14 @@ private fun AppNav(app: CueNoteApp) {
                 onReady = { setup -> startLesson(setup) },
                 onSkip = { startLesson(null) },
                 onCancel = { pendingLesson.value = null; nav.popBackStack("home", false) },
+            )
+        }
+        // Posture during practice: the same framing check, kept for this sitting.
+        composable("framing-practice") {
+            FramingCheckScreen(
+                onReady = { setup -> app.practicePosture.set(setup); nav.popBackStack() },
+                onSkip = { nav.popBackStack() },
+                onCancel = { nav.popBackStack() },
             )
         }
         composable("recording/{id}") { entry ->

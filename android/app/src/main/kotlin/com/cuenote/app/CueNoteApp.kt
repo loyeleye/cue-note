@@ -34,6 +34,7 @@ class CueNoteApp : Application() {
     lateinit var sketches: SketchRepository private set
     lateinit var diagrams: DiagramRepository private set
     lateinit var posture: PostureLink private set
+    lateinit var practicePosture: PracticePosture private set
     lateinit var practice: PracticeRepository private set
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -52,6 +53,7 @@ class CueNoteApp : Application() {
         shares = ShareRepository(auth)
         lessonTeachers = LessonTeacherStore(this)
         posture = PostureLink(this, scope)
+        practicePosture = PracticePosture(this, scope)
 
         // Lessons processed while signed out get their cards once someone signs in.
         scope.launch {

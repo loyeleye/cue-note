@@ -148,7 +148,10 @@ class LessonRepository(
         photoDao?.clear(id)
         cardDao?.clearAll(id)
         // Practice takes of the lesson's notes go with it.
-        practiceDao?.takesForLesson(id)?.forEach { File(it.file).delete(); File(it.file.removeSuffix(".wav") + ".pitch.json").delete() }
+        practiceDao?.takesForLesson(id)?.forEach {
+            File(it.file).delete(); File(it.file.removeSuffix(".wav") + ".pitch.json").delete()
+            File(it.file.removeSuffix(".wav")).deleteRecursively()   // posture, when it was on
+        }
         practiceDao?.deleteLessonTakes(id)
         practiceDao?.deleteLessonQuestions(id)
         dao.delete(id)
