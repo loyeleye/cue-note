@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The in-app shutter photographs her sketches during a lesson. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
     <application
         android:name=".CueNoteApp"
         android:label="@string/app_name"
@@ -25,16 +29,5 @@
                 <data android:scheme="cuenote" android:host="auth-callback" />
             </intent-filter>
         </activity>
-
-        <!-- Lets the camera app save a lesson photo straight into the lesson folder. -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.files"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
     </application>
 </manifest>

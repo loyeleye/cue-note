@@ -9,6 +9,8 @@ import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.functions.Functions
+import io.github.jan.supabase.storage.Storage
 import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -114,8 +116,18 @@ class AuthRepository private constructor(internal val client: SupabaseClient?) {
                     host = "auth-callback"
                 }
                 install(Postgrest)
+                install(Storage)
+                install(Functions)
             }
             return AuthRepository(client)
         }
+
+        @Volatile private var shared: AuthRepository? = null
+
+        /**
+         * One client for the whole app, background workers included, so two
+         * clients never refresh the same session at once.
+         */
+        fun get(): AuthRepository = shared ?: synchronized(this) { shared ?: create().also { shared = it } }
     }
 }

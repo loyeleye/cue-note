@@ -22,4 +22,18 @@ class MigrationSqlTest {
             .map { it["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", it["tableName"]!!.jsonPrimitive.content) }
         assertEquals(expected.sorted(), MIGRATION_1_2_SQL.sorted())
     }
+
+    @Test fun `migration 2 to 3 matches the exported schema`() {
+        val two = tables(2).keys
+        val expected = tables(3).filterKeys { it !in two }.values
+        assertEquals(expected.sorted(), MIGRATION_2_3_SQL.sorted())
+    }
+
+    private fun tables(version: Int): Map<String, String> {
+        val schema = Json.parseToJsonElement(File("schemas/com.cuenote.data.LessonDatabase/$version.json").readText())
+        return schema.jsonObject["database"]!!.jsonObject["entities"]!!.jsonArray.map { it.jsonObject }.associate {
+            val name = it["tableName"]!!.jsonPrimitive.content
+            name to it["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", name)
+        }
+    }
 }

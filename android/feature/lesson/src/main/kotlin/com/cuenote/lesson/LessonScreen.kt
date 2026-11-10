@@ -21,7 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,6 +32,8 @@ import androidx.work.WorkInfo
 import com.cuenote.data.FeedbackEntity
 import com.cuenote.data.LessonEntity
 import com.cuenote.data.LessonRepository
+import com.cuenote.data.PhotoEntity
+import com.cuenote.data.sketch.SketchRepository
 import com.cuenote.data.TakeEntity
 import com.cuenote.data.pipeline.LessonPipelineWorker
 import java.io.File
@@ -43,7 +48,9 @@ import java.io.File
 fun LessonScreen(
     lesson: LessonEntity,
     repo: LessonRepository,
+    sketches: SketchRepository,
     onOpenTimeline: () -> Unit,
+    onOpenSketch: (photoId: String) -> Unit,
     onBack: () -> Unit,
 ) {
     val dao = repo.pipelineDao!!
@@ -52,6 +59,9 @@ fun LessonScreen(
     val feedback by dao.observeFeedback(lesson.id).collectAsStateWithLifecycle(emptyList())
     val progress by repo.progress(lesson.id).collectAsStateWithLifecycle(null)
     val hasTimeline = File(lesson.dirPath, "pipeline/timeline.html").isFile
+    val photos by sketches.observe(lesson.id).collectAsStateWithLifecycle(emptyList())
+    val lessonDir = File(lesson.dirPath)
+    LaunchedEffect(lesson.id) { sketches.refresh(lesson.id, lessonDir) }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Lesson") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
@@ -88,16 +98,26 @@ fun LessonScreen(
             items(stages, key = { "s-" + it.stage }) { s ->
                 Text("${s.stage}: ${s.status} in ${(s.finishedAt - s.startedAt) / 1000} s. ${s.detail}", style = MaterialTheme.typography.bodySmall)
             }
+            if (photos.isNotEmpty()) {
+                item { Text("Her sketches", style = MaterialTheme.typography.titleMedium) }
+                item { SketchStrip(photos, lessonDir, feedback) { onOpenSketch(it.id) } }
+            }
             val opening = feedback.filter { it.takeId == null }
             if (takes.isNotEmpty() || opening.isNotEmpty()) item { Text("Takes and feedback", style = MaterialTheme.typography.titleMedium) }
-            items(opening, key = { it.id }) { FeedbackCard(null, listOf(it)) }
-            items(takes, key = { it.id }) { t -> FeedbackCard(t, feedback.filter { it.takeId == t.id }) }
+            items(opening, key = { it.id }) { FeedbackCard(null, listOf(it), photos, lessonDir, onOpenSketch) }
+            items(takes, key = { it.id }) { t -> FeedbackCard(t, feedback.filter { it.takeId == t.id }, photos, lessonDir, onOpenSketch) }
         }
     }
 }
 
 @Composable
-private fun FeedbackCard(take: TakeEntity?, feedback: List<FeedbackEntity>) {
+private fun FeedbackCard(
+    take: TakeEntity?,
+    feedback: List<FeedbackEntity>,
+    photos: List<PhotoEntity>,
+    lessonDir: File,
+    onOpenSketch: (String) -> Unit,
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -109,6 +129,10 @@ private fun FeedbackCard(take: TakeEntity?, feedback: List<FeedbackEntity>) {
             for (f in feedback) {
                 Text(f.words.ifBlank { "(no words transcribed)" }, style = MaterialTheme.typography.bodyMedium)
                 Text("${clock(f.spanStartMs)} · ${f.linkReason}", style = MaterialTheme.typography.bodySmall)
+                val sketches = photos.filter { it.feedbackId == f.id }
+                if (sketches.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                    for (p in sketches) SketchThumb(p, lessonDir, Modifier.size(96.dp, 72.dp).clickable { onOpenSketch(p.id) })
+                }
             }
         }
     }

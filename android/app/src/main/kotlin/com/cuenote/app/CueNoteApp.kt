@@ -9,6 +9,7 @@ import com.cuenote.data.LessonDatabase
 import com.cuenote.data.LessonRepository
 import com.cuenote.data.LessonTeacherStore
 import com.cuenote.data.ShareRepository
+import com.cuenote.data.sketch.SketchRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
@@ -25,13 +26,16 @@ class CueNoteApp : Application() {
     lateinit var auth: AuthRepository private set
     lateinit var shares: ShareRepository private set
     lateinit var lessonTeachers: LessonTeacherStore private set
+    lateinit var sketches: SketchRepository private set
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
-        lessons = LessonDatabase.get(this).let { db -> LessonRepository(this, db.lessons(), db.pipeline()) }
+        val db = LessonDatabase.get(this)
+        lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.photos())
+        sketches = SketchRepository(this, db.photos())
         consent = ConsentStore(this)
-        auth = AuthRepository.create()
+        auth = AuthRepository.get()
         shares = ShareRepository(auth)
         lessonTeachers = LessonTeacherStore(this)
 

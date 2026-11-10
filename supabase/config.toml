@@ -47,6 +47,10 @@ otp_expiry = 3600
 [functions.notify]
 verify_jwt = false
 
+# The phone calls caption-sketch with the student's session; it reads the photo as them.
+[functions.caption-sketch]
+verify_jwt = true
+
 # Branded emails. The hosted project uses the same HTML: paste each file into
 # Authentication -> Emails -> Templates in the dashboard.
 [auth.email.template.confirmation]
