@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "748873548030",
+    "project_id": "cue-note-27919",
+    "storage_bucket": "cue-note-27919.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:748873548030:android:c23ae7f3b88fdb944ba5af",
+        "android_client_info": {
+          "package_name": "com.cuenote.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1AHMSwYbB-6PjLBgclG4mfGP4_9L9y8c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

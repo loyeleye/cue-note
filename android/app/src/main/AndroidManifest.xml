@@ -4,6 +4,8 @@
     <!-- The in-app shutter photographs her sketches during a lesson. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- Card-updated notifications (Android 13+ asks for this). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".CueNoteApp"
@@ -12,6 +14,22 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.CueNote"
         android:allowBackup="false">
+
+        <!-- "Card updated" pushes from the notify edge function (Firebase Cloud Messaging). -->
+        <service
+            android:name=".CardPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- Used when Android shows a push itself, with the app in the background. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="card_updates" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_launcher_monochrome" />
 
         <activity
             android:name=".MainActivity"
