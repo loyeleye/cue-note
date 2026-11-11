@@ -259,6 +259,15 @@ checks the prompt, the answer schema and the checks on the answer, on a
 sample lesson in `extract-cues/fixtures/`. `test/index.test.ts` runs the
 whole function against a fake database and model (the command is in CI).
 
+**Card-updated notifications.** When a teacher saves a card, the database
+queues a push and wakes the `notify` edge function, which sends it through
+Firebase Cloud Messaging. The phone registers its Firebase token in
+`device_token` once signed in (and removes it on sign-out), asks for
+Android 13's notification permission, and a tap opens that lesson, which
+fetches her edit. `android/app/google-services.json` is the Firebase app's
+config (not secret). The function needs the service account once:
+`supabase secrets set FCM_SERVICE_ACCOUNT="$(cat key.json)" --project-ref tgytbytwofiymsvajdkd`.
+
 ## M3 gate
 
 She reads one lesson's cards and agrees they say what she said.

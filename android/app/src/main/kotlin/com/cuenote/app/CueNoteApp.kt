@@ -6,6 +6,7 @@ import com.cuenote.audio.RecordingState
 import com.cuenote.data.AuthRepository
 import com.cuenote.data.AgeGate
 import com.cuenote.data.ConsentStore
+import com.cuenote.data.DeviceTokens
 import com.cuenote.data.LessonDatabase
 import com.cuenote.data.LessonRepository
 import com.cuenote.data.LessonTeacherStore
@@ -18,6 +19,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.tasks.await
+import com.google.firebase.messaging.FirebaseMessaging
+import android.util.Log
 
 /**
  * Builds the app's few shared objects once (a hand-written "container"
@@ -36,6 +41,10 @@ class CueNoteApp : Application() {
     lateinit var posture: PostureLink private set
     lateinit var practicePosture: PracticePosture private set
     lateinit var practice: PracticeRepository private set
+    lateinit var deviceTokens: DeviceTokens private set
+
+    /** A lesson to open, from a tapped "card updated" notification; the nav clears it once shown. */
+    val openLesson = MutableStateFlow<String?>(null)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
@@ -54,10 +63,22 @@ class CueNoteApp : Application() {
         lessonTeachers = LessonTeacherStore(this)
         posture = PostureLink(this, scope)
         practicePosture = PracticePosture(this, scope)
+        deviceTokens = DeviceTokens(this, auth)
+        auth.beforeSignOut = { deviceTokens.unregister() }
+        CardPushService.createChannel(this)
 
         // Lessons processed while signed out get their cards once someone signs in.
         scope.launch {
             auth.signedInEmail.distinctUntilChanged().collect { if (it != null) lessons.makeMissingCards() }
+        }
+        // Once signed in, register this phone for "card updated" pushes.
+        scope.launch {
+            auth.signedInEmail.distinctUntilChanged().collect { email ->
+                if (email == null) return@collect
+                runCatching { FirebaseMessaging.getInstance().token.await() }
+                    .onSuccess { deviceTokens.register(it) }
+                    .onFailure { Log.w("CueNotePush", "No Firebase token yet", it) }
+            }
         }
         scope.launch {
             RecordingSession.state.collect { s ->

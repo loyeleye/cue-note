@@ -87,7 +87,11 @@ class AuthRepository private constructor(internal val client: SupabaseClient?) {
 
     fun clearLinkStatus() { _linkStatus.value = null }
 
+    /** Runs just before signing out, while the session still works (the app removes its push token). */
+    var beforeSignOut: (suspend () -> Unit)? = null
+
     suspend fun signOut() {
+        runCatching { beforeSignOut?.invoke() }
         client?.auth?.signOut()
     }
 

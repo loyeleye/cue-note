@@ -2,6 +2,8 @@ package com.cuenote.app
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -55,7 +57,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // On a rotation the old link is redelivered; its code is already spent.
-        if (savedInstanceState == null) app.auth.handleDeepLink(intent)
+        if (savedInstanceState == null) {
+            app.auth.handleDeepLink(intent)
+            CardPushService.lessonFrom(intent)?.let { app.openLesson.value = it }
+        }
         setContent {
             CueNoteTheme {
                 Surface { AgeGated(app) { AppNav(app) } }
@@ -66,6 +71,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         app.auth.handleDeepLink(intent)
+        CardPushService.lessonFrom(intent)?.let { app.openLesson.value = it }
     }
 }
 
@@ -136,6 +142,23 @@ private fun AppNav(app: CueNoteApp) {
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) Toast.makeText(app, "No camera, so posture stays off.", Toast.LENGTH_LONG).show()
         afterCamera.value?.invoke(granted)
+    }
+
+    // A tapped "card updated" notification opens its lesson, once the phone knows that lesson.
+    val openLesson by app.openLesson.collectAsStateWithLifecycle()
+    LaunchedEffect(openLesson, lessons) {
+        val id = openLesson ?: return@LaunchedEffect
+        if (lessons.none { it.id == id }) return@LaunchedEffect
+        app.openLesson.value = null
+        nav.navigate("lesson/$id")
+    }
+
+    // Notifications: Android 13+ asks once, after sign-in, so card-updated pushes can show.
+    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(email) {
+        if (email != null && Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(app, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     // A sign-in link that fails or is still exchanging shows on the sign-in screen.
