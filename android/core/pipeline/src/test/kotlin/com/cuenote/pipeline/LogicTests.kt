@@ -97,4 +97,27 @@ class TranscriptionTest {
         val b = t.batches(u)
         assertTrue(b.all { batch -> batch.utterances.all { it.speaker == batch.speaker } })
     }
+
+    @Test fun `words go back to the utterance they were said in`() {
+        val t = Transcription()
+        val batch = Transcription.Batch(Speaker.TEACHER, listOf(
+            Transcription.Utterance(Speaker.TEACHER, 10_000, 12_000),
+            Transcription.Utterance(Speaker.TEACHER, 50_000, 53_000),
+        ))
+        // audio: utterance 1 at 0..2500 ms of the batch, utterance 2 from 2900 ms
+        val spans = listOf(9_750L to 2_500L, 49_750L to 3_500L)
+        val offsets = longArrayOf(0, 2_900)
+        val words = listOf(
+            TranscriptPiece(300, 700, " Keep"), TranscriptPiece(700, 1_100, " the"),
+            TranscriptPiece(1_100, 1_600, " breath"), TranscriptPiece(1_600, 1_700, "."),
+            TranscriptPiece(3_200, 3_600, " Again"), TranscriptPiece(3_600, 3_700, ","),
+            TranscriptPiece(3_700, 4_200, " softer"),
+        )
+        val lines = t.linesFor(batch, spans, offsets, words)
+        assertEquals(2, lines.size)
+        assertEquals("Keep the breath.", lines[0].text)
+        assertEquals(10_050L, lines[0].startMs); assertEquals(11_450L, lines[0].endMs)
+        assertEquals("Again, softer", lines[1].text)
+        assertEquals(50_050L, lines[1].startMs); assertEquals(51_050L, lines[1].endMs)
+    }
 }

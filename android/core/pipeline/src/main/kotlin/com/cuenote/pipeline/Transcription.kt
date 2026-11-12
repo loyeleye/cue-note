@@ -97,22 +97,49 @@ class Transcription(private val cfg: PipelineConfig = PipelineConfig()) {
                 System.arraycopy(p.second, 0, audio, pos, p.second.size)
                 pos += p.second.size + gap
             }
-            val lines = transcriber.transcribe(audio, cfg.transcriptPrompt).mapNotNull { piece ->
-                val k = offsets.indexOfLast { it <= piece.startMs }.coerceAtLeast(0)
-                val from = pieces[k].first
-                val lenMs = pieces[k].second.size / 16L
-                val start = from + (piece.startMs - offsets[k]).coerceIn(0, lenMs)
-                val end = from + (piece.endMs - offsets[k]).coerceIn(0, lenMs)
-                TranscriptLine(batch.speaker, start, maxOf(start, end), piece.text)
-            }
+            val lines = linesFor(batch, pieces.map { it.first to it.second.size / 16L }, offsets,
+                transcriber.transcribe(audio, cfg.transcriptPrompt))
             partial.appendText(json.encodeToString(PartialEntry(key, lines)) + "\n")
             onProgress((i + 1).toDouble() / batches.size)
         }
         return readDone().flatMap { it.lines }.sortedBy { it.startMs }
     }
 
+    /**
+     * Puts whisper's words back on the lesson's clock. Each word goes to the
+     * utterance its middle falls in, and each utterance with words becomes one
+     * transcript line spanning its words. [spans] is each utterance's audio
+     * (lesson start, length) and [offsets] where it sits in the batch, in ms.
+     */
+    fun linesFor(
+        batch: Batch,
+        spans: List<Pair<Long, Long>>,
+        offsets: LongArray,
+        words: List<com.cuenote.ml.TranscriptPiece>,
+    ): List<TranscriptLine> {
+        val byUtt = words.groupBy { w ->
+            val mid = (w.startMs + w.endMs) / 2
+            offsets.indexOfLast { it <= mid }.coerceAtLeast(0)
+        }
+        return byUtt.toSortedMap().map { (k, ws) ->
+            val (from, len) = spans[k]
+            fun clock(t: Long) = from + (t - offsets[k]).coerceIn(0, len)
+            val start = clock(ws.minOf { it.startMs })
+            val end = clock(ws.maxOf { it.endMs })
+            TranscriptLine(batch.speaker, start, maxOf(start, end), joinWords(ws.map { it.text }))
+        }.filter { it.text.isNotBlank() }
+    }
+
     companion object {
         const val BATCH_GAP_MS = 400L
+
+        /** Joins whisper's words; punctuation that whisper split off sticks to the word before it. */
+        fun joinWords(words: List<String>): String = buildString {
+            for (w in words.map { it.trim() }.filter { it.isNotEmpty() }) {
+                if (isNotEmpty() && w.first() !in ",.!?;:'%)") append(' ')
+                append(w)
+            }
+        }
     }
 
     @kotlinx.serialization.Serializable
