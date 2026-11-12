@@ -78,9 +78,16 @@ data class PipelineConfig(
     val markWindowMs: Long = 30_000,
 
     // --- transcription -----------------------------------------------------
+    /** Room either side of talking that goes to whisper too, so first and last words are not clipped. */
+    val transcriptPadMs: Long = 500,
+    /** Talking stretches closer than this are transcribed as one piece. */
+    val transcriptJoinMs: Long = 3_000,
+    /** A word is kept only if its mic's voice detector averaged at least this while it was said. */
+    val transcriptVadThreshold: Float = 0.3f,
+    /** Words of one person closer than this join into one line. */
     val utteranceJoinMs: Long = 1_000,
+    /** Longest piece sent to whisper at once, and longest line. */
     val maxUtteranceMs: Long = 28_000,
-    val utterancePadMs: Long = 250,
     val transcriptPrompt: String =
         "A singing lesson. Breath support, vowel, legato, passaggio, head voice, chest voice, " +
             "placement, resonance, pitch, flat, sharp, bar, phrase, vibrato.",
