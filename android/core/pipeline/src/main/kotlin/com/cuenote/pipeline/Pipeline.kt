@@ -117,7 +117,7 @@ class Pipeline(
             if (!transcriptFile.isFile) transcriptFile.writeText("[]")
         } else stage(Stage.TRANSCRIBE) {
             val lines = Transcription(cfg).run(
-                lesson, segments, transcriber, transcriptPartial,
+                lesson, segments, structure.takes, features, transcriber, transcriptPartial,
                 onProgress = { onStage(Stage.TRANSCRIBE, it) }, isStopped = isStopped,
             )
             transcriptFile.writeText(json.encodeToString(ListSerializer(TranscriptLine.serializer()), lines))
