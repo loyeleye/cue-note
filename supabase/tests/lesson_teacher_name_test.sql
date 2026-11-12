@@ -3,6 +3,10 @@
 \set ON_ERROR_STOP on
 \set QUIET on
 
+-- These tests cover a teacher the student lets see all their lessons; since
+-- 20261115000002 a new share starts limited to the lessons the teacher taught.
+alter table public.teacher_student_share alter column restricted_to_taught set default false;
+
 -- Sam (student), Tia (Sam's teacher).
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-00000000000a', 'sam@example.com', '{"display_name":"Sam"}'),

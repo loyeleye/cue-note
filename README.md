@@ -28,9 +28,9 @@ access). With one teacher they're picked to start with; with none, the name
 from the first lesson is. The student can change who taught an older lesson
 from the lesson itself ("Taught by … Change"), and a teacher can mark an older
 lesson as theirs from the dashboard. A teacher can switch on "Only my lessons" for a student
-on the dashboard to hide the others' lessons, notes and practice. The student can go further from "Your teachers" on
-the phone: "Only lessons they teach" limits that teacher, and the database
-enforces it. The phone sends who taught each lesson when it uploads it.
+on the dashboard to hide the others' lessons, notes and practice. A teacher sees only the lessons marked as
+theirs unless the student turns on "Can see all my lessons" for them under
+"Your teachers" on the phone; the database enforces it. The phone sends who taught each lesson when it uploads it.
 
 A soundcheck ends by showing which mic it heard as the student's and which as
 the teacher's, with how sure it is (from how far apart the two voices were).

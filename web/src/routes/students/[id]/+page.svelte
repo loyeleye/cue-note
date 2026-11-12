@@ -108,7 +108,7 @@
   </div>
 
   {#if student.share.restricted_to_taught}
-    <p class="limit">{student.student.display_name || 'This student'} shares only the lessons you teach with you.</p>
+    <p class="limit">You see the lessons marked as yours. {student.student.display_name || 'The student'} can let you see all their lessons from the app.</p>
   {:else if coTeachers}
     <label class="only-mine">
       <input type="checkbox" checked={onlyMine} onchange={toggleOnlyMine} />
