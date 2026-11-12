@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,6 +31,9 @@ import com.cuenote.ui.CueNoteTheme
 import com.cuenote.audio.RecordingState
 import com.cuenote.data.AgeGate
 import com.cuenote.data.InvitedTeacher
+import com.cuenote.data.LessonTeacher
+import com.cuenote.data.sync.LessonTeacherSyncWorker
+import com.cuenote.audio.ChannelSwap
 import com.cuenote.lesson.CornerEditorScreen
 import com.cuenote.lesson.LessonScreen
 import com.cuenote.lesson.SketchScreen
@@ -44,6 +48,8 @@ import com.cuenote.record.ConsentScreen
 import com.cuenote.record.FramingCheckScreen
 import com.cuenote.record.HomeScreen
 import com.cuenote.record.InviteTeachersScreen
+import com.cuenote.record.LessonTeacherDialog
+import com.cuenote.record.trusted
 import com.cuenote.record.NextLessonPeek
 import com.cuenote.record.RecordingScreen
 import com.cuenote.record.SetupCheckScreen
@@ -168,14 +174,17 @@ private fun AppNav(app: CueNoteApp) {
 
     // Consent given, waiting on the who's-on-which-mic step (and the framing check, with posture).
     val pendingLesson = remember { mutableStateOf<PendingLesson?>(null) }
+    // Bumped when a lesson's teacher changes, so names shown for it are read again.
+    var teacherVersion by remember { mutableIntStateOf(0) }
 
     fun startLesson(posture: PostureSetup?) {
         val p = pendingLesson.value ?: return
         pendingLesson.value = null
         scope.launch {
             val lesson = app.lessons.create(p.consentAt)
-            app.lessonTeachers.set(lesson.id, p.teacherId)
-            if (p.teacherId != null) app.lessonTeachers.lastPicked = p.teacherId
+            app.lessonTeachers.set(lesson.id, p.teacher)
+            p.teacher.teacherId?.let { app.lessonTeachers.lastPicked = it }
+            p.teacher.name?.let { app.lessonTeachers.lastName = it }
             val dir = app.lessons.lessonDir(lesson.id)
             RecordingService.start(app, lesson.id, dir)
             if (posture != null) app.posture.begin(lesson.id, dir, posture)
@@ -191,7 +200,7 @@ private fun AppNav(app: CueNoteApp) {
                 setlist = setlist,
                 studentName = firstSetup?.studentName,
                 hasTeacher = myTeachers.any { it.active },
-                teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId) },
+                teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId, teacherVersion) },
                 recordingInProgress = recState is RecordingState.Recording,
                 signedInEmail = email,
                 onStartLesson = { withPermission { nav.navigate("consent") } },
@@ -231,6 +240,19 @@ private fun AppNav(app: CueNoteApp) {
         composable("lesson/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             lessons.firstOrNull { it.id == id }?.let { lesson ->
+                var changing by remember { mutableStateOf(false) }
+                if (changing) LessonTeacherDialog(
+                    current = app.lessonTeachers.get(id),
+                    teachers = myTeachers,
+                    lastName = app.lessonTeachers.lastName,
+                    onSave = { t ->
+                        LessonTeacherSyncWorker.change(app, id, t)
+                        t.name?.let { app.lessonTeachers.lastName = it }
+                        teacherVersion++
+                        changing = false
+                    },
+                    onDismiss = { changing = false },
+                )
                 LessonScreen(
                     lesson = lesson,
                     repo = app.lessons,
@@ -239,6 +261,8 @@ private fun AppNav(app: CueNoteApp) {
                     onOpenTimeline = { nav.navigate("timeline/$id") },
                     onOpenSketch = { photoId -> nav.navigate("sketch/$id/$photoId") },
                     onBack = { nav.popBackStack() },
+                    taughtBy = teacherNameFor(app, myTeachers, null, id, teacherVersion),
+                    onChangeTeacher = { changing = true },
                 )
             }
         }
@@ -279,7 +303,7 @@ private fun AppNav(app: CueNoteApp) {
             PracticeScreen(
                 cardId = entry.arguments?.getString("card")!!,
                 repo = app.practice,
-                teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId) },
+                teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId, teacherVersion) },
                 lessonRecording = recState is RecordingState.Recording,
                 sharing = sharing,
                 posture = app.practicePosture,
@@ -304,25 +328,34 @@ private fun AppNav(app: CueNoteApp) {
         composable("setup") { SetupCheckScreen(onDone = { nav.popBackStack() }) }
         composable("consent") {
             // The student's teachers, for "Who's teaching today?". Offline or
-            // signed out, the question is skipped and no teacher is set.
+            // signed out, only "Someone else" (a typed name) and "Not sure" are offered.
             var teachers by remember { mutableStateOf<List<InvitedTeacher>>(emptyList()) }
             LaunchedEffect(email) {
                 if (email != null) teachers = runCatching { app.shares.list() }.getOrDefault(emptyList())
             }
+            // A soundcheck just before already settled who's on which mic.
+            val mics = remember { ChannelSwap.recentSoundcheck(app) }
             ConsentScreen(
                 store = app.consent,
                 teachers = teachers,
                 lastPicked = app.lessonTeachers.lastPicked,
+                lastName = app.lessonTeachers.lastName,
+                mics = mics,
                 onCancel = { nav.popBackStack() },
-                onConsented = { consentAt, teacherId, posture ->
-                    if (!posture) {
-                        pendingLesson.value = PendingLesson(consentAt, teacherId, posture = false)
-                        nav.navigate("whoiswho")
-                    } else {
-                        afterCamera.value = { granted ->
-                            pendingLesson.value = PendingLesson(consentAt, teacherId, posture = granted)
-                            nav.navigate("whoiswho")
+                onConsented = { c ->
+                    // Trusted soundcheck: straight on (the channels are already set). Otherwise ask.
+                    fun next(posture: Boolean) {
+                        pendingLesson.value = PendingLesson(c.consentAt, c.teacher, posture)
+                        if (mics.trusted(c.recheckMics)) ChannelSwap.set(app, mics!!.verdict.studentOnRight)
+                        when {
+                            !mics.trusted(c.recheckMics) -> nav.navigate("whoiswho")
+                            posture -> nav.navigate("framing") { popUpTo("consent") }
+                            else -> startLesson(null)
                         }
+                    }
+                    if (!c.posture) next(false)
+                    else {
+                        afterCamera.value = { granted -> next(granted) }
                         cameraPermission.launch(Manifest.permission.CAMERA)
                     }
                 },
@@ -370,11 +403,23 @@ private fun AppNav(app: CueNoteApp) {
     }
 }
 
-/** Who taught a lesson: the teacher picked for it, else the one named at first setup. */
-private fun teacherNameFor(app: CueNoteApp, teachers: List<InvitedTeacher>, firstTeacher: String?, lessonId: String): String? {
-    val id = app.lessonTeachers.get(lessonId)
-    return teachers.firstOrNull { it.teacherId != null && it.teacherId == id }?.teacherName?.takeIf { it.isNotBlank() }
-        ?: firstTeacher?.takeIf { it.isNotBlank() }
+/**
+ * Who taught a lesson: the teacher picked for it, or the name typed for it,
+ * else the one named at first setup. [version] only makes callers re-read
+ * after a change.
+ */
+@Suppress("UNUSED_PARAMETER")
+private fun teacherNameFor(
+    app: CueNoteApp,
+    teachers: List<InvitedTeacher>,
+    firstTeacher: String?,
+    lessonId: String,
+    version: Int,
+): String? {
+    val t = app.lessonTeachers.get(lessonId)
+    return t.name
+        ?: teachers.firstOrNull { it.teacherId != null && it.teacherId == t.teacherId }?.teacherName?.takeIf { it.isNotBlank() }
+        ?: firstTeacher?.takeIf { it.isNotBlank() && !t.isSet }
 }
 
-private data class PendingLesson(val consentAt: Long, val teacherId: String?, val posture: Boolean)
+private data class PendingLesson(val consentAt: Long, val teacher: LessonTeacher, val posture: Boolean)

@@ -8,6 +8,8 @@ import com.cuenote.audio.ChannelSwap
 import com.cuenote.audio.LessonRecorder
 import com.cuenote.audio.MicInfo
 import com.cuenote.audio.UsbMic
+import com.cuenote.signal.Channel
+import com.cuenote.signal.MicVerdict
 import com.cuenote.signal.Problem
 import com.cuenote.signal.SetupCheck
 import com.cuenote.signal.StepResult
@@ -64,6 +66,8 @@ data class SetupUiState(
     val channelsSwitched: Boolean = false,
     /** Set when this check switched them, to tell the user why. */
     val switchedThisCheck: Boolean = false,
+    /** Once done: which mic is whose, and how sure the check is. The lesson uses it without asking again. */
+    val verdict: MicVerdict? = null,
 ) {
     val batteryLow: Boolean get() = !charging && batteryPercent < LOW_BATTERY_PERCENT
 
@@ -79,6 +83,9 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
     private val recorder = LessonRecorder(app).apply { switchChannels = false }
     private val rules = SetupCheck()
     private val captured = mutableMapOf<SetupStep, StereoLevels>()
+    // How far apart the voices were, once the student's mic was settled (dB).
+    private var studentMargin: Double? = null
+    private var teacherMargin: Double? = null
     private var job: Job? = null
 
     private val _state = MutableStateFlow(SetupUiState())
@@ -136,9 +143,14 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
         captured[step] = recorder.windowLevels()
         val result = judge(step)
         if (step == SetupStep.STUDENT_SPEAK) {
-            val outcome = rules.studentStep(captured.getValue(step))
+            val levels = captured.getValue(step)
+            val outcome = rules.studentStep(levels)
             if (outcome.switchChannels) setSwitched(!recorder.switchChannels, byCheck = true)
+            // Measured before the switch, so judged the way the switch reads it.
+            studentMargin = MicVerdict.margin(if (outcome.switchChannels) levels.swapped() else levels, Channel.STUDENT)
+            teacherMargin = null
         }
+        if (step == SetupStep.TEACHER_SPEAK) teacherMargin = MicVerdict.margin(captured.getValue(step), Channel.TEACHER)
         val passed = result == null || result == StepResult.Pass
         _state.update {
             it.copy(
@@ -160,12 +172,20 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
 
     /** Skips the piano steps, for lessons without a piano. */
     fun skipPiano() {
-        _state.update { it.copy(done = true) }
+        finish()
+    }
+
+    /** The check is over: decide who's on which mic and keep it for the lesson. */
+    private fun finish() {
+        val verdict = studentMargin?.let { MicVerdict.judge(recorder.switchChannels, it, teacherMargin) }
+        if (verdict != null) ChannelSwap.saveSoundcheck(app, verdict)
+        _state.update { it.copy(done = true, verdict = verdict) }
     }
 
     fun retry() {
         val step = _state.value.step
         val failed = _state.value.results[step] as? StepResult.Fail
+        if (failed?.problem == Problem.SAME_CHANNEL) { studentMargin = null; teacherMargin = null }
         when {
             // Both voices on one channel: the student step has to be redone too.
             failed?.problem == Problem.SAME_CHANNEL -> _state.update {
@@ -188,7 +208,10 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
         if (job?.isActive == true) return
         setSwitched(!recorder.switchChannels, byCheck = false)
         captured.clear()
-        _state.update { it.copy(step = SetupStep.STUDENT_SPEAK, results = emptyMap(), done = false, phase = StepPhase.IDLE) }
+        studentMargin = null; teacherMargin = null
+        _state.update {
+            it.copy(step = SetupStep.STUDENT_SPEAK, results = emptyMap(), done = false, verdict = null, phase = StepPhase.IDLE)
+        }
     }
 
     private fun setSwitched(on: Boolean, byCheck: Boolean) {
@@ -200,7 +223,7 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
     /** Moves to the next step; false when that was the last one. */
     private fun advance(): Boolean {
         val next = SetupStep.entries.getOrNull(_state.value.step.ordinal + 1)
-        _state.update { if (next == null) it.copy(done = true) else it.copy(step = next, phase = StepPhase.GET_READY) }
+        if (next == null) finish() else _state.update { it.copy(step = next, phase = StepPhase.GET_READY) }
         return next != null
     }
 

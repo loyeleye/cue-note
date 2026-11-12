@@ -139,7 +139,7 @@
               </span>
               <span class="muted small meta">
                 {#if coTeachers}
-                  {#if l.taught_by}<Who teacher={findTeacher(teachers, l.taught_by)} {me} />{:else}<span>Teacher not set</span>{/if}
+                  {#if l.taught_by}<Who teacher={findTeacher(teachers, l.taught_by)} {me} />{:else if l.teacher_name}<span>{l.teacher_name}</span>{:else}<span>Teacher not set</span>{/if}
                   <span>·</span>
                 {/if}
                 {cardCounts[l.id]?.total ?? 0} cards · {STATE_LABEL[l.pipeline_state] ?? l.pipeline_state}

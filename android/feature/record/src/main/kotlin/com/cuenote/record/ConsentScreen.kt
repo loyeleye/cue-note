@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.RecordVoiceOver
@@ -68,8 +69,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.cuenote.audio.ChannelSwap
 import com.cuenote.data.ConsentStore
 import com.cuenote.data.InvitedTeacher
+import com.cuenote.data.LessonTeacher
+import com.cuenote.signal.MicVerdict
 import com.cuenote.ui.Masthead
 import com.cuenote.ui.NoteCard
 import com.cuenote.ui.Plum
@@ -87,9 +91,15 @@ import com.cuenote.ui.colors
  * taps "I'm in". That counts as this lesson's yes. After that, it's one tap
  * per lesson.
  *
- * With more than one teacher, the student also says who is teaching today,
- * so each teacher can be shown only their own lessons. [teachers] are the
- * active ones; with one, they're picked without asking.
+ * Each lesson also says who is teaching today, so each teacher can be shown
+ * only their own lessons. [teachers] are the active ones: with one, they're
+ * picked to start with. "Someone else" takes a typed name for a teacher who
+ * isn't on Cue Note (a guest, or one not invited yet); they get no access.
+ * On the first lesson the question is only asked with more than one teacher.
+ *
+ * [mics] is a soundcheck's answer to who's on which mic, when one ran just
+ * before. It's shown with a way to check again; otherwise, or when the check
+ * wasn't sure, the who's-on-which-mic step follows.
  *
  * Posture tracking is a separate opt-in for each lesson, the first one
  * included, off by default, for when the student or teacher asks for it.
@@ -100,13 +110,17 @@ fun ConsentScreen(
     store: ConsentStore,
     teachers: List<InvitedTeacher>,
     lastPicked: String?,
-    onConsented: (consentAt: Long, teacherId: String?, posture: Boolean) -> Unit,
+    lastName: String?,
+    mics: ChannelSwap.Checked?,
+    onConsented: (Consented) -> Unit,
     onCancel: () -> Unit,
 ) {
     var names by remember(store) { mutableStateOf(store.firstSetup()?.let { it.studentName to it.teacherName }) }
     // Carried from the welcome to the who's-teaching page, when that follows.
     var welcomePosture by rememberSaveable { mutableStateOf(false) }
+    var recheckMics by rememberSaveable { mutableStateOf(false) }
     val choices = teachers.filter { it.active && it.teacherId != null }
+    // A teacher on Cue Note (by id), or "Someone else" with a typed name, or neither ("Not sure").
     var picked by rememberSaveable(choices.map { it.teacherId }) {
         mutableStateOf(
             when {
@@ -116,16 +130,29 @@ fun ConsentScreen(
             },
         )
     }
+    val fallbackName = (lastName ?: names?.second)?.trim().orEmpty()
+    var someoneElse by rememberSaveable(choices.isEmpty()) { mutableStateOf(choices.isEmpty() && fallbackName.isNotEmpty()) }
+    var otherName by rememberSaveable { mutableStateOf(fallbackName) }
+    fun today(): LessonTeacher = if (someoneElse) LessonTeacher.named(otherName) else LessonTeacher(teacherId = picked)
+    fun done(teacher: LessonTeacher, posture: Boolean) =
+        onConsented(Consented(System.currentTimeMillis(), teacher, posture, recheckMics))
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         val n = names
         if (n == null) {
             TeacherWelcome(
                 knownTeacher = choices.singleOrNull()?.teacherName?.takeIf { it.isNotBlank() },
+                mics = mics,
+                recheckMics = recheckMics,
+                onRecheckMics = { recheckMics = it },
                 onBothIn = { student, teacher, posture ->
                     store.saveFirstSetup(student, teacher)
                     // Both just said yes. Only ask who's teaching when that's unclear.
-                    if (choices.size > 1) { welcomePosture = posture; names = student to teacher }
-                    else onConsented(System.currentTimeMillis(), picked, posture)
+                    when {
+                        choices.size > 1 -> { welcomePosture = posture; names = student to teacher }
+                        choices.size == 1 -> done(LessonTeacher(teacherId = picked), posture)
+                        // No teacher on Cue Note yet: the name just typed is who's teaching.
+                        else -> done(LessonTeacher.named(teacher), posture)
+                    }
                 },
                 onCancel = onCancel,
             )
@@ -133,15 +160,29 @@ fun ConsentScreen(
             EveryLesson(
                 student = n.first,
                 choices = choices,
-                picked = picked,
-                onPick = { picked = it },
+                picked = picked.takeUnless { someoneElse },
+                someoneElse = someoneElse,
+                otherName = otherName,
+                onPick = { picked = it; someoneElse = false },
+                onSomeoneElse = { someoneElse = true },
+                onOtherName = { otherName = it.take(LessonTeacher.MAX_NAME) },
+                mics = mics,
+                recheckMics = recheckMics,
+                onRecheckMics = { recheckMics = it },
                 initialPosture = welcomePosture,
-                onConsented = { posture -> onConsented(System.currentTimeMillis(), picked, posture) },
+                onConsented = { posture -> done(today(), posture) },
                 onCancel = onCancel,
             )
         }
     }
 }
+
+/** Both said yes: when, who's teaching, posture on or off, and whether to check the mics again first. */
+data class Consented(val consentAt: Long, val teacher: LessonTeacher, val posture: Boolean, val recheckMics: Boolean)
+
+/** True when the lesson can use the soundcheck's mics without asking. */
+fun ChannelSwap.Checked?.trusted(recheck: Boolean): Boolean =
+    this != null && !recheck && verdict.confidence != MicVerdict.Confidence.LOW
 
 // ------------------------------------------------------------------ every lesson
 
@@ -151,7 +192,14 @@ private fun EveryLesson(
     student: String,
     choices: List<InvitedTeacher>,
     picked: String?,
+    someoneElse: Boolean,
+    otherName: String,
     onPick: (String?) -> Unit,
+    onSomeoneElse: () -> Unit,
+    onOtherName: (String) -> Unit,
+    mics: ChannelSwap.Checked?,
+    recheckMics: Boolean,
+    onRecheckMics: (Boolean) -> Unit,
     initialPosture: Boolean,
     onConsented: (posture: Boolean) -> Unit,
     onCancel: () -> Unit,
@@ -169,19 +217,74 @@ private fun EveryLesson(
         Masthead("Ready to ", "record", " today?", modifier = Modifier.semantics { heading() })
         // The teacher picked for today, by the name they set themselves. Without one,
         // a name typed at the first lesson may be stale, so just say "your teacher".
-        val today = choices.firstOrNull { it.teacherId == picked }?.teacherName?.trim()?.takeIf { it.isNotEmpty() }
+        val today = if (someoneElse) otherName.trim().takeIf { it.isNotEmpty() }
+        else choices.firstOrNull { it.teacherId == picked }?.teacherName?.trim()?.takeIf { it.isNotEmpty() }
         Text("$student and ${today ?: "your teacher"}, nothing records until you both say yes.", style = MaterialTheme.typography.bodyLarge)
-        if (choices.size > 1) {
-            Text("Who's teaching today?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                choices.forEachIndexed { i, t ->
-                    PickChip(t.title, avatarColor(i + 1), picked == t.teacherId) { onPick(t.teacherId) }
-                }
-                PickChip("Not sure", null, picked == null) { onPick(null) }
-            }
-        }
+        Text("Who's teaching today?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+        TeacherPicker(choices, picked, someoneElse, otherName, onPick, onSomeoneElse, onOtherName)
+        MicsRow(mics, recheckMics, onRecheckMics)
         PostureSwitch(posture) { posture = it }
         Fold("What gets recorded?") { ConsentText() }
+    }
+}
+
+/**
+ * The student's teachers on Cue Note, "Someone else" with a name field, and
+ * "Not sure". Also used to change who taught a lesson afterwards.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TeacherPicker(
+    choices: List<InvitedTeacher>,
+    picked: String?,
+    someoneElse: Boolean,
+    otherName: String,
+    onPick: (String?) -> Unit,
+    onSomeoneElse: () -> Unit,
+    onOtherName: (String) -> Unit,
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        choices.forEachIndexed { i, t ->
+            PickChip(t.title, avatarColor(i + 1), !someoneElse && picked == t.teacherId) { onPick(t.teacherId) }
+        }
+        PickChip("Someone else", avatarColor(choices.size + 1), someoneElse, initial = "+", onClick = onSomeoneElse)
+        PickChip("Not sure", null, !someoneElse && picked == null) { onPick(null) }
+    }
+    AnimatedVisibility(someoneElse) {
+        OutlinedTextField(
+            otherName,
+            onOtherName,
+            label = { Text("Teacher's name") },
+            supportingText = { Text("Just a name on this lesson's notes. They don't get access.") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/** Who's on which mic, from a soundcheck just now, with a way to check again before recording. */
+@Composable
+private fun MicsRow(mics: ChannelSwap.Checked?, recheck: Boolean, onRecheck: (Boolean) -> Unit) {
+    if (mics == null) return
+    val m = MaterialTheme.colorScheme
+    val v = mics.verdict
+    val sure = v.confidence != MicVerdict.Confidence.LOW
+    TicketRow {
+        Icon(Icons.Filled.Mic, contentDescription = null, tint = m.primary)
+        Column(Modifier.weight(1f)) {
+            Text("Student on the ${if (v.studentOnRight) "right" else "left"} mic", style = MaterialTheme.typography.titleSmall)
+            Text(
+                when {
+                    !sure -> "The soundcheck wasn't sure, so you'll check it next."
+                    recheck -> "You'll check it again next."
+                    else -> "From your soundcheck: ${v.confidence.label.lowercase()}."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = m.onSurfaceVariant,
+            )
+        }
+        if (sure) TextButton(onClick = { onRecheck(!recheck) }) { Text(if (recheck) "Keep it" else "Change") }
     }
 }
 
@@ -215,6 +318,9 @@ private enum class Step { NAMES, HELLO, PERKS, AGREE }
 @Composable
 private fun TeacherWelcome(
     knownTeacher: String?,
+    mics: ChannelSwap.Checked?,
+    recheckMics: Boolean,
+    onRecheckMics: (Boolean) -> Unit,
     onBothIn: (student: String, teacher: String, posture: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -235,7 +341,10 @@ private fun TeacherWelcome(
         )
         Step.HELLO -> HelloPage(s, t, onNext = { go(Step.PERKS) }, onSkip = { go(Step.AGREE) }, onBack = { go(Step.NAMES) })
         Step.PERKS -> PerksPage(s, onNext = { go(Step.AGREE) }, onSkip = { go(Step.AGREE) }, onBack = { go(Step.HELLO) })
-        Step.AGREE -> AgreePage(s, t, onBothIn = { posture -> onBothIn(s, t, posture) }, onCancel = onCancel, onBack = { go(Step.PERKS) })
+        Step.AGREE -> AgreePage(
+            s, t, mics, recheckMics, onRecheckMics,
+            onBothIn = { posture -> onBothIn(s, t, posture) }, onCancel = onCancel, onBack = { go(Step.PERKS) },
+        )
     }
 }
 
@@ -345,7 +454,13 @@ private fun Perk(icon: ImageVector, tint: Topic, title: String, body: String) {
 }
 
 @Composable
-private fun AgreePage(student: String, teacher: String, onBothIn: (posture: Boolean) -> Unit, onCancel: () -> Unit, onBack: () -> Unit) {
+private fun AgreePage(
+    student: String,
+    teacher: String,
+    mics: ChannelSwap.Checked?,
+    recheckMics: Boolean,
+    onRecheckMics: (Boolean) -> Unit,
+    onBothIn: (posture: Boolean) -> Unit, onCancel: () -> Unit, onBack: () -> Unit) {
     var studentIn by rememberSaveable { mutableStateOf(false) }
     var teacherIn by rememberSaveable { mutableStateOf(false) }
     var posture by rememberSaveable { mutableStateOf(false) }
@@ -389,6 +504,7 @@ private fun AgreePage(student: String, teacher: String, onBothIn: (posture: Bool
         }
         InRow(student, avatarColor(0), studentIn) { studentIn = it }
         InRow(teacher, avatarColor(1), teacherIn) { teacherIn = it }
+        MicsRow(mics, recheckMics, onRecheckMics)
         PostureSwitch(posture) { posture = it }
     }
 }
@@ -507,7 +623,7 @@ private fun ConsentText() {
 }
 
 @Composable
-private fun PickChip(name: String, color: Color?, selected: Boolean, onClick: () -> Unit) {
+private fun PickChip(name: String, color: Color?, selected: Boolean, initial: String? = null, onClick: () -> Unit) {
     val m = MaterialTheme.colorScheme
     Row(
         Modifier
@@ -521,7 +637,7 @@ private fun PickChip(name: String, color: Color?, selected: Boolean, onClick: ()
             .padding(start = 6.dp, end = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(if (color == null) "?" else name, color ?: m.outline)
+        Avatar(initial ?: if (color == null) "?" else name, color ?: m.outline)
         Spacer(Modifier.width(8.dp))
         Text(name, style = MaterialTheme.typography.labelLarge, color = if (selected) m.onPrimaryContainer else m.onSurface)
     }

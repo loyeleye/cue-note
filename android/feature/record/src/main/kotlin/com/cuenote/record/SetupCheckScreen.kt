@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cuenote.signal.MicVerdict
 import com.cuenote.signal.StepResult
 import com.cuenote.signal.StereoLevels
 import com.cuenote.ui.Cue
@@ -163,7 +164,7 @@ fun SetupCheckContent(
         DoneRow(s)
 
         if (s.done) {
-            WrapCard(onDone)
+            WrapCard(s.verdict, onDone)
         } else {
             val reduced = rememberReducedMotion()
             if (reduced) {
@@ -364,9 +365,9 @@ private fun NowCard(
     }
 }
 
-/** The end of the check. */
+/** The end of the check, with which mic it judged to be whose. */
 @Composable
-private fun WrapCard(onDone: () -> Unit) {
+private fun WrapCard(verdict: MicVerdict?, onDone: () -> Unit) {
     val x = Cue.extras
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(x.nowCard).padding(16.dp),
@@ -388,7 +389,64 @@ private fun WrapCard(onDone: () -> Unit) {
             }
             Stamp("OK", x.nowAccent, landing = true)
         }
+        if (verdict != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                RoleTile("Left mic", if (verdict.studentOnRight) "Teacher" else "Student", Modifier.weight(1f))
+                RoleTile("Right mic", if (verdict.studentOnRight) "Student" else "Teacher", Modifier.weight(1f))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ConfidenceDots(verdict.confidence, x.nowAccent, x.nowTrack)
+                Text(
+                    confidenceLine(verdict),
+                    color = x.onNowCard,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text(
+                "Your lesson uses this, so it won't ask again. You can still change it before you record.",
+                color = x.nowMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         StartButton("Back to the lesson", onDone, Modifier.fillMaxWidth())
+    }
+}
+
+/** One mic and the person the check heard on it. */
+@Composable
+private fun RoleTile(mic: String, who: String, modifier: Modifier) {
+    val x = Cue.extras
+    Column(
+        modifier.clip(RoundedCornerShape(14.dp)).background(x.nowTrack).padding(horizontal = 12.dp, vertical = 10.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "$mic: $who" },
+    ) {
+        Text(mic, color = x.nowMuted, style = MaterialTheme.typography.labelMedium)
+        Text(who, color = x.onNowCard, fontFamily = Fraunces, fontWeight = FontWeight.SemiBold, fontSize = 19.sp)
+    }
+}
+
+/** Three dots, filled for how sure the check is. Paired with words, never alone. */
+@Composable
+private fun ConfidenceDots(c: MicVerdict.Confidence, on: Color, off: Color) {
+    val filled = when (c) {
+        MicVerdict.Confidence.HIGH -> 3
+        MicVerdict.Confidence.MEDIUM -> 2
+        MicVerdict.Confidence.LOW -> 1
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        for (i in 1..3) Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(if (i <= filled) on else off))
+    }
+}
+
+/** "Very sure: the voices were 24 dB apart." */
+internal fun confidenceLine(v: MicVerdict): String {
+    val db = v.separationDb?.let { "%.0f dB".format(it) }
+    return when (v.confidence) {
+        MicVerdict.Confidence.HIGH -> "${v.confidence.label}: the voices were ${db ?: "well"} apart."
+        MicVerdict.Confidence.MEDIUM -> "${v.confidence.label}: the voices were ${db ?: "clearly"} apart, with a little bleed."
+        MicVerdict.Confidence.LOW ->
+            "${v.confidence.label}: the voices were only ${db ?: "a little"} apart, so there's a lot of bleed. Worth a look before you record."
     }
 }
 
