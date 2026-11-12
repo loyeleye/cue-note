@@ -91,8 +91,9 @@ import com.cuenote.ui.colors
  * so each teacher can be shown only their own lessons. [teachers] are the
  * active ones; with one, they're picked without asking.
  *
- * Posture tracking is a separate opt-in for each lesson, off by default,
- * for when the student or teacher asks for it.
+ * Posture tracking is a separate opt-in for each lesson, the first one
+ * included, off by default, for when the student or teacher asks for it.
+ * Left off, the lesson records audio only.
  */
 @Composable
 fun ConsentScreen(
@@ -103,6 +104,8 @@ fun ConsentScreen(
     onCancel: () -> Unit,
 ) {
     var names by remember(store) { mutableStateOf(store.firstSetup()?.let { it.studentName to it.teacherName }) }
+    // Carried from the welcome to the who's-teaching page, when that follows.
+    var welcomePosture by rememberSaveable { mutableStateOf(false) }
     val choices = teachers.filter { it.active && it.teacherId != null }
     var picked by rememberSaveable(choices.map { it.teacherId }) {
         mutableStateOf(
@@ -118,11 +121,11 @@ fun ConsentScreen(
         if (n == null) {
             TeacherWelcome(
                 knownTeacher = choices.singleOrNull()?.teacherName?.takeIf { it.isNotBlank() },
-                onBothIn = { student, teacher ->
+                onBothIn = { student, teacher, posture ->
                     store.saveFirstSetup(student, teacher)
                     // Both just said yes. Only ask who's teaching when that's unclear.
-                    if (choices.size > 1) names = student to teacher
-                    else onConsented(System.currentTimeMillis(), picked, false)
+                    if (choices.size > 1) { welcomePosture = posture; names = student to teacher }
+                    else onConsented(System.currentTimeMillis(), picked, posture)
                 },
                 onCancel = onCancel,
             )
@@ -133,6 +136,7 @@ fun ConsentScreen(
                 choices = choices,
                 picked = picked,
                 onPick = { picked = it },
+                initialPosture = welcomePosture,
                 onConsented = { posture -> onConsented(System.currentTimeMillis(), picked, posture) },
                 onCancel = onCancel,
             )
@@ -150,11 +154,11 @@ private fun EveryLesson(
     choices: List<InvitedTeacher>,
     picked: String?,
     onPick: (String?) -> Unit,
+    initialPosture: Boolean,
     onConsented: (posture: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
-    var posture by rememberSaveable { mutableStateOf(false) }
-    val m = MaterialTheme.colorScheme
+    var posture by rememberSaveable { mutableStateOf(initialPosture) }
     Page(bottom = {
         StartButton(
             if (posture) "We're both in. Record, with posture" else "We're both in. Let's record",
@@ -164,7 +168,7 @@ private fun EveryLesson(
         TextButton(onClick = onCancel) { Text("Not today") }
     }) {
         TopRow(onBack = onCancel, label = "Before we record")
-        Masthead("Happy to ", "record", " today?", modifier = Modifier.semantics { heading() })
+        Masthead("Ready to ", "record", " today?", modifier = Modifier.semantics { heading() })
         Text("$student and $teacher, nothing records until you both say yes.", style = MaterialTheme.typography.bodyLarge)
         if (choices.size > 1) {
             Text("Who's teaching today?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
@@ -175,20 +179,31 @@ private fun EveryLesson(
                 PickChip("Not sure", null, picked == null) { onPick(null) }
             }
         }
-        TicketRow(
-            Modifier.toggleable(value = posture, role = Role.Switch, onValueChange = { posture = it }),
-        ) {
-            Icon(Icons.Filled.Videocam, contentDescription = null, tint = m.primary)
-            Column(Modifier.weight(1f)) {
-                Text("Watch my posture", style = MaterialTheme.typography.titleSmall)
-                Text("Camera on. No video is saved.", style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
-            }
-            Switch(checked = posture, onCheckedChange = null)
-        }
-        AnimatedVisibility(posture) {
-            Text(POSTURE_TEXT, style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
-        }
+        PostureSwitch(posture) { posture = it }
         Fold("What gets recorded?") { ConsentText() }
+    }
+}
+
+/** Posture tracking for this lesson: off means audio only, and no tripod needed. */
+@Composable
+private fun PostureSwitch(on: Boolean, onChange: (Boolean) -> Unit) {
+    val m = MaterialTheme.colorScheme
+    TicketRow(
+        Modifier.toggleable(value = on, role = Role.Switch, onValueChange = onChange),
+    ) {
+        Icon(Icons.Filled.Videocam, contentDescription = null, tint = m.primary)
+        Column(Modifier.weight(1f)) {
+            Text("Watch my posture", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (on) "Camera on. No video is saved." else "Off: this lesson records audio only.",
+                style = MaterialTheme.typography.bodySmall,
+                color = m.onSurfaceVariant,
+            )
+        }
+        Switch(checked = on, onCheckedChange = null)
+    }
+    AnimatedVisibility(on) {
+        Text(POSTURE_TEXT, style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
     }
 }
 
@@ -199,7 +214,7 @@ private enum class Step { NAMES, HELLO, PERKS, AGREE }
 @Composable
 private fun TeacherWelcome(
     knownTeacher: String?,
-    onBothIn: (student: String, teacher: String) -> Unit,
+    onBothIn: (student: String, teacher: String, posture: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
     var step by rememberSaveable { mutableIntStateOf(0) }
@@ -219,7 +234,7 @@ private fun TeacherWelcome(
         )
         Step.HELLO -> HelloPage(s, t, onNext = { go(Step.PERKS) }, onSkip = { go(Step.AGREE) }, onBack = { go(Step.NAMES) })
         Step.PERKS -> PerksPage(s, onNext = { go(Step.AGREE) }, onSkip = { go(Step.AGREE) }, onBack = { go(Step.HELLO) })
-        Step.AGREE -> AgreePage(s, t, onBothIn = { onBothIn(s, t) }, onCancel = onCancel, onBack = { go(Step.PERKS) })
+        Step.AGREE -> AgreePage(s, t, onBothIn = { posture -> onBothIn(s, t, posture) }, onCancel = onCancel, onBack = { go(Step.PERKS) })
     }
 }
 
@@ -329,14 +344,20 @@ private fun Perk(icon: ImageVector, tint: Topic, title: String, body: String) {
 }
 
 @Composable
-private fun AgreePage(student: String, teacher: String, onBothIn: () -> Unit, onCancel: () -> Unit, onBack: () -> Unit) {
+private fun AgreePage(student: String, teacher: String, onBothIn: (posture: Boolean) -> Unit, onCancel: () -> Unit, onBack: () -> Unit) {
     var studentIn by rememberSaveable { mutableStateOf(false) }
     var teacherIn by rememberSaveable { mutableStateOf(false) }
+    var posture by rememberSaveable { mutableStateOf(false) }
     var details by rememberSaveable { mutableStateOf(false) }
     val m = MaterialTheme.colorScheme
     Page(bottom = {
         Dots(Step.AGREE)
-        StartButton("Let's make music", onClick = onBothIn, enabled = studentIn && teacherIn, modifier = Modifier.fillMaxWidth())
+        StartButton(
+            if (posture) "Let's make music, with posture" else "Let's make music",
+            onClick = { onBothIn(posture) },
+            enabled = studentIn && teacherIn,
+            modifier = Modifier.fillMaxWidth(),
+        )
         TextButton(onClick = onCancel) { Text("Not today") }
     }) {
         TopRow(onBack = onBack, label = null)
@@ -367,6 +388,7 @@ private fun AgreePage(student: String, teacher: String, onBothIn: () -> Unit, on
         }
         InRow(student, avatarColor(0), studentIn) { studentIn = it }
         InRow(teacher, avatarColor(1), teacherIn) { teacherIn = it }
+        PostureSwitch(posture) { posture = it }
     }
 }
 
