@@ -132,7 +132,6 @@ fun ConsentScreen(
         } else {
             EveryLesson(
                 student = n.first,
-                teacher = n.second,
                 choices = choices,
                 picked = picked,
                 onPick = { picked = it },
@@ -150,7 +149,6 @@ fun ConsentScreen(
 @Composable
 private fun EveryLesson(
     student: String,
-    teacher: String,
     choices: List<InvitedTeacher>,
     picked: String?,
     onPick: (String?) -> Unit,
@@ -169,7 +167,10 @@ private fun EveryLesson(
     }) {
         TopRow(onBack = onCancel, label = "Before we record")
         Masthead("Ready to ", "record", " today?", modifier = Modifier.semantics { heading() })
-        Text("$student and $teacher, nothing records until you both say yes.", style = MaterialTheme.typography.bodyLarge)
+        // The teacher picked for today, by the name they set themselves. Without one,
+        // a name typed at the first lesson may be stale, so just say "your teacher".
+        val today = choices.firstOrNull { it.teacherId == picked }?.teacherName?.trim()?.takeIf { it.isNotEmpty() }
+        Text("$student and ${today ?: "your teacher"}, nothing records until you both say yes.", style = MaterialTheme.typography.bodyLarge)
         if (choices.size > 1) {
             Text("Who's teaching today?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
