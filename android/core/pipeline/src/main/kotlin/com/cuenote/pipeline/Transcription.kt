@@ -131,7 +131,7 @@ class Transcription(private val cfg: PipelineConfig = PipelineConfig()) {
     }
 
     companion object {
-        const val BATCH_GAP_MS = 400L
+        const val BATCH_GAP_MS = 1_000L
 
         /** Joins whisper's words; punctuation that whisper split off sticks to the word before it. */
         fun joinWords(words: List<String>): String = buildString {

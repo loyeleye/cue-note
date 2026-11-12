@@ -44,6 +44,8 @@ data class PipelineConfig(
     /** Unbroken voicing this long (frames) is legato singing, even when the notes are quick. */
     val legatoFrames: Int = 20,
     val singingLegatoRatio: Double = 0.6,
+    /** A student voice with piano notes this close (frames either side, about 2 s) is singing along. */
+    val accompanimentWindowFrames: Int = 62,
     /** Window used for the singing/speaking decision, in frames each side. */
     val styleWindowFrames: Int = 23,
 
@@ -57,6 +59,10 @@ data class PipelineConfig(
     /** Pauses (silence or piano only) shorter than this stay inside one take. */
     val takeJoinMs: Long = 4_000,
     val minTakeMs: Long = 1_200,
+    /** When the pause is mostly piano (a song's interlude), the take holds together this long. */
+    val takePianoJoinMs: Long = 10_000,
+    /** Talking or teacher singing shorter than this inside a take does not end it. */
+    val takeBreakMs: Long = 1_000,
     /** Teacher stretches closer than this, even with a student question between, form one feedback block. */
     val feedbackJoinMs: Long = 5_000,
     val minFeedbackMs: Long = 600,

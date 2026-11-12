@@ -39,7 +39,14 @@ class Segmenter(private val cfg: PipelineConfig = PipelineConfig()) {
         val teacher = BooleanArray(n) { i ->
             voice[1][i] && f.db[1][i] - f.db[0][i] >= cfg.teacherDominanceDb && !student[i]
         }
-        val studentSings = singing(f, 0, notes[0], student)
+        // Nobody talks over the piano: a voice with piano notes around it is singing
+        // along, even a song with words, which holds too few notes to count on its own.
+        // Piano notes count only while the teacher is not talking, so a steady
+        // syllable of hers is not taken for the piano.
+        val accompanied = near(BooleanArray(n) { i ->
+            (notes[0][i] == NoteKind.INSTRUMENT || notes[1][i] == NoteKind.INSTRUMENT) && f.vad[1][i] < cfg.vadThreshold
+        }, cfg.accompanimentWindowFrames, cfg.minNoteFrames)
+        val studentSings = singing(f, 0, notes[0], student).also { s -> for (i in 0 until n) if (student[i] && accompanied[i]) s[i] = true }
         val teacherSings = singing(f, 1, notes[1], teacher)
         return Array(n) { i ->
             when {
@@ -194,6 +201,14 @@ class Segmenter(private val cfg: PipelineConfig = PipelineConfig()) {
             i = j
         }
         return out
+    }
+
+    /** True where [mask] is true on at least [atLeast] frames within [width] frames either side. */
+    private fun near(mask: BooleanArray, width: Int, atLeast: Int = 1): BooleanArray {
+        val n = mask.size
+        val sum = IntArray(n + 1)
+        for (i in 0 until n) sum[i + 1] = sum[i] + if (mask[i]) 1 else 0
+        return BooleanArray(n) { i -> sum[minOf(n, i + width + 1)] - sum[maxOf(0, i - width)] >= atLeast }
     }
 
     private class Run(var label: Label, var start: Int, var len: Int)
