@@ -38,7 +38,7 @@ Java_com_cuenote_ml_WhisperNative_freeContext(JNIEnv *, jobject, jlong ptr) {
     if (ptr != 0) whisper_free(reinterpret_cast<whisper_context *>(ptr));
 }
 
-// Transcribes 16 kHz mono samples. Returns one line per segment:
+// Transcribes 16 kHz mono samples. Returns one line per word:
 // "<start ms>\t<end ms>\t<text>", times relative to the first sample.
 JNIEXPORT jstring JNICALL
 Java_com_cuenote_ml_WhisperNative_transcribe(JNIEnv *env, jobject, jlong ptr, jfloatArray samples,
@@ -58,6 +58,12 @@ Java_com_cuenote_ml_WhisperNative_transcribe(JNIEnv *env, jobject, jlong ptr, jf
     params.print_timestamps = false;
     params.suppress_blank = true;
     params.suppress_nst = true;
+    // One segment per word, each with its own times. The pipeline packs several
+    // utterances into one call, and whole-sentence segments run across the gaps
+    // between them; word times let each word go back to the utterance it came from.
+    params.token_timestamps = true;
+    params.max_len = 1;
+    params.split_on_word = true;
     if (!initialPrompt.empty()) params.initial_prompt = initialPrompt.c_str();
 
     jsize n = env->GetArrayLength(samples);

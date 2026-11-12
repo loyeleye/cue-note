@@ -38,17 +38,25 @@ class Structure(private val cfg: PipelineConfig = PipelineConfig()) {
 
     private fun takes(segments: List<Segment>): List<Pair<Long, Long>> {
         val out = mutableListOf<LongArray>()
-        var lastBreaker = Long.MIN_VALUE   // end of the last speech or teacher singing
+        var lastBreaker = Long.MIN_VALUE   // end of the last real speech or teacher singing
+        var pianoSince = 0L                // piano heard since the current take's end
         for (s in segments) {
             when (s.label) {
                 Label.STUDENT_SING -> {
                     val cur = out.lastOrNull()
-                    if (cur != null && s.startMs - cur[1] <= cfg.takeJoinMs && lastBreaker <= cur[1]) {
+                    val gap = if (cur == null) Long.MAX_VALUE else s.startMs - cur[1]
+                    // a song's piano interlude can run longer than a breath between phrases
+                    val joinMs = if (pianoSince * 2 >= gap) cfg.takePianoJoinMs else cfg.takeJoinMs
+                    if (cur != null && gap <= joinMs && lastBreaker <= cur[1]) {
                         cur[1] = s.endMs
                     } else out += longArrayOf(s.startMs, s.endMs)
+                    pianoSince = 0
                 }
-                Label.PIANO, Label.SILENCE -> Unit
-                else -> lastBreaker = maxOf(lastBreaker, s.endMs)
+                Label.PIANO -> pianoSince += s.durationMs
+                Label.SILENCE -> Unit
+                // a word or a note under a quarter of a second or so is mostly bleed
+                // or a sliver of misread singing, and does not end the take
+                else -> if (s.durationMs >= cfg.takeBreakMs) lastBreaker = maxOf(lastBreaker, s.endMs)
             }
         }
         return out.filter { it[1] - it[0] >= cfg.minTakeMs }.map { it[0] to it[1] }
