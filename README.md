@@ -300,8 +300,8 @@ and the exercises' names from the dashboard.
 
 A bar at the bottom of the lesson screen keeps the next step in reach:
 **Start practicing** opens the first point from this lesson on the setlist,
-and **Send to teacher** opens the next-lesson page, where tries and questions
-go to her with the full clips.
+and **Before next lesson** opens the next-lesson page, where takes and questions
+go to your teacher with the full clips.
 
 On the dashboard each card shows the summary the student sees and asks the
 teacher **Did you say this?** (`check_summary`). Yes marks it as hers; no

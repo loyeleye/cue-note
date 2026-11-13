@@ -17,6 +17,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -92,7 +95,14 @@ fun NextLessonScreen(
     var offerNote by remember { mutableStateOf<String?>(null) }
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Next lesson") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
+        TopAppBar(
+            title = { Text("Next lesson", style = MaterialTheme.typography.titleMedium) },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+        )
     }) { padding ->
         LazyColumn(
             Modifier.padding(padding).fillMaxSize(),
