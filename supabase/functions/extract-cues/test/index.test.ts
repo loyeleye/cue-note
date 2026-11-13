@@ -214,3 +214,16 @@ test('each point keeps its summary and weight on the feedback row', async () => 
   // not part of the card's history
   assert.ok(tables.card_version.every((v) => !('summary' in v.payload)));
 });
+
+test('a summary a teacher answered or wrote is not rewritten when the notes are made again', async () => {
+  await post(sample.request);
+  // She said yes to B2's summary, and rewrote B4's in her own version.
+  feedback(B(2)).summary_check = 'said';
+  feedback(B(2)).summary = 'Her checked summary.';
+  tables.card_version.push({ feedback_id: B(4), author: 'teacher', payload: { cue: 'Sing bars 9 to 12 legato', summary: 'Her own words.' }, created_at: '999999' });
+  feedback(B(4)).summary = 'Her own words.';
+  await post(sample.request);
+  assert.equal(feedback(B(2)).summary, 'Her checked summary.');
+  assert.equal(feedback(B(4)).summary, 'Her own words.');
+  assert.match(feedback(B(3)).summary, /air moving/);   // unanswered: the writer's
+});
