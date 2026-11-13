@@ -12,7 +12,7 @@
 //
 // Secrets (supabase secrets set ...):
 //   RESEND_API_KEY     Resend API key; without it nothing is sent
-//   CONSENT_EMAIL_FROM sender, e.g. "Cue Note <hello@yourdomain>"
+//   CONSENT_EMAIL_FROM sender, "Cue Note <notifications@cuenote.cc>" (sign-in links come from login@)
 //   DASHBOARD_URL      the teacher dashboard, e.g. https://cue-note.pages.dev
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
 import { createClient } from 'npm:@supabase/supabase-js@2';

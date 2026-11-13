@@ -37,7 +37,7 @@ the top of their dashboard, and can take a yes back later. Lessons with no
 teacher set, or only a typed name, need no one's agreement.
 
 **Email for those requests.** Set three secrets, or the requests only show on
-the dashboard: `supabase secrets set RESEND_API_KEY=… CONSENT_EMAIL_FROM="Cue Note <hello@your-domain>"
+the dashboard: `supabase secrets set RESEND_API_KEY=… CONSENT_EMAIL_FROM="Cue Note <notifications@cuenote.cc>"
 DASHBOARD_URL=https://your-dashboard --project-ref tgytbytwofiymsvajdkd`.
 
 **Debug role (remove before release).** A debug account sees every student and
