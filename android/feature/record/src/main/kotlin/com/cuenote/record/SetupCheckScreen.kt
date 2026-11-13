@@ -371,7 +371,7 @@ private fun NowCard(
             DoReMi(heard, roleColor(step), x.onNowCard)
             Text(
                 when {
-                    listening && s.wrongMic && step == s.step -> "That's the student's mic. Teacher's turn."
+                    listening && s.wrongMic && step == s.step -> "I heard that on the student's mic. Check the mics aren't swapped."
                     else -> step.hint.orEmpty()
                 },
                 color = if (listening && s.wrongMic) x.onNowCard else x.nowMuted,

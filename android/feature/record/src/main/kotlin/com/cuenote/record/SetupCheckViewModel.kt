@@ -54,12 +54,12 @@ enum class SetupStep(
         verb = "Sing", hint = "Any comfortable note.",
     ),
     TEACHER_SPEAK(
-        "Teacher's Do Re Mi", "Teacher", "Speak or sing \"Do · Re · Mi.\"", 12, Who.STUDENT,
+        "Teacher's Do Re Mi", "Teacher", "Say or sing \"Do · Re · Mi.\"", 12, Who.STUDENT,
         VoiceLine.CHECK_TEACHER, StepEar.Need(soundMs = 1_200, waitForPause = true),
-        verb = "Speak or sing", hint = "Speaking is fine.",
+        verb = "Say or sing", hint = "Speaking is fine.",
     ),
     LOUD_NOTE(
-        "One big note", "Student", "Sing your biggest comfortable note and hold it.", 12, null,
+        "One big note", "Student", "Sing a strong, easy note in the middle of your voice, and hold it.", 12, null,
         VoiceLine.CHECK_BIG_NOTE, StepEar.Need(soundMs = 2_500),
     ),
     PIANO_ALONE(
@@ -71,7 +71,7 @@ enum class SetupStep(
         VoiceLine.CHECK_PIANO_SOFT, StepEar.Need(both = true, soundMs = 3_000),
     ),
     PIANO_LOUD(
-        "Full voice + piano", "Both", "Big chords, big voice.", 12, null,
+        "Full voice + piano", "Both", "Play and sing as loud as you'd get today, nothing forced.", 12, null,
         VoiceLine.CHECK_PIANO_LOUD, StepEar.Need(both = true, soundMs = 2_500),
     ),
     ;
@@ -322,6 +322,12 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
 
     /** Skips the piano steps, for lessons without a piano. */
     fun skipPiano() {
+        job?.cancel()
+        job = null
+        if (_state.value.spoken) {
+            speaker.stopAll()
+            speaker.say(VoiceLine.CHECK_SKIP_PIANO)
+        }
         finish()
     }
 
