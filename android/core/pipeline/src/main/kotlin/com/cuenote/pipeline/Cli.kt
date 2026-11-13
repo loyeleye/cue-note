@@ -19,6 +19,10 @@ import kotlin.system.exitProcess
  *       Writes a synthetic lesson with its right answers.
  */
 fun main(args: Array<String>) {
+    // lessons the phone has shrunk to .m4a
+    if (com.cuenote.pipeline.audio.FfmpegDecoder.available()) {
+        com.cuenote.pipeline.audio.LessonFolder.decoder = com.cuenote.pipeline.audio.FfmpegDecoder
+    }
     val cmd = args.firstOrNull()
     val rest = args.drop(1)
     when (cmd) {
@@ -50,7 +54,7 @@ fun main(args: Array<String>) {
 }
 
 private fun processOne(lesson: LessonFolder, again: Boolean, whisper: String?): Score? {
-    require(lesson.chunks.isNotEmpty()) { "no audio/chunk_*.wav in ${lesson.dir}" }
+    require(lesson.chunks.isNotEmpty()) { "no audio/chunk_* files in ${lesson.dir}" }
     Models.fromEnvironment(whisper).use { m ->
         val p = Pipeline(lesson, m.vad, m.transcriber)
         if (again) p.reset()

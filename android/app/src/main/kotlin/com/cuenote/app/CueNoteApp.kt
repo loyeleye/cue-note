@@ -51,6 +51,8 @@ class CueNoteApp : Application() {
         super.onCreate()
         // The posture camera runs in its own process; it needs none of this.
         if (getProcessName().endsWith(":posture")) return
+        // Lessons whose audio has been shrunk to .m4a decode with Android's own decoder.
+        com.cuenote.pipeline.audio.LessonFolder.decoder = com.cuenote.data.storage.AacChunkDecoder
         val db = LessonDatabase.get(this)
         lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.cards(), db.photos(), db.practice())
         practice = PracticeRepository(this, db.practice(), db.cards())

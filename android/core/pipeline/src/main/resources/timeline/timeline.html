@@ -189,6 +189,8 @@ function playFrom(ms) {
   let k = chunkStarts.findLastIndex(s => s <= ms); if (k < 0) return;
   const startChunk = (k) => {
     audio = new Audio(D.chunks[k]);
+    // the phone may have shrunk the WAVs to .m4a since this page was drawn
+    audio.onerror = () => { if (audio.src.endsWith('.wav')) { const t = (playMs - chunkStarts[k]) / 1000; audio.src = audio.src.replace(/\.wav$/, '.m4a'); audio.currentTime = t; audio.play(); } };
     audio.currentTime = (playMs - chunkStarts[k]) / 1000;
     audio.onended = () => { if (k + 1 < D.chunks.length) { playMs = chunkStarts[k + 1]; startChunk(k + 1); } else stop(); };
     audio.ontimeupdate = () => { playMs = chunkStarts[k] + audio.currentTime * 1000; $('now').textContent = clock(playMs); draw(); };
