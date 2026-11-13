@@ -165,14 +165,14 @@ object LessonOutline {
     /** Words that point at technique in the body or the sound. */
     private val TECH = Regex(
         "\\b(?:breath\\w*|air|lips?|jaw|tongue|throat|mouth|nose|face|chest|head|vibrat\\w*|buzz\\w*|tense|tension|relax\\w*|reach\\w*|" +
-            "land\\w*|fall\\w*|open\\w*|space|room|tube|vowels?|sound|high|low|notes?|feel|imagine|support|push\\w*|squeez\\w*|" +
+            "land\\w*|fall\\w*|open\\w*|space|room|tube|vowels?|sound|high|low|feel|imagine|support|push\\w*|squeez\\w*|" +
             "loud|soft|registers?|mix\\w*)\\b",
         RegexOption.IGNORE_CASE,
     )
 
     /** Words that point at theory, a story or the business of the lesson. */
     private val THEORY = Regex(
-        "\\b(?:octaves?|piano|keys?|transpose|opera|popular|america|character|called|culture|cultural|christmas\\w*|song|lesson|week|schedule)\\b",
+        "\\b(?:octaves?|piano|keys?|play|plays|played|playing|chords?|harmon\\w*|intervals?|semitones?|clef|transpose|opera|popular|america|character|called|culture|cultural|christmas\\w*|song|lesson|week|schedule)\\b",
         RegexOption.IGNORE_CASE,
     )
 
