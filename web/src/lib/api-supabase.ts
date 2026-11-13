@@ -88,9 +88,15 @@ export const supabaseApi: Api = {
   },
 
   async listInvites() {
-    // Security rules show her only the pending invites sent to her own email.
-    const shares = check(await supabase.from('teacher_student_share').select('*')
-      .eq('status', 'pending')) as Share[];
+    // Only invites sent to this account's email. The security rules also let a
+    // student see the invites she sent (and a debug account see all of them),
+    // which aren't hers to accept.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) return [];
+    const mine = user.email.toLowerCase();
+    const shares = (check(await supabase.from('teacher_student_share').select('*')
+      .eq('status', 'pending').neq('student_id', user.id)) as Share[])
+      .filter((s) => s.invite_email?.toLowerCase() === mine);
     // A student's name is private until she accepts, so the invite shows only its date.
     return shares.map((s) => ({ ...s, student_name: '' }));
   },
