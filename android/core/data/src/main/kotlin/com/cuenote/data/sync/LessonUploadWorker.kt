@@ -137,6 +137,8 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
             val cost = r.costUsd?.let { " for $%.3f".format(it) } ?: ""
             val kept = if (r.keptTeacher > 0) ", kept ${r.keptTeacher} your teacher had edited" else ""
             stages.upsertStage(record("cards", "done", started, "${r.cards} cards by ${r.model ?: "the model"}$cost$kept"))
+            // Sketches waiting for the cards can go now.
+            runCatching { com.cuenote.data.sketch.PhotoUploadWorker.kick(applicationContext, lessonId) }
             Result.success()
         } catch (e: CloudSync.CueError) {
             stages.upsertStage(record("cards", "failed", started, e.message ?: "extract-cues failed"))
@@ -189,16 +191,20 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
                 .addTag("upload")
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(workName(lessonId), ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+            // Replace, never queue behind: a tap on "Make my notes" must start now,
+            // not wait out an earlier try's backoff (or, on older installs, a
+            // sketch upload in this chain that was itself waiting for the cards).
+            WorkManager.getInstance(context).enqueueUniqueWork(workName(lessonId), ExistingWorkPolicy.REPLACE, request)
         }
 
-        data class Progress(val state: WorkInfo.State, val stage: String?, val percent: Int)
+        /** [error] is why the last try failed, when it did. */
+        data class Progress(val state: WorkInfo.State, val stage: String?, val percent: Int, val error: String? = null)
 
         /** The upload worker's state; other workers appended to the chain are ignored. */
         fun progress(context: Context, lessonId: String): Flow<Progress?> =
             WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(workName(lessonId)).map { infos ->
                 infos.lastOrNull { "upload" in it.tags }?.let {
-                    Progress(it.state, it.progress.getString(KEY_STAGE), it.progress.getInt(KEY_PROGRESS, 0))
+                    Progress(it.state, it.progress.getString(KEY_STAGE), it.progress.getInt(KEY_PROGRESS, 0), it.outputData.getString(KEY_ERROR))
                 }
             }
     }
