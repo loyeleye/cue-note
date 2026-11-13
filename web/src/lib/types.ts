@@ -193,13 +193,19 @@ export interface Feedback {
   summary_checked_at?: string | null;
   /** The summary a teacher said she didn't say, kept for the tally. */
   summary_rejected?: string | null;
+  /** What she meant, in her words (any length), with her answer. */
+  summary_note?: string | null;
+  /** A voice note saying what she meant: clips/<student>/teacher-notes/... */
+  summary_note_clip?: string | null;
 }
 
-export type SummaryCheck = 'said' | 'not_said';
+/** Yes, close enough (the summary stays, marked close), or wrong (it comes off the student's card). */
+export type SummaryCheck = 'said' | 'close' | 'not_said';
 
 /** How the summaries the teacher can see have been checked. */
 export interface SummaryTally {
   said: number;
+  close: number;
   not_said: number;
   unchecked: number;
   lessons: number;

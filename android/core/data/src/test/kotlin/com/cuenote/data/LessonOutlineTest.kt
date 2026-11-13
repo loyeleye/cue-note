@@ -116,6 +116,10 @@ class LessonOutlineTest {
         assertEquals(LessonOutline.SummaryCheck.CONFIRMED, check(base.copy(summaryCheck = "said")))
         assertEquals(LessonOutline.SummaryCheck.FLAGGED, check(base.copy(summary = "", summaryCheck = "not_said", summaryRejected = "Push up to it.")))
         assertEquals(LessonOutline.SummaryCheck.CORRECTED, check(base.copy(summaryCheck = "said", summaryRejected = "Push up to it.")))
+        assertEquals(LessonOutline.SummaryCheck.CLOSE, check(base.copy(summaryCheck = "close")))
+        val explained = LessonOutline.CueGroup(base.copy(summaryCheck = "close", summaryNoteClip = "s/teacher-notes/a.webm"))
+        assertTrue(explained.explained)
+        assertTrue(!LessonOutline.CueGroup(base).explained)
         // A flagged point falls back to her words.
         val flagged = base.copy(summary = "", herWords = "Fall into it.", summaryRejected = "Push up to it.")
         assertEquals("Fall into it.", LessonOutline.CueGroup(flagged).text)

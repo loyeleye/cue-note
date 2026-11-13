@@ -70,6 +70,10 @@ data class CardEntity(
     val summaryCheck: String? = null,
     /** The app's summary she said she didn't say; set means a summary was corrected or taken off. */
     val summaryRejected: String? = null,
+    /** What she meant, in her words, when she answered "close" or "wrong". */
+    val summaryNote: String? = null,
+    /** Her voice note saying what she meant: a cloud path under clips/<student>/teacher-notes/. */
+    val summaryNoteClip: String? = null,
 )
 
 /** How many cards a lesson has, and how many she marked to practice. */

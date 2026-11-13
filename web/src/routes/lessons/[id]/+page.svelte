@@ -14,6 +14,7 @@
     CardFields, CardVersion, Checkpoint, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark, Profile, Song, Take, Teacher
   } from '$lib/types';
   import CardEditor from '$lib/components/CardEditor.svelte';
+  import SummaryCheck from '$lib/components/SummaryCheck.svelte';
   import FullLessonBanner from '$lib/components/FullLessonBanner.svelte';
   import LessonHistory from '$lib/components/LessonHistory.svelte';
   import Who from '$lib/components/Who.svelte';
@@ -194,40 +195,27 @@
   }
 
   // "Did you say this?": the teacher's answer about each card's summary.
-  let checking = $state<string | null>(null);
-  let checkError = $state<{ card: string; message: string } | null>(null);
-  async function checkSummary(c: Feedback, said: boolean) {
-    checking = c.id;
-    checkError = null;
+  function answered(f: Feedback) { cards = cards.map((x) => (x.id === f.id ? f : x)); }
+  // After going through the ones she disagrees with, the rest in one pass.
+  let markingRest = $state(false);
+  let markRestError = $state('');
+  async function markRestYes() {
+    if (!lesson) return;
+    markingRest = true;
+    markRestError = '';
     try {
-      const f = await api().checkSummary(c.id, said);
-      cards = cards.map((x) => (x.id === f.id ? f : x));
+      for (const c of cards.filter((x) => !x.summary_check && x.summary)) {
+        answered(await api().answerSummary(c, lesson.student_id, 'said'));
+      }
     } catch (e) {
-      checkError = { card: c.id, message: e instanceof Error ? e.message : String(e) };
+      markRestError = e instanceof Error ? e.message : String(e);
     } finally {
-      checking = null;
-    }
-  }
-  // After a no, her own line for the student, saved as the card's summary.
-  let corrections = $state<Record<string, string>>({});
-  async function correctSummary(c: Feedback) {
-    const text = (corrections[c.id] ?? '').trim();
-    if (!text) return;
-    checking = c.id;
-    checkError = null;
-    try {
-      const f = await api().saveCard(c.id, { summary: text }, { expected: { summary: c.summary ?? '' } });
-      cards = cards.map((x) => (x.id === f.id ? f : x));
-      delete corrections[c.id];
-      reloadHistory();
-    } catch (e) {
-      checkError = { card: c.id, message: e instanceof Error ? e.message : String(e) };
-    } finally {
-      checking = null;
+      markingRest = false;
     }
   }
   const summaryTally = $derived({
     said: cards.filter((c) => c.summary_check === 'said').length,
+    close: cards.filter((c) => c.summary_check === 'close').length,
     notSaid: cards.filter((c) => c.summary_check === 'not_said').length,
     open: cards.filter((c) => !c.summary_check && c.summary).length
   });
@@ -342,31 +330,12 @@
         <p class="edited-by"><span class="muted">Edited by</span> <Who teacher={findTeacher(teachers, last.author_id)} {me} /> <span class="muted">{ago(last.created_at)}</span></p>
       {/if}
       {#if c.summary || c.summary_check === 'not_said'}
-        <div class="summary" class:said={c.summary_check === 'said'} class:not-said={c.summary_check === 'not_said'}>
+        <div class="summary" class:said={c.summary_check === 'said'} class:close={c.summary_check === 'close'} class:not-said={c.summary_check === 'not_said'}>
           {#if c.summary}
             <span class="muted small">Summary the student sees</span>
             <p>{c.summary}</p>
           {/if}
-          {#if c.summary_check === 'said'}
-            <p class="muted small">{c.summary_rejected ? 'Your correction' : 'You said this'}{c.summary_checked_at ? `, ${ago(c.summary_checked_at)}` : ''}. <button class="link small" onclick={() => checkSummary(c, false)} disabled={checking === c.id}>Actually, I didn't</button></p>
-          {:else if c.summary_check === 'not_said'}
-            <p class="muted small">You said you didn't say {c.summary_rejected ? `“${c.summary_rejected}”` : 'the summary'}. The student sees your clip and your own words, with a note that the app's summary was off.</p>
-            <form class="correct" onsubmit={(e) => { e.preventDefault(); correctSummary(c); }}>
-              <label for="correct-{c.id}" class="small">What did you mean? One line, optional. The student sees it in place of the summary.</label>
-              <div class="correct-row">
-                <input id="correct-{c.id}" maxlength="300" placeholder="e.g. Let the high note fall in from above, don't push up to it"
-                       value={corrections[c.id] ?? ''} oninput={(e) => (corrections[c.id] = e.currentTarget.value)} />
-                <button class="small" type="submit" disabled={checking === c.id || !(corrections[c.id] ?? '').trim()}>Save</button>
-              </div>
-            </form>
-          {:else}
-            <div class="ask">
-              <span>Did you say this?</span>
-              <button class="ghost small" onclick={() => checkSummary(c, true)} disabled={checking === c.id}>Yes</button>
-              <button class="ghost small" onclick={() => checkSummary(c, false)} disabled={checking === c.id}>No</button>
-            </div>
-          {/if}
-          {#if checkError?.card === c.id}<p class="error small" role="alert">{checkError.message}</p>{/if}
+          <SummaryCheck card={c} studentId={lesson?.student_id ?? ''} onanswered={answered} />
         </div>
       {/if}
       {#if c.her_words}<blockquote class="quote">“{c.her_words}”</blockquote>{/if}
@@ -441,10 +410,12 @@
     {/if}
   </div>
   <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${n(exercises.length, 'exercise')}` : ''} · {n(takes.length, 'take')} · {n(cards.length, 'card')}. Every save keeps the earlier version.</p>
-  {#if summaryTally.said + summaryTally.notSaid + summaryTally.open}
+  {#if summaryTally.said + summaryTally.close + summaryTally.notSaid + summaryTally.open}
     <p class="tally small">
-      Summaries checked: {summaryTally.said + summaryTally.notSaid} of {summaryTally.said + summaryTally.notSaid + summaryTally.open}{summaryTally.notSaid ? ` · ${summaryTally.notSaid} not said` : ''}.
-      {#if summaryTally.open}<span class="muted">Each card asks "Did you say this?" A no takes the summary off the student's card.</span>{/if}
+      Summaries checked: {summaryTally.said + summaryTally.close + summaryTally.notSaid} of {summaryTally.said + summaryTally.close + summaryTally.notSaid + summaryTally.open}{summaryTally.close ? ` · ${summaryTally.close} close` : ''}{summaryTally.notSaid ? ` · ${summaryTally.notSaid} wrong` : ''}.
+      {#if summaryTally.open}<span class="muted">Each card asks "Did you say this?" Wrong takes the summary off the student's card.</span>
+        <button class="link small" onclick={markRestYes} disabled={markingRest}>{markingRest ? 'Marking…' : `Mark the other ${summaryTally.open} Yes`}</button>{/if}
+      {#if markRestError}<span class="error small" role="alert">{markRestError}</span>{/if}
     </p>
   {/if}
   {#if teachers.length > 1 || (!lesson.taught_by && lesson.teacher_name)}
@@ -573,13 +544,10 @@
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .summary { background: var(--chip); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; border-left: 3px solid var(--border); }
   .summary.said { border-left-color: var(--accent); }
+  .summary.close { border-left-color: var(--warn-fg); }
   .summary.not-said { border-left-color: var(--danger); }
   .summary p { margin: 0; }
-  .summary .ask { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
   .tally { margin: 0; }
-  .correct { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
-  .correct-row { display: flex; gap: 8px; }
-  .correct-row input { flex: 1; min-width: 0; }
   .her-clip { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
   .edit-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }
   .after { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 12px; }

@@ -127,9 +127,9 @@
 {:else}
   <h1>Students</h1>
   <p class="muted">Newest lesson first.</p>
-  {#if tally && tally.said + tally.not_said + tally.unchecked}
+  {#if tally && tally.said + tally.close + tally.not_said + tally.unchecked}
     <p class="muted small" aria-label="Summary checks">
-      Point summaries you've checked: {tally.said + tally.not_said} of {tally.said + tally.not_said + tally.unchecked}{tally.not_said ? `, ${tally.not_said} you didn't say` : ''}.
+      Point summaries you've checked: {tally.said + tally.close + tally.not_said} of {tally.said + tally.close + tally.not_said + tally.unchecked}{tally.close ? `, ${tally.close} close` : ''}{tally.not_said ? `, ${tally.not_said} wrong` : ''}.
       {#if tally.unchecked}{tally.unchecked} waiting in {tally.lessons} {tally.lessons === 1 ? 'lesson' : 'lessons'}.{/if}
     </p>
   {/if}

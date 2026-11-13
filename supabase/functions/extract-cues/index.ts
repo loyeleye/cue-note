@@ -33,6 +33,8 @@ import {
 
 const MODEL = Deno.env.get('CUE_MODEL') || 'claude-opus-5-5';
 const EFFORT = (Deno.env.get('CUE_EFFORT') || 'low') as 'low' | 'medium' | 'high';
+/** Blocks per model call. Each card now carries a summary too, so calls are kept short. */
+const BATCH = Number(Deno.env.get('CUE_BATCH') || 8);
 const DIAGRAM_BAR = Number(Deno.env.get('DIAGRAM_MIN_CONFIDENCE') || DIAGRAM_MIN_CONFIDENCE);
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -128,7 +130,10 @@ Deno.serve(async (req) => {
     await log({ error: 'ANTHROPIC_API_KEY is not set' });
     return json({ error: 'cue extraction is not set up yet (ANTHROPIC_API_KEY)' }, 503);
   }
-  const client = new Anthropic({ apiKey, timeout: 140_000, maxRetries: 1 });
+  // The phone gives up at 150 s and so does the edge runtime: answer (or fail
+  // with a reason) well before that. Smaller batches run side by side keep
+  // each call short; the phone retries the whole lesson if one fails.
+  const client = new Anthropic({ apiKey, timeout: 110_000, maxRetries: 0 });
 
   // Blocks with nothing said need no model call.
   const spoken = [...labels].filter(([, b]) => b.transcript.trim()).map(([l]) => l);
@@ -140,7 +145,7 @@ Deno.serve(async (req) => {
     let named: ModelExercise[] = [];
     try {
       // One exercise per call where it fits, so a point she keeps coming back to gets one cue.
-      const answers = await Promise.all(batchesByExercise(labels, spoken).map((group) =>
+      const answers = await Promise.all(batchesByExercise(labels, spoken, BATCH).map((group) =>
         ask(client, model, lessonText(labels, takes, body.transcript, new Set(group), exercises), examples)));
       for (const a of answers) {
         cards = cards.concat(a.cards);

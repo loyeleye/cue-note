@@ -306,11 +306,32 @@ export const demoApi: Api = {
     return { ...f } as Feedback;
   },
 
+  async answerSummary(card, _studentId, verdict, explain = {}) {
+    await wait();
+    const s = load();
+    const f = s.feedback.find((x) => x.id === card.id);
+    if (!f) throw new Error('card not found');
+    if (verdict !== 'not_said' && !f.summary && f.summary_check === 'not_said' && f.summary_rejected) {
+      Object.assign(f, { summary: f.summary_rejected, summary_rejected: null });
+    }
+    if (verdict !== 'not_said' && !f.summary) throw new Error('this card has no summary to check');
+    if (verdict === 'not_said' && f.summary) Object.assign(f, { summary_rejected: f.summary, summary: '' });
+    let clip = explain.clip ?? null;
+    if (explain.voice) clip = await keepVoice(s, explain.voice);
+    Object.assign(f, {
+      summary_check: verdict, summary_checked_by: DEMO_TEACHER.id, summary_checked_at: now(), updated_at: now(),
+      summary_note: explain.note?.trim() || null, summary_note_clip: clip
+    });
+    save();
+    return { ...f } as Feedback;
+  },
+
   async summaryTally() {
     const fs = load().feedback;
     const open = fs.filter((f) => !f.summary_check && f.summary);
     return {
       said: fs.filter((f) => f.summary_check === 'said').length,
+      close: fs.filter((f) => f.summary_check === 'close').length,
       not_said: fs.filter((f) => f.summary_check === 'not_said').length,
       unchecked: open.length,
       lessons: new Set(open.map((f) => f.lesson_id)).size

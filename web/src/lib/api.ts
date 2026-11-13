@@ -5,7 +5,7 @@
 import type { FullLessonPass, LessonViewRequest,
   Agenda, Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Exercise, Feedback,
   Lesson, PhotoMark,
-  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, SummaryTally, Take, Teacher
+  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, SummaryCheck, SummaryTally, Take, Teacher
 } from './types';
 
 export type Bucket = 'clips' | 'photos' | 'scores';
@@ -135,6 +135,14 @@ export interface Api {
    * takes the summary off the student's card, so she sees the teacher's own words.
    */
   checkSummary(feedbackId: string, said: boolean): Promise<Feedback>;
+  /**
+   * Yes, close or wrong about a card's summary, with what she meant in words
+   * and/or a voice note. A new voice Blob replaces the clip; clip keeps or
+   * (null) drops the one there. Wrong takes the summary off the student's card;
+   * moving back from wrong puts it back.
+   */
+  answerSummary(card: Feedback, studentId: string, verdict: SummaryCheck,
+    explain?: { note?: string | null; clip?: string | null; voice?: Blob | null }): Promise<Feedback>;
   /** How the summaries this teacher can see have been answered, across lessons. */
   summaryTally(): Promise<SummaryTally>;
 
