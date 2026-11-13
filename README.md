@@ -267,12 +267,22 @@ cards by itself (or from **Make cards** on the lesson's screen):
    that isn't is replaced with her own sentence) and writes the cards, with
    the AI's version kept in the card history. Cards she has already edited
    keep her version. Her past corrections go into the request as examples,
-   so the cards get closer to how she talks.
+   so the cards get closer to how she talks. Cues are at most 8 words, her
+   words one sentence. Each exercise goes to the model in one call where it
+   fits, and when she returns to a point the model reuses the cue word for
+   word. It also names each exercise ("Lip trill on a 5-note scale"), which is
+   written to `exercise.title` unless someone already named it.
 
-The lesson screen then shows the timeline: each take with **Hear take**, and
-under it her cue, her words in quotes and **Hear her**. Talk that isn't about
-the singing is folded away under "Show the talk between exercises". Opening a
-lesson fetches her latest edits from the dashboard.
+The lesson screen then reads exercise by exercise (`LessonOutline` in
+`:core:data`): each warmup or song section by name, with a button per try,
+then at most three cues, "Practice this" first, and the rest behind "More
+notes". Cards with the same cue show once, with "She said this 3 times". A
+card is the cue, one sentence of hers, **Her words** and **The try**; the
+full transcript is behind "Everything she said". Talk that isn't about the
+singing is folded away under "Chat between songs". Before the notes are made
+the screen shows the exercises and their tries only; how each block was
+linked to a take is under Details. Opening a lesson fetches her latest edits
+and the exercises' names from the dashboard.
 
 Each run is logged in `cue_extraction` with its tokens and cost, to check the
 design doc's estimate of $0.03 a lesson.

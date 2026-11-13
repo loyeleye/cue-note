@@ -25,9 +25,10 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@1.2.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
-  ANSWER_SCHEMA, batches, check, costUsd, DIAGRAM_MIN_CONFIDENCE, examplesText, invalidRequest, labelBlocks, lessonText, samePayload,
-  supportsFallback, SYSTEM_PROMPT,
-  type Block, type CardPayload, type Checked, type Correction, type ModelCard, type Request, type TakeRow, type ExerciseRow,
+  ANSWER_SCHEMA, batchesByExercise, check, costUsd, DIAGRAM_MIN_CONFIDENCE, examplesText, exerciseTitles, invalidRequest, labelBlocks,
+  labelExercises, lessonText, samePayload, supportsFallback, SYSTEM_PROMPT,
+  type Block, type CardPayload, type Checked, type Correction, type ModelCard, type ModelExercise, type Request, type TakeRow,
+  type ExerciseRow,
 } from './cues.ts';
 
 const MODEL = Deno.env.get('CUE_MODEL') || 'claude-opus-5-5';
@@ -39,7 +40,8 @@ const json = (body: unknown, status = 200) => Response.json(body, { status });
 interface Usage { input: number; output: number }
 
 /** One model call for a batch of blocks. Returns its cards and token use. */
-async function ask(client: Anthropic, model: string, lesson: string, examples: string): Promise<{ cards: ModelCard[]; usage: Usage }> {
+async function ask(client: Anthropic, model: string, lesson: string, examples: string):
+    Promise<{ cards: ModelCard[]; exercises: ModelExercise[]; usage: Usage }> {
   const content = [examples, `The lesson:\n\n${lesson}`].filter(Boolean).join('\n\n---\n\n');
   const params = {
     model,
@@ -61,13 +63,13 @@ async function ask(client: Anthropic, model: string, lesson: string, examples: s
   if (msg.stop_reason === 'max_tokens') throw Object.assign(new Error('the answer was cut off (max_tokens)'), { usage });
   const blocks = msg.content as Array<{ type: string; text?: string }>;
   const text = blocks.map((b) => (b.type === 'text' ? b.text ?? '' : '')).join('');
-  let cards: ModelCard[];
+  let answer: { cards?: ModelCard[]; exercises?: ModelExercise[] };
   try {
-    cards = (JSON.parse(text) as { cards: ModelCard[] }).cards ?? [];
+    answer = JSON.parse(text);
   } catch {
     throw Object.assign(new Error('the answer was not valid JSON'), { usage });
   }
-  return { cards, usage };
+  return { cards: answer.cards ?? [], exercises: answer.exercises ?? [], usage };
 }
 
 Deno.serve(async (req) => {
@@ -100,10 +102,11 @@ Deno.serve(async (req) => {
   // A card a teacher deleted stays deleted when the notes are made again.
   const { data: removedRows } = await db.from('feedback_removed').select('feedback_id').eq('lesson_id', lesson.id);
   const removed = new Set((removedRows ?? []).map((r) => r.feedback_id as string));
-  const { data: exRows, error: exErr } = await db.from('exercise').select('id, start_ms, kind').eq('lesson_id', lesson.id);
+  const { data: exRows, error: exErr } = await db.from('exercise').select('id, start_ms, kind, title').eq('lesson_id', lesson.id);
   if (exErr) return json({ error: exErr.message }, 500);
   const exercises = (exRows ?? []) as ExerciseRow[];
   const exIds = new Set(exercises.map((e) => e.id));
+  const exLabels = labelExercises(exercises);
   // A link to a take or exercise that never uploaded would break the foreign key.
   const blocks: Block[] = body.blocks.filter((b) => !removed.has(b.id)).map((b) => ({
     ...b,
@@ -131,23 +134,26 @@ Deno.serve(async (req) => {
   const spoken = [...labels].filter(([, b]) => b.transcript.trim()).map(([l]) => l);
 
   /** The whole lesson through one model: its cards and token use, or why it failed. */
-  const run = async (model: string): Promise<{ cards: ModelCard[]; usage: Usage; error?: string }> => {
+  const run = async (model: string): Promise<{ cards: ModelCard[]; titles: Map<string, string>; usage: Usage; error?: string }> => {
     const usage: Usage = { input: 0, output: 0 };
     let cards: ModelCard[] = [];
+    let named: ModelExercise[] = [];
     try {
-      const answers = await Promise.all(batches(spoken).map((group) =>
+      // One exercise per call where it fits, so a point she keeps coming back to gets one cue.
+      const answers = await Promise.all(batchesByExercise(labels, spoken).map((group) =>
         ask(client, model, lessonText(labels, takes, body.transcript, new Set(group), exercises), examples)));
       for (const a of answers) {
         cards = cards.concat(a.cards);
+        named = named.concat(a.exercises);
         usage.input += a.usage.input;
         usage.output += a.usage.output;
       }
-      return { cards, usage };
+      return { cards, titles: exerciseTitles(exLabels, named), usage };
     } catch (e) {
       const u = (e as { usage?: Usage }).usage;
       if (u) { usage.input += u.input; usage.output += u.output; }
       const error = e instanceof Anthropic.APIError ? `${e.status ?? ''} ${e.message}`.trim() : String((e as Error).message ?? e);
-      return { cards: [], usage, error };
+      return { cards: [], titles: new Map(), usage, error };
     }
   };
 
@@ -160,6 +166,7 @@ Deno.serve(async (req) => {
       const checked = r.error ? [] : check(labels, r.cards);
       return {
         model, cost_usd: cost, input_tokens: r.usage.input, output_tokens: r.usage.output, error: r.error ?? null,
+        exercises: [...r.titles].map(([id, title]) => ({ id, title })),
         cards: checked.map((c) => ({
           id: c.block.id, cue: c.payload.cue, her_words: c.payload.her_words, category: c.payload.category,
           practice_flag: c.payload.practice_flag, bar_start: c.payload.bar_start, bar_end: c.payload.bar_end,
@@ -170,7 +177,7 @@ Deno.serve(async (req) => {
     return json({ trials });
   }
 
-  const { cards, usage, error } = await run(MODEL);
+  const { cards, titles, usage, error } = await run(MODEL);
   if (error) {
     await log({ input_tokens: usage.input, output_tokens: usage.output, cost_usd: costUsd(MODEL, usage.input, usage.output), error });
     return json({ error: `cue extraction failed: ${error}` }, 502);
@@ -243,6 +250,16 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
   }
 
+  // Each exercise gets the model's name, unless someone has already named it.
+  let named = 0;
+  for (const e of exercises) {
+    const title = titles.get(e.id);
+    if (!title || (e as ExerciseRow & { title?: string | null }).title) continue;
+    const { error } = await db.from('exercise').update({ title }).eq('id', e.id).is('title', null);
+    if (error) return json({ error: error.message }, 500);
+    named++;
+  }
+
   await db.from('lesson').update({ pipeline_state: 'cards' }).eq('id', lesson.id);
   const cost = costUsd(MODEL, usage.input, usage.output);
   await log({ input_tokens: usage.input, output_tokens: usage.output, cost_usd: cost, cards: fresh.length, kept_teacher: kept.length });
@@ -253,6 +270,7 @@ Deno.serve(async (req) => {
     kept_teacher: kept.length,
     removed: stale.length,
     diagrams_suggested: picks.length,
+    exercises_named: named,
     repaired_quotes: checked.filter((c) => c.repaired).length,
     skipped_by_model: checked.filter((c) => c.missing && c.block.transcript.trim()).length,
     model: MODEL,

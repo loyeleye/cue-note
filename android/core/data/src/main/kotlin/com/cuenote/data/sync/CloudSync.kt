@@ -278,6 +278,14 @@ class CloudSync(private val auth: AuthRepository) {
         client.from("lesson").delete { filter { eq("id", lessonId) } }
     }
 
+    @Serializable
+    private data class TitleRow(val id: String, val title: String? = null)
+
+    /** The names the card writer or the dashboard gave the lesson's exercises, by cloud id. */
+    suspend fun exerciseTitles(lessonId: String): Map<String, String> =
+        client.from("exercise").select(Columns.list("id", "title")) { filter { eq("lesson_id", lessonId) } }
+            .decodeList<TitleRow>().mapNotNull { r -> r.title?.takeIf { it.isNotBlank() }?.let { r.id to it } }.toMap()
+
     /** The lesson's cards as the cloud has them now, her edits included. */
     suspend fun cards(lessonId: String): List<CardEntity> {
         val rows = client.from("feedback").select { filter { eq("lesson_id", lessonId) } }.decodeList<FeedbackRow>()

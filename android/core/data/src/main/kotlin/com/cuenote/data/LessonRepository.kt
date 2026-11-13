@@ -114,7 +114,18 @@ class LessonRepository(
         val cloud = CloudSync(AuthRepository.get())
         if (cloud.studentId() == null) return@withContext
         cardDao?.replaceCards(id, cloud.cards(id))
+        refreshExerciseTitles(id, cloud)
         forgetRemovedClips(id, cloud)
+    }
+
+    /** The exercises' names, so the lesson reads "Lip trill on a 5-note scale" rather than "Warmup 2". */
+    private suspend fun refreshExerciseTitles(id: String, cloud: CloudSync) {
+        val dao = pipelineDao ?: return
+        val titles = runCatching { cloud.exerciseTitles(id) }.getOrNull() ?: return
+        for (e in dao.exercises(id)) {
+            val title = titles[com.cuenote.pipeline.cards.CloudIds.exercise(e.id)]
+            if (title != e.title) dao.setExerciseTitle(e.id, title)
+        }
     }
 
     /** A teacher deleted a card or removed its audio: the phone's copy of that clip goes too. */

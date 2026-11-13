@@ -50,6 +50,8 @@ data class ExerciseEntity(
     val kind: String,
     /** Why the pipeline started a new exercise here. */
     val reason: String,
+    /** Its name ("Lip trill on a 5-note scale"), from the cloud: the card writer's, or one given on the dashboard. */
+    val title: String? = null,
 )
 
 /**
@@ -113,6 +115,9 @@ interface PipelineDao {
 
     @Query("select * from exercise where lessonId = :lessonId order by startMs")
     suspend fun exercises(lessonId: String): List<ExerciseEntity>
+
+    @Query("update exercise set title = :title where id = :id")
+    suspend fun setExerciseTitle(id: String, title: String?)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertStage(s: PipelineStageEntity)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertSegments(s: List<SegmentEntity>)

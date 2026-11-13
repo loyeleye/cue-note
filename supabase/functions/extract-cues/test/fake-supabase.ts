@@ -32,6 +32,7 @@ class Query {
   update(obj: any) { this.op = 'update'; this.payload = obj; return this; }
   delete() { this.op = 'delete'; return this; }
   eq(k: string, v: any) { this.filters.push((r) => r[k] === v); return this; }
+  is(k: string, v: null) { this.filters.push((r) => (r[k] ?? null) === v); return this; }
   in(k: string, vs: any[]) { this.filters.push((r) => vs.includes(r[k])); return this; }
   order(k: string) { this.sortKey = k; return this; }
   maybeSingle() { this.one = true; return this; }
