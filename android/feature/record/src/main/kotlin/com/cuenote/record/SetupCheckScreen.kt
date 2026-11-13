@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -62,6 +63,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -305,7 +307,7 @@ private fun NowCard(
     ) {
         // The time left in this step, emptying as it listens.
         Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)).background(x.nowTrack)) {
-            Box(Modifier.fillMaxWidth(strip).height(4.dp).background(x.nowAccent))
+            Box(Modifier.fillMaxWidth(strip).height(4.dp).background(x.nowMuted))
         }
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
@@ -316,40 +318,74 @@ private fun NowCard(
                     StepPhase.PASSED -> "Nice"
                     StepPhase.FAILED -> "Not quite"
                 }
-                Eyebrow("$lead · ${step.who}", x.nowAccent)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    step.prompt,
-                    color = x.onNowCard,
-                    fontFamily = Fraunces,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 21.sp,
-                    lineHeight = 25.sp,
-                )
-            }
-            Spacer(Modifier.size(12.dp))
-            Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
-                when {
-                    left != null -> Text(
-                        "$left",
-                        color = x.nowAccent,
+                if (step.verb != null) {
+                    // A Do · Re · Mi step: whose turn it is, big, in their colour.
+                    Eyebrow(lead, x.nowAccent)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "${step.who}'s turn",
+                        color = roleColor(step),
                         fontFamily = Fraunces,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 56.sp,
-                        lineHeight = 56.sp,
+                        fontSize = 28.sp,
+                        lineHeight = 32.sp,
+                    )
+                    Text(step.verb, color = x.onNowCard, style = MaterialTheme.typography.titleMedium)
+                } else {
+                    Eyebrow("$lead · ${step.who}", x.nowAccent)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        step.prompt,
+                        color = x.onNowCard,
+                        fontFamily = Fraunces,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 21.sp,
+                        lineHeight = 25.sp,
+                    )
+                }
+            }
+            Spacer(Modifier.size(12.dp))
+            Box(Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp), contentAlignment = Alignment.Center) {
+                when {
+                    // Kept small: the time is a backstop, not the point.
+                    left != null -> Text(
+                        "$left",
+                        color = x.nowMuted,
+                        fontFamily = Fraunces,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 28.sp,
+                        lineHeight = 28.sp,
                         modifier = Modifier.semantics { contentDescription = "$left seconds left" },
                     )
-                    phase == StepPhase.PASSED -> Stamp("PASS", x.nowAccent, landing = step == s.step)
+                    phase == StepPhase.PASSED -> Stamp("GOT IT", x.nowAccent, landing = step == s.step)
                     phase == StepPhase.FAILED -> Stamp("AGAIN", warn, landing = true)
                 }
             }
+        }
+        if (step.verb != null) {
+            val heard = when {
+                step != s.step || phase == StepPhase.PASSED -> Solfege.SYLLABLES.size
+                listening || phase == StepPhase.FAILED -> s.syllables
+                else -> 0
+            }
+            DoReMi(heard, roleColor(step), x.onNowCard)
+            Text(
+                when {
+                    listening && s.wrongMic && step == s.step -> "I heard that on the student's mic. Check the mics aren't swapped."
+                    else -> step.hint.orEmpty()
+                },
+                color = if (listening && s.wrongMic) x.onNowCard else x.nowMuted,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             LevelRow(
                 "Student",
                 { live.value?.student?.rmsDb },
                 expectQuiet = listening && step.quiet == SetupStep.Who.STUDENT,
-                track = x.nowTrack, fill = x.nowFill, text = x.onNowCard, muted = x.nowMuted, accent = x.nowAccent, warn = warn,
+                track = x.nowTrack, fill = x.nowAccent, text = x.onNowCard, muted = x.nowMuted, accent = x.nowAccent, warn = warn,
             )
             LevelRow(
                 "Teacher",
@@ -401,6 +437,11 @@ private fun SpokenRow(s: SetupUiState, onSpoken: (Boolean) -> Unit, onVoice: (Vo
         Switch(checked = s.spoken, onCheckedChange = onSpoken)
     }
 }
+
+/** Brass for the student, lilac (plum in the light theme) for the teacher. */
+@Composable
+private fun roleColor(step: SetupStep): Color =
+    if (step.who == "Teacher") Cue.extras.nowFill else Cue.extras.nowAccent
 
 /** The end of the check, with which mic it judged to be whose. */
 @Composable

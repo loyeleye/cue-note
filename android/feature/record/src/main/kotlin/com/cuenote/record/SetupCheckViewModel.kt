@@ -14,6 +14,7 @@ import com.cuenote.signal.MicVerdict
 import com.cuenote.signal.Problem
 import com.cuenote.signal.SetupCheck
 import com.cuenote.signal.StepEar
+import com.cuenote.signal.SyllableCounter
 import com.cuenote.signal.StepResult
 import com.cuenote.signal.StereoLevels
 import com.cuenote.signal.posture.Voice
@@ -42,17 +43,23 @@ enum class SetupStep(
     val quiet: Who?,
     val line: VoiceLine,
     val need: StepEar.Need,
+    /** For a Do · Re · Mi step: the verb shown above the big syllables, which light as they're heard. */
+    val verb: String? = null,
+    /** A reassuring line under the syllables. */
+    val hint: String? = null,
 ) {
     STUDENT_SPEAK(
-        "Student's Do Re Mi", "Student", "Sing \"Do - Re - Mi.\"", 12, Who.TEACHER,
+        "Student's Do Re Mi", "Student", "Sing \"Do · Re · Mi.\"", 12, Who.TEACHER,
         VoiceLine.CHECK_STUDENT, StepEar.Need(soundMs = 1_200, waitForPause = true),
+        verb = "Sing", hint = "Any comfortable note.",
     ),
     TEACHER_SPEAK(
-        "Teacher's Do Re Mi", "Teacher", "Speak or sing \"Do - Re - Mi.\"", 12, Who.STUDENT,
+        "Teacher's Do Re Mi", "Teacher", "Say or sing \"Do · Re · Mi.\"", 12, Who.STUDENT,
         VoiceLine.CHECK_TEACHER, StepEar.Need(soundMs = 1_200, waitForPause = true),
+        verb = "Say or sing", hint = "Speaking is fine.",
     ),
     LOUD_NOTE(
-        "One big note", "Student", "Sing your biggest comfortable note and hold it.", 12, null,
+        "One big note", "Student", "Sing a strong, easy note in the middle of your voice, and hold it.", 12, null,
         VoiceLine.CHECK_BIG_NOTE, StepEar.Need(soundMs = 2_500),
     ),
     PIANO_ALONE(
@@ -64,7 +71,7 @@ enum class SetupStep(
         VoiceLine.CHECK_PIANO_SOFT, StepEar.Need(both = true, soundMs = 3_000),
     ),
     PIANO_LOUD(
-        "Full voice + piano", "Both", "Big chords, big voice.", 12, null,
+        "Full voice + piano", "Both", "Play and sing as loud as you'd get today, nothing forced.", 12, null,
         VoiceLine.CHECK_PIANO_LOUD, StepEar.Need(both = true, soundMs = 2_500),
     ),
     ;
@@ -76,6 +83,10 @@ enum class SetupStep(
 enum class StepPhase { IDLE, GET_READY, LISTENING, PASSED, FAILED }
 
 data class SetupUiState(
+    /** Do · Re · Mi syllables heard so far in this step (0 to 3). */
+    val syllables: Int = 0,
+    /** In the teacher step: the student's mic is the one hearing it. */
+    val wrongMic: Boolean = false,
     val mic: MicInfo? = null,
     val routedTo: String = "",
     val batteryPercent: Int = 100,
@@ -178,7 +189,7 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
      * voice it's a short pause, as before.
      */
     private suspend fun getReady(step: SetupStep) {
-        _state.update { it.copy(phase = StepPhase.GET_READY) }
+        _state.update { it.copy(phase = StepPhase.GET_READY, syllables = 0, wrongMic = false) }
         if (_state.value.spoken) {
             speaker.sayAndWait(step.line)
             delay(AFTER_LINE_MS)
@@ -194,15 +205,46 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
      */
     private suspend fun listen(step: SetupStep): Boolean {
         recorder.resetWindow()
-        _state.update { it.copy(phase = StepPhase.LISTENING, secondsLeft = step.seconds) }
-        val ear = StepEar(step.need)
-        val hearing = viewModelScope.launch { liveLevels.filterNotNull().collect { ear.add(it) } }
-        val start = android.os.SystemClock.elapsedRealtime()
-        val endAt = start + step.seconds * 1_000L
+        _state.update { it.copy(phase = StepPhase.LISTENING, secondsLeft = step.seconds, syllables = 0, wrongMic = false) }
+        var ear = StepEar(step.need)
+        // Before the student step settles the channels, either mic can be the student's.
+        fun counter() = step.verb?.let { SyllableCounter(if (step == SetupStep.TEACHER_SPEAK) Channel.TEACHER else null) }
+        var syllables = counter()
+        fun hear() = viewModelScope.launch {
+            liveLevels.filterNotNull().collect { block ->
+                ear.add(block)
+                syllables?.let { c ->
+                    c.add(block)
+                    val s = _state.value
+                    if (s.syllables != c.heard || s.wrongMic != c.wrongMic) {
+                        _state.update { it.copy(syllables = c.heard, wrongMic = c.wrongMic) }
+                    }
+                }
+            }
+        }
+        var hearing = hear()
+        var start = android.os.SystemClock.elapsedRealtime()
+        var endAt = start + step.seconds * 1_000L
+        var warned = false
         try {
             while (true) {
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (now >= endAt) break
+                if (syllables?.wrongMic == true && _state.value.spoken && !warned) {
+                    // Said once per step, then the step starts over so the voice isn't in the measurement.
+                    warned = true
+                    hearing.cancel()
+                    speaker.sayAndWait(VoiceLine.CHECK_WRONG_MIC)
+                    delay(AFTER_LINE_MS)
+                    recorder.resetWindow()
+                    ear = StepEar(step.need)
+                    syllables = counter()
+                    _state.update { it.copy(syllables = 0, wrongMic = false, secondsLeft = step.seconds) }
+                    hearing = hear()
+                    start = android.os.SystemClock.elapsedRealtime()
+                    endAt = start + step.seconds * 1_000L
+                    continue
+                }
                 val heardSoFar = now - start >= MIN_LISTEN_MS && ear.enough()
                 if (heardSoFar && passesSoFar(step)) break
                 val left = ((endAt - now + 999) / 1_000).toInt()
@@ -280,6 +322,12 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
 
     /** Skips the piano steps, for lessons without a piano. */
     fun skipPiano() {
+        job?.cancel()
+        job = null
+        if (_state.value.spoken) {
+            speaker.stopAll()
+            speaker.say(VoiceLine.CHECK_SKIP_PIANO)
+        }
         finish()
     }
 
