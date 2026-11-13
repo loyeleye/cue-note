@@ -40,8 +40,8 @@ teacher set, or only a typed name, need no one's agreement.
 the dashboard: `supabase secrets set RESEND_API_KEY=… CONSENT_EMAIL_FROM="Cue Note <notifications@cuenote.cc>"
 DASHBOARD_URL=https://dashboard.cuenote.cc --project-ref tgytbytwofiymsvajdkd`.
 
-**Hosting the dashboard.** It's a static site on Cloudflare Pages, connected to
-this repo: root directory `web`, build command `npm run build`, output `build`,
+**Hosting the dashboard.** It's a static site on Cloudflare (Workers, set up by `web/wrangler.jsonc`), connected to
+this repo: root directory `web`, build command `npm run build`, deploy command `npx wrangler deploy`,
 env vars `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY`, custom domain
 `dashboard.cuenote.cc`. Each push to main redeploys it. In Supabase Auth's URL
 settings, `https://dashboard.cuenote.cc/**` must be an allowed redirect, or
