@@ -27,7 +27,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   ANSWER_SCHEMA, batches, check, costUsd, DIAGRAM_MIN_CONFIDENCE, examplesText, invalidRequest, labelBlocks, lessonText, samePayload,
   supportsFallback, SYSTEM_PROMPT,
-  type Block, type CardPayload, type Checked, type Correction, type ModelCard, type Request, type TakeRow,
+  type Block, type CardPayload, type Checked, type Correction, type ModelCard, type Request, type TakeRow, type ExerciseRow,
 } from './cues.ts';
 
 const MODEL = Deno.env.get('CUE_MODEL') || 'claude-opus-5-5';
@@ -100,8 +100,16 @@ Deno.serve(async (req) => {
   // A card a teacher deleted stays deleted when the notes are made again.
   const { data: removedRows } = await db.from('feedback_removed').select('feedback_id').eq('lesson_id', lesson.id);
   const removed = new Set((removedRows ?? []).map((r) => r.feedback_id as string));
-  // A link to a take that never uploaded would break the foreign key.
-  const blocks: Block[] = body.blocks.filter((b) => !removed.has(b.id)).map((b) => ({ ...b, take_id: b.take_id && takeIds.has(b.take_id) ? b.take_id : null }));
+  const { data: exRows, error: exErr } = await db.from('exercise').select('id, start_ms, kind').eq('lesson_id', lesson.id);
+  if (exErr) return json({ error: exErr.message }, 500);
+  const exercises = (exRows ?? []) as ExerciseRow[];
+  const exIds = new Set(exercises.map((e) => e.id));
+  // A link to a take or exercise that never uploaded would break the foreign key.
+  const blocks: Block[] = body.blocks.filter((b) => !removed.has(b.id)).map((b) => ({
+    ...b,
+    take_id: b.take_id && takeIds.has(b.take_id) ? b.take_id : null,
+    exercise_id: b.exercise_id && exIds.has(b.exercise_id) ? b.exercise_id : null,
+  }));
 
   const log = async (row: Record<string, unknown>, model = MODEL) => {
     await db.from('cue_extraction').insert({ lesson_id: lesson.id, model, ...row });
@@ -128,7 +136,7 @@ Deno.serve(async (req) => {
     let cards: ModelCard[] = [];
     try {
       const answers = await Promise.all(batches(spoken).map((group) =>
-        ask(client, model, lessonText(labels, takes, body.transcript, new Set(group)), examples)));
+        ask(client, model, lessonText(labels, takes, body.transcript, new Set(group), exercises), examples)));
       for (const a of answers) {
         cards = cards.concat(a.cards);
         usage.input += a.usage.input;
@@ -191,6 +199,7 @@ Deno.serve(async (req) => {
     clip_path: muted.has(c.block.id) ? null : c.block.clip_path,
     transcript: c.block.transcript,
     link_confidence: c.block.link_confidence,
+    exercise_id: c.block.exercise_id ?? null,
   });
 
   const fresh = checked.filter((c) => !edited.has(c.block.id));

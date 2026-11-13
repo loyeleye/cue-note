@@ -24,8 +24,11 @@ data class GoldenLabels(
     val demos: List<Span> = emptyList(),
     /** Optional frame-level truth; synthetic lessons have it, hand labels usually do not. */
     val segments: List<Segment> = emptyList(),
+    /** Warmups and song sections, each from her setting it up to moving on. */
+    val exercises: List<ExerciseLabel> = emptyList(),
     val notes: String = "",
 ) {
+    @Serializable data class ExerciseLabel(val startMs: Long, val endMs: Long, val kind: String? = null)
     /** A span; for a demo, [take] is the take whose phrase she was modelling, when known. */
     @Serializable data class Span(val startMs: Long, val endMs: Long, val take: Int? = null)
     @Serializable data class FeedbackLabel(val startMs: Long, val endMs: Long, val take: Int? = null)
@@ -61,6 +64,17 @@ data class Score(
     /** "truth -> found" frame counts, for the confusion table. */
     val confusion: Map<String, Int> = emptyMap(),
     val mistakes: List<String> = emptyList(),
+    /** When exercises are labelled: of the true exercises, how many were found (half or more overlap). */
+    val exerciseRecall: Double? = null,
+    val exercisePrecision: Double? = null,
+    /**
+     * Of each pair of neighbouring true takes (both found), how often the
+     * pipeline got "same exercise or not" right. The number that says whether
+     * tries are grouped the way the lesson went.
+     */
+    val groupingAccuracy: Double? = null,
+    /** Of the true feedback blocks, how many landed in the right exercise. */
+    val exerciseLinkAccuracy: Double? = null,
 )
 
 object Scorer {
@@ -126,7 +140,42 @@ object Scorer {
             }
             labelAcc = ratio(same, frames)
         }
+        // --- exercises
+        var exRecall: Double? = null; var exPrecision: Double? = null
+        var grouping: Double? = null; var exLink: Double? = null
+        if (truth.exercises.isNotEmpty()) {
+            val ex = truth.exercises.sortedBy { it.startMs }
+            val exMatch = match(ex.map { it.startMs to it.endMs }, out.exercises.map { it.startMs to it.endMs }, 0.5)
+            exRecall = ratio(exMatch.size, ex.size)
+            exPrecision = ratio(exMatch.size, out.exercises.size)
+            ex.indices.filter { it !in exMatch }.forEach { mistakes += "exercise ${it + 1} at ${clock(ex[it].startMs)} not found as one piece" }
+            fun trueEx(a: Long, b: Long): Int? = ex.indexOfFirst { (a + b) / 2 in it.startMs..it.endMs }.takeIf { it >= 0 }
+            // neighbouring true takes, both found: same exercise or not?
+            val pairs = (1 until truth.takes.size).filter { it in takeMatch && it - 1 in takeMatch }
+            if (pairs.isNotEmpty()) {
+                var right = 0
+                for (i in pairs) {
+                    val a = truth.takes[i - 1]; val b = truth.takes[i]
+                    val same = trueEx(a.startMs, a.endMs).let { it != null && it == trueEx(b.startMs, b.endMs) }
+                    val found = out.takes[takeMatch.getValue(i - 1)].exerciseId.let { it != null && it == out.takes[takeMatch.getValue(i)].exerciseId }
+                    if (same == found) right++
+                    else mistakes += if (same) "takes ${i} and ${i + 1} (${clock(b.startMs)}) are one exercise but were split"
+                    else "takes ${i} and ${i + 1} (${clock(b.startMs)}) are separate exercises but were joined"
+                }
+                grouping = right.toDouble() / pairs.size
+            }
+            // feedback: the exercise its found block was put in, against the true one
+            val foundExToTrue = exMatch.entries.associate { (t, p) -> out.exercises[p].id to t }
+            val judged = truth.feedback.mapNotNull { fb ->
+                val found = out.feedback.maxByOrNull { overlap(fb.startMs, fb.endMs, it.startMs, it.endMs) }
+                    ?.takeIf { overlap(fb.startMs, fb.endMs, it.startMs, it.endMs) > 0 } ?: return@mapNotNull null
+                trueEx(fb.startMs, fb.endMs) to found.exerciseId?.let(foundExToTrue::get)
+            }
+            if (judged.isNotEmpty()) exLink = judged.count { (t, f) -> t == f }.toDouble() / judged.size
+        }
         return Score(
+            exerciseRecall = exRecall, exercisePrecision = exPrecision,
+            groupingAccuracy = grouping, exerciseLinkAccuracy = exLink,
             lessonId = out.lessonId,
             takePrecision = precision, takeRecall = recall, takeF1 = f1, takeBoundaryErrorMs = edgeErr,
             linkAccuracy = linkAcc, linkCorrect = correct, linkTotal = truth.feedback.size,

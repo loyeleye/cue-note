@@ -1,6 +1,7 @@
 <script lang="ts">
   // The lesson timeline: every take in order, with its clip, pitch line and
-  // the cards she gave about it. Any card opens in the editor in place.
+  // the cards she gave about it, grouped into the lesson's warmups and song
+  // sections when the phone found them, with the lesson at a glance on top. Any card opens in the editor in place.
   // Several teachers can have the lesson open: each card shows who edited it
   // last, others' saves arrive live, and their faces show at the top.
   import { tick } from 'svelte';
@@ -10,7 +11,7 @@
   import { ago, bars, clock, date, FLAG_LABEL, minutes } from '$lib/format';
   import { colorVar, findTeacher, initials, softVar, teacherLabel } from '$lib/people';
   import type {
-    CardFields, CardVersion, Checkpoint, DiagramSuggestion, Feedback, Lesson, PhotoMark, Profile, Song, Take, Teacher
+    CardFields, CardVersion, Checkpoint, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark, Profile, Song, Take, Teacher
   } from '$lib/types';
   import CardEditor from '$lib/components/CardEditor.svelte';
   import LessonHistory from '$lib/components/LessonHistory.svelte';
@@ -27,6 +28,7 @@
   let lesson = $state<Lesson | null | undefined>(undefined);
   let student = $state<Profile | null>(null);
   let takes = $state<Take[]>([]);
+  let exercises = $state<Exercise[]>([]);
   let cards = $state<Feedback[]>([]);
   let photos = $state<PhotoMark[]>([]);
   let suggestions = $state<DiagramSuggestion[]>([]);
@@ -54,9 +56,10 @@
     const l = await api().getLesson(lessonId);
     lesson = l;
     if (!l) return;
-    [takes, cards, photos, songs, suggestions] = await Promise.all([
+    [takes, cards, photos, songs, suggestions, exercises] = await Promise.all([
       api().listTakes(lessonId), api().listFeedback(lessonId), api().listPhotos(lessonId), api().listSongs(l.student_id),
-      api().listDiagramSuggestions(lessonId).catch(() => [] as DiagramSuggestion[])
+      api().listDiagramSuggestions(lessonId).catch(() => [] as DiagramSuggestion[]),
+      api().listExercises(lessonId).catch(() => [] as Exercise[])
     ]);
     student = (await api().getStudent(l.student_id))?.student ?? null;
     teachers = await api().listTeachers(l.student_id);
@@ -127,6 +130,53 @@
   });
 
   const songTitle = (sid: string | null) => songs.find((s) => s.id === sid)?.title;
+
+  // ---- exercises: warmups and song sections
+  /** The exercise something belongs to: the one the phone gave it, else the one whose span holds it. */
+  function exerciseOf(at: number, given?: string | null): string | null {
+    if (given && exercises.some((e) => e.id === given)) return given;
+    return exercises.find((e) => at >= e.start_ms && at <= e.end_ms)?.id ?? null;
+  }
+  const itemExercise = (item: Item) =>
+    item.kind === 'take' ? exerciseOf(item.at, item.take.exercise_id)
+    : item.kind === 'card' ? exerciseOf(item.at, item.card.exercise_id)
+    : exerciseOf(item.at);
+
+  /** "Warmup 2", or the song's title, or the name a teacher gave it. */
+  const exerciseNames = $derived.by(() => {
+    const out = new Map<string, string>();
+    const n = { warmup: 0, song: 0 };
+    for (const e of exercises) {
+      n[e.kind] += 1;
+      const song = e.kind === 'song'
+        ? songTitle(takes.find((t) => exerciseOf(t.start_ms, t.exercise_id) === e.id && t.song_id)?.song_id ?? null)
+        : undefined;
+      out.set(e.id, e.title || song || (e.kind === 'song' ? `Song ${n.song}` : `Warmup ${n.warmup}`));
+    }
+    return out;
+  });
+
+  type Group = { kind: 'loose'; at: number; item: Item } | { kind: 'exercise'; at: number; ex: Exercise; items: Item[] };
+
+  /** The timeline as the lesson went: each exercise with its tries and cards, and anything between them on its own. */
+  const groups = $derived.by<Group[]>(() => {
+    const out: Group[] = exercises.map((ex) => ({ kind: 'exercise', at: ex.start_ms, ex, items: [] as Item[] }));
+    for (const item of timeline) {
+      const g = out.find((x) => x.kind === 'exercise' && x.ex.id === itemExercise(item));
+      if (g && g.kind === 'exercise') g.items.push(item);
+      else out.push({ kind: 'loose', at: item.at, item });
+    }
+    return out.filter((g) => g.kind === 'loose' || g.items.length).sort((a, b) => a.at - b.at);
+  });
+
+  /** Every card in an exercise, in time order, the ones to practise first. */
+  function exerciseCards(items: Item[]): Feedback[] {
+    const all = items.flatMap((i) => (i.kind === 'take' ? i.cards : i.kind === 'card' ? [i.card] : []));
+    return all.filter((c) => c.cue || c.her_words)
+      .sort((a, b) => Number(b.practice_flag === 'practice_this') - Number(a.practice_flag === 'practice_this') || a.span_start_ms - b.span_start_ms);
+  }
+  const triesIn = (items: Item[]) => items.filter((i) => i.kind === 'take').length;
+  let collapsed = $state<Record<string, boolean>>({});
 
   function saved(f: Feedback) {
     cards = cards.map((c) => (c.id === f.id ? f : c));
@@ -213,6 +263,8 @@
     }
   }
 
+  const itemKey = (item: Item) => item.kind + (item.kind === 'take' ? item.take.id : item.kind === 'card' ? item.card.id : item.photo.id);
+
   const studentCards = $derived(cards.map((c) => ({ ...c, recorded_at: lesson?.recorded_at ?? '' })));
 </script>
 
@@ -277,6 +329,31 @@
   <SketchFigure photo={p} {cards} onmove={movedPhoto} />
 {/snippet}
 
+{#snippet itemRow(item: Item)}
+  <li>
+    <span class="time">{clock(item.at)}</span>
+    <div class="body">
+      {#if item.kind === 'take'}
+        {@const t = item.take}
+        <section class="take">
+          <div class="take-head">
+            <strong>Take {item.index + 1}</strong>
+            <span class="muted small">{Math.round((t.end_ms - t.start_ms) / 1000)} s</span>
+            {#if t.bar_start != null}<span class="chip">{bars(t.bar_start, t.bar_end)}{songTitle(t.song_id) ? ` · ${songTitle(t.song_id)}` : ''}</span>{/if}
+          </div>
+          {#if t.clip_path}<ClipPlayer path={t.clip_path} label="Play take" />{/if}
+          {#if t.pitch_contour}<PitchPlot contour={t.pitch_contour} confidence={t.pitch_confidence} />{/if}
+        </section>
+        {#each item.cards as c (c.id)}{@render cardView(c)}{/each}
+      {:else if item.kind === 'card'}
+        {@render cardView(item.card)}
+      {:else}
+        {@render photoView(item.photo)}
+      {/if}
+    </div>
+  </li>
+{/snippet}
+
 {#if lesson === null}
   <p>This lesson isn't shared with you. <a href="/">Back to students</a></p>
 {:else if lesson}
@@ -294,7 +371,7 @@
       </div>
     {/if}
   </div>
-  <p class="muted">{minutes(lesson.duration_ms)} · {takes.length} takes · {cards.length} cards. Every save keeps the earlier version.</p>
+  <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${exercises.length} exercises` : ''} · {takes.length} takes · {cards.length} cards. Every save keeps the earlier version.</p>
   {#if teachers.length > 1}
     <p class="taught">
       {#if lesson.taught_by}
@@ -312,30 +389,55 @@
     <p class="muted small">Sketches sit on the card they were taken during. Drag one onto another card, or use its "Move to" list.</p>
   {/if}
   {#if moveError}<p class="error small" role="alert">{moveError}</p>{/if}
-  <ol class="timeline">
-    {#each timeline as item (item.kind + (item.kind === 'take' ? item.take.id : item.kind === 'card' ? item.card.id : item.photo.id))}
-      <li>
-        <span class="time">{clock(item.at)}</span>
-        <div class="body">
-          {#if item.kind === 'take'}
-            {@const t = item.take}
-            <section class="take">
-              <div class="take-head">
-                <strong>Take {item.index + 1}</strong>
-                <span class="muted small">{Math.round((t.end_ms - t.start_ms) / 1000)} s</span>
-                {#if t.bar_start != null}<span class="chip">{bars(t.bar_start, t.bar_end)}{songTitle(t.song_id) ? ` · ${songTitle(t.song_id)}` : ''}</span>{/if}
-              </div>
-              {#if t.clip_path}<ClipPlayer path={t.clip_path} label="Play take" />{/if}
-              {#if t.pitch_contour}<PitchPlot contour={t.pitch_contour} confidence={t.pitch_confidence} />{/if}
-            </section>
-            {#each item.cards as c (c.id)}{@render cardView(c)}{/each}
-          {:else if item.kind === 'card'}
-            {@render cardView(item.card)}
-          {:else}
-            {@render photoView(item.photo)}
+  {#if exercises.length}
+    <section class="glance card" aria-label="The lesson at a glance">
+      <h2>At a glance</h2>
+      <ol>
+        {#each groups as g (g.kind === 'exercise' ? g.ex.id : 'loose-' + g.at)}
+          {#if g.kind === 'exercise'}
+            {@const cs = exerciseCards(g.items)}
+            <li>
+              <a class="glance-name" href="#ex-{g.ex.id}"><span class="kind {g.ex.kind}">{g.ex.kind === 'song' ? 'Song' : 'Warmup'}</span>
+                {exerciseNames.get(g.ex.id)}</a>
+              <span class="muted small">{clock(g.ex.start_ms)} · {triesIn(g.items)} {triesIn(g.items) === 1 ? 'try' : 'tries'} · {cs.length} {cs.length === 1 ? 'card' : 'cards'}</span>
+              {#if cs.length}
+                <ul class="takeaways">
+                  {#each cs.slice(0, 3) as c (c.id)}
+                    <li><a href="#card-{c.id}">{c.cue || c.her_words}</a>{#if c.practice_flag === 'practice_this'} <span class="chip accent">Practise</span>{/if}</li>
+                  {/each}
+                  {#if cs.length > 3}<li class="muted small">and {cs.length - 3} more</li>{/if}
+                </ul>
+              {/if}
+            </li>
           {/if}
-        </div>
-      </li>
+        {/each}
+      </ol>
+    </section>
+  {/if}
+
+  <ol class="timeline">
+    {#each groups as g (g.kind === 'exercise' ? g.ex.id : itemKey(g.item))}
+      {#if g.kind === 'loose'}
+        {@render itemRow(g.item)}
+      {:else}
+        {@const cs = exerciseCards(g.items)}
+        <li class="exercise" id="ex-{g.ex.id}">
+          <span class="time">{clock(g.ex.start_ms)}</span>
+          <div class="body">
+            <button class="ex-head" aria-expanded={!collapsed[g.ex.id]} onclick={() => (collapsed[g.ex.id] = !collapsed[g.ex.id])}>
+              <span class="kind {g.ex.kind}">{g.ex.kind === 'song' ? 'Song' : 'Warmup'}</span>
+              <strong>{exerciseNames.get(g.ex.id)}</strong>
+              <span class="muted small">{clock(g.ex.start_ms)}–{clock(g.ex.end_ms)} · {triesIn(g.items)} {triesIn(g.items) === 1 ? 'try' : 'tries'} · {cs.length} {cs.length === 1 ? 'card' : 'cards'}</span>
+              <span class="chev" aria-hidden="true">{collapsed[g.ex.id] ? '▸' : '▾'}</span>
+            </button>
+            {#if !collapsed[g.ex.id]}
+              <ol class="timeline inner">
+                {#each g.items as item (itemKey(item))}{@render itemRow(item)}{/each}
+              </ol>
+            {/if}
+          </div>
+        </li>
+      {/if}
     {:else}
       <li class="muted">No takes or cards in this lesson yet.</li>
     {/each}
@@ -396,5 +498,22 @@
     .timeline > li::before { left: 19px; }
     .cue-card { margin-left: 0; }
   }
+  .glance { margin-top: 16px; }
+  .glance h2 { margin: 0 0 8px; font-size: 16px; }
+  .glance > ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .glance-name { font-weight: 600; text-decoration: none; color: inherit; margin-right: 6px; }
+  .glance-name:hover { text-decoration: underline; }
+  .takeaways { margin: 4px 0 0; padding-left: 20px; font-size: 14px; }
+  .takeaways a { color: inherit; }
+  .takeaways .chip { margin-left: 6px; }
+  .kind { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+          padding: 1px 6px; border-radius: 4px; background: var(--chip); color: var(--chip-fg); margin-right: 4px; }
+  .kind.song { background: var(--accent-soft); }
+  .exercise > .body { gap: 10px; }
+  .ex-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; text-align: left; width: 100%;
+             background: none; border: none; border-bottom: 1px solid var(--border); padding: 2px 0 8px; cursor: pointer; color: inherit; font: inherit; }
+  .ex-head strong { font-size: 16px; }
+  .ex-head .chev { margin-left: auto; color: var(--muted); }
+  .timeline.inner { margin-top: 4px; }
   .card-remove { display: flex; gap: 14px; justify-content: flex-end; margin-top: 6px; }
 </style>

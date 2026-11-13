@@ -115,6 +115,8 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
                 setProgress(workDataOf(KEY_STAGE to "upload", KEY_PROGRESS to (i + 1) * 100 / clips.size.coerceAtLeast(1)))
             }
             val takes = stages.takes(lessonId)
+            // exercises first: takes point at them
+            cloud.putExercises(lessonId, stages.exercises(lessonId))
             cloud.putTakes(lessonId, takes) { pathOf[it] }
             stages.upsertStage(record("upload", "done", started, "${clips.size} clips and ${takes.size} takes"))
         } catch (e: Exception) {

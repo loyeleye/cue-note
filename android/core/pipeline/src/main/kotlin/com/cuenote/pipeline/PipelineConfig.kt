@@ -68,6 +68,12 @@ data class PipelineConfig(
     val minFeedbackMs: Long = 600,
     val minDemoMs: Long = 800,
 
+    // --- exercises -------------------------------------------------------------
+    /** No singing for this long ends a warmup or song section. */
+    val exerciseBreakMs: Long = 120_000,
+    /** A try this long is a song (or a long sung passage), not a warmup. */
+    val songTakeMs: Long = 60_000,
+
     // --- linking -------------------------------------------------------------
     /** Feedback that starts this long after its take still links, with falling confidence. */
     val linkFullConfidenceMs: Long = 20_000,

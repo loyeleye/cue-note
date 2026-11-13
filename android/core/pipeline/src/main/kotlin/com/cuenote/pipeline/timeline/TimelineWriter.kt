@@ -47,6 +47,7 @@ object TimelineWriter {
             put("segments", json.encodeToJsonElement(out.segments))
             put("takes", json.encodeToJsonElement(out.takes.map { it.copy(pitchHz = emptyList(), pitchConfidence = emptyList()) }))
             put("feedback", json.encodeToJsonElement(out.feedback))
+            put("exercises", json.encodeToJsonElement(out.exercises))
             put("transcript", json.encodeToJsonElement(out.transcript))
             put("events", json.encodeToJsonElement(out.events))
             put("gaps", json.encodeToJsonElement(lesson.events.filterIsInstance<com.cuenote.signal.LessonEvent.Gap>().map { listOf(it.atMs, it.missingMs) }))

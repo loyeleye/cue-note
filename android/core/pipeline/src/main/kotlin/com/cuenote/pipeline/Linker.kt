@@ -9,7 +9,8 @@ import kotlin.math.max
  * Joins things up:
  *
  * - **Feedback to take.** Each feedback block belongs to the student's most
- *   recent take before it. Student talking in between is skipped over, so a
+ *   recent take before it, within the same exercise (see [Exercises]); the
+ *   block where she sets up the next exercise is about no take. Student talking in between is skipped over, so a
  *   question like "was that flat?" points her answer back at the take it asks
  *   about. Feedback before the first take (the lesson's opening chat) links to
  *   nothing. The longer the wait since the take, the lower the confidence.
@@ -30,11 +31,15 @@ class Linker(private val cfg: PipelineConfig = PipelineConfig()) {
         // "most recent take": the last take that started before the feedback did
         val idx = takes.indexOfLast { it.startMs < fb.startMs }
         val take = takes.getOrNull(idx)
+        val sameExercise = take != null && fb.exerciseId != null && take.exerciseId == fb.exerciseId
         val (conf, reason) = when {
             take == null -> 0f to "no take before this feedback"
+            // she is setting up the next exercise, not talking about the last try
+            fb.exerciseId != null && take.exerciseId != null && !sameExercise -> 0f to "sets up the next exercise"
             else -> {
                 val wait = max(0L, fb.startMs - take.endMs)
                 when {
+                    wait > cfg.linkMaxMs && sameExercise -> 0.3f to "most recent try of this exercise, ${wait / 1000} s earlier"
                     wait > cfg.linkMaxMs -> 0f to "last take ended ${wait / 1000} s earlier, too long ago"
                     wait <= cfg.linkFullConfidenceMs -> 1f to "most recent take"
                     else -> {

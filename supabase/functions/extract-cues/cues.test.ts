@@ -53,6 +53,23 @@ test('the lesson text shows takes, both speakers and demos, and no uuids', () =>
   assert.doesNotMatch(some, /B2/);
 });
 
+test('the lesson text puts blocks under their warmup or song, without uuids', () => {
+  const ex = [
+    { id: 'e0000000-0000-0000-0000-000000000001', start_ms: 30_000, kind: 'warmup' as const },
+    { id: 'e0000000-0000-0000-0000-000000000002', start_ms: 200_000, kind: 'song' as const },
+  ];
+  const blocks = sample.request.blocks.map((b, i) => ({ ...b, exercise_id: i === 0 ? null : i < 3 ? ex[0].id : ex[1].id }));
+  const text = lessonText(labelBlocks(blocks), sample.takes, sample.request.transcript, undefined, ex);
+  assert.match(text, /^== Talk between exercises ==\nB1 /);
+  assert.match(text, /== Exercise 1: a warmup ==\nB2 /);
+  assert.equal(text.match(/== Exercise 1/g)!.length, 1);   // one heading for B2 and B3
+  assert.match(text, /== Exercise 2: singing the song ==\nB4 /);
+  assert.doesNotMatch(text, /[0-9a-f]{8}-[0-9a-f]{4}-/);
+  // a bad exercise id is refused
+  const bad = { ...sample.request, blocks: [{ ...sample.request.blocks[0], exercise_id: 'warmup-1' }] };
+  assert.match(invalidRequest(bad)!, /exercise_id/);
+});
+
 test('her words are kept when they are hers, and replaced with her sentence when not', () => {
   const said = 'Lovely. But you pushed the top. Let the jaw drop and think of a yawn, okay?';
   assert.deepEqual(verbatim('let the jaw drop and think of a yawn', said), { text: 'let the jaw drop and think of a yawn', repaired: false });
