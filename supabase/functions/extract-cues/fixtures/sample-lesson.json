@@ -42,7 +42,7 @@
         "practice_flag": "practice_this", "bar_start": null, "bar_end": null, "diagram": "vowels-jaw", "diagram_confidence": 0.88 },
       { "block": "B3", "cue": "Keep the breath moving to the end of the phrase", "category": "breath", "her_words": "Keep air flowing through the phrase end.", "summary": "Keep the air moving right to the end of the phrase.", "weight": 1.7,
         "practice_flag": null, "bar_start": null, "bar_end": null, "diagram": "breath-steady", "diagram_confidence": 0.62 },
-      { "block": "B4", "cue": "Sing bars 9 to 12 legato", "category": "phrasing", "her_words": "From bar 12 back to bar 9, I want you to work that at home every day.", "summary": "Practise bars 9 to 12 every day, smoothly.", "weight": 0.8,
+      { "block": "B4", "cue": "Sing bars 9 to 12 legato", "category": "phrasing", "her_words": "From bar 12 back to bar 9, I want you to work that at home every day.", "summary": "Practice bars 9 to 12 every day, smoothly.", "weight": 0.8,
         "practice_flag": "practice_this", "bar_start": 12, "bar_end": 9, "diagram": "line-legato", "diagram_confidence": 0.75 }
     ]
   }

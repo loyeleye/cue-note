@@ -228,6 +228,8 @@ class CloudSync(private val auth: AuthRepository) {
         @SerialName("audio_removed_at") val audioRemovedAt: String? = null,
         val summary: String = "",
         val weight: Float? = null,
+        @SerialName("summary_check") val summaryCheck: String? = null,
+        @SerialName("summary_rejected") val summaryRejected: String? = null,
     )
 
     @Serializable
@@ -301,6 +303,7 @@ class CloudSync(private val auth: AuthRepository) {
                 herWords = it.herWords, practiceFlag = it.practiceFlag, barStart = it.barStart, barEnd = it.barEnd,
                 transcript = it.transcript, editedByTeacher = it.id in edited, updatedAt = it.updatedAt,
                 summary = it.summary, weight = it.weight,
+                summaryCheck = it.summaryCheck, summaryRejected = it.summaryRejected,
             )
         }
     }

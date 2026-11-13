@@ -85,7 +85,7 @@ fun FullLessonSection(lessonId: String, repo: FullLessonRepository, teachers: Li
                     }
                     else -> {
                         Text(
-                            "${t.name} hears the notes you're practising and the takes you send. The rest of this lesson is yours.",
+                            "${t.name} hears the notes you're practicing and the takes you send. The rest of this lesson is yours.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         TextButton(onClick = { inviting = t }, enabled = passes != null && !busy) { Text("Let ${t.name} hear the whole lesson") }

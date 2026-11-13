@@ -174,17 +174,25 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
         }
 
         /**
-         * Queues the upload. It joins the lesson's upload chain ("upload-<id>"),
-         * so it runs after the lesson, takes and cards are in the cloud.
+         * Queues the upload on the lesson's own photo chain ("photos-<id>").
+         * Until the lesson and its cards are in the cloud it waits and tries
+         * again, and the card upload [kick]s it once they are. It used to join
+         * the card chain, where a photo waiting for cards held up "Make my
+         * notes" behind it for up to a day.
          */
-        fun enqueue(context: Context, lessonId: String) {
+        fun enqueue(context: Context, lessonId: String) = enqueue(context, lessonId, ExistingWorkPolicy.APPEND_OR_REPLACE)
+
+        /** Runs the lesson's photo upload now, dropping one that is waiting out a retry. */
+        fun kick(context: Context, lessonId: String) = enqueue(context, lessonId, ExistingWorkPolicy.REPLACE)
+
+        private fun enqueue(context: Context, lessonId: String, policy: ExistingWorkPolicy) {
             val request = OneTimeWorkRequestBuilder<PhotoUploadWorker>()
                 .setInputData(workDataOf(KEY_LESSON to lessonId))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
                 .addTag("photo-upload")
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork("upload-$lessonId", ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+            WorkManager.getInstance(context).enqueueUniqueWork("photos-$lessonId", policy, request)
         }
     }
 }

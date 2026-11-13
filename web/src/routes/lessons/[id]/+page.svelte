@@ -171,7 +171,7 @@
     return out.filter((g) => g.kind === 'loose' || g.items.length).sort((a, b) => a.at - b.at);
   });
 
-  /** Every card in an exercise, in time order, the ones to practise first. */
+  /** Every card in an exercise, in time order, the ones to practice first. */
   function exerciseCards(items: Item[]): Feedback[] {
     const all = items.flatMap((i) => (i.kind === 'take' ? i.cards : i.kind === 'card' ? [i.card] : []));
     return all.filter((c) => c.cue || c.her_words)
@@ -202,6 +202,24 @@
     try {
       const f = await api().checkSummary(c.id, said);
       cards = cards.map((x) => (x.id === f.id ? f : x));
+    } catch (e) {
+      checkError = { card: c.id, message: e instanceof Error ? e.message : String(e) };
+    } finally {
+      checking = null;
+    }
+  }
+  // After a no, her own line for the student, saved as the card's summary.
+  let corrections = $state<Record<string, string>>({});
+  async function correctSummary(c: Feedback) {
+    const text = (corrections[c.id] ?? '').trim();
+    if (!text) return;
+    checking = c.id;
+    checkError = null;
+    try {
+      const f = await api().saveCard(c.id, { summary: text }, { expected: { summary: c.summary ?? '' } });
+      cards = cards.map((x) => (x.id === f.id ? f : x));
+      delete corrections[c.id];
+      reloadHistory();
     } catch (e) {
       checkError = { card: c.id, message: e instanceof Error ? e.message : String(e) };
     } finally {
@@ -330,9 +348,17 @@
             <p>{c.summary}</p>
           {/if}
           {#if c.summary_check === 'said'}
-            <p class="muted small">You said this{c.summary_checked_at ? `, ${ago(c.summary_checked_at)}` : ''}. <button class="link small" onclick={() => checkSummary(c, false)} disabled={checking === c.id}>Actually, I didn't</button></p>
+            <p class="muted small">{c.summary_rejected ? 'Your correction' : 'You said this'}{c.summary_checked_at ? `, ${ago(c.summary_checked_at)}` : ''}. <button class="link small" onclick={() => checkSummary(c, false)} disabled={checking === c.id}>Actually, I didn't</button></p>
           {:else if c.summary_check === 'not_said'}
-            <p class="muted small">You said you didn't say {c.summary_rejected ? `"${c.summary_rejected}"` : 'the summary'}. The student sees your own words instead. Use Edit to write the point the way you meant it.</p>
+            <p class="muted small">You said you didn't say {c.summary_rejected ? `“${c.summary_rejected}”` : 'the summary'}. The student sees your clip and your own words, with a note that the app's summary was off.</p>
+            <form class="correct" onsubmit={(e) => { e.preventDefault(); correctSummary(c); }}>
+              <label for="correct-{c.id}" class="small">What did you mean? One line, optional. The student sees it in place of the summary.</label>
+              <div class="correct-row">
+                <input id="correct-{c.id}" maxlength="300" placeholder="e.g. Let the high note fall in from above, don't push up to it"
+                       value={corrections[c.id] ?? ''} oninput={(e) => (corrections[c.id] = e.currentTarget.value)} />
+                <button class="small" type="submit" disabled={checking === c.id || !(corrections[c.id] ?? '').trim()}>Save</button>
+              </div>
+            </form>
           {:else}
             <div class="ask">
               <span>Did you say this?</span>
@@ -551,6 +577,9 @@
   .summary p { margin: 0; }
   .summary .ask { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
   .tally { margin: 0; }
+  .correct { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .correct-row { display: flex; gap: 8px; }
+  .correct-row input { flex: 1; min-width: 0; }
   .her-clip { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
   .edit-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }
   .after { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 12px; }

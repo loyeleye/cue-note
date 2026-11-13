@@ -66,7 +66,7 @@ interface LessonDao {
         PhotoEntity::class, PracticeSessionEntity::class, PracticeTakeEntity::class,
         PracticeQuestionEntity::class, ExerciseEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 abstract class LessonDatabase : RoomDatabase() {
@@ -82,7 +82,7 @@ abstract class LessonDatabase : RoomDatabase() {
         /** One database for the app and its background workers. */
         fun get(context: Context): LessonDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, LessonDatabase::class.java, "cuenote.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .build().also { instance = it }
         }
 
@@ -140,6 +140,13 @@ abstract class LessonDatabase : RoomDatabase() {
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_9_10_SQL.forEach(db::execSQL)
+            }
+        }
+
+        /** Cards get the teacher's answer about the summary, and the one she said she didn't say. */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_11_SQL.forEach(db::execSQL)
             }
         }
 
@@ -229,5 +236,14 @@ internal val MIGRATION_9_10_ADDED_COLUMNS = mapOf(
 )
 
 internal val MIGRATION_9_10_SQL = MIGRATION_9_10_ADDED_COLUMNS.flatMap { (table, cols) ->
+    cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
+}
+
+/** Copied from schemas/com.cuenote.data.LessonDatabase/11.json (Room checks they match). */
+internal val MIGRATION_10_11_ADDED_COLUMNS = mapOf(
+    "card" to listOf("`summaryCheck` TEXT", "`summaryRejected` TEXT"),
+)
+
+internal val MIGRATION_10_11_SQL = MIGRATION_10_11_ADDED_COLUMNS.flatMap { (table, cols) ->
     cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
 }

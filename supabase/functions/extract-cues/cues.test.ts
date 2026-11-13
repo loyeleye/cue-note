@@ -232,3 +232,7 @@ test('summaries are tidied, weights clamped, and chat gets neither', () => {
   assert.equal(tidySummary('a\n b'), 'a b');
   assert.match(SYSTEM_PROMPT, /not by its length/);
 });
+
+test('summaries use American spelling', () => {
+  assert.equal(tidySummary('Practise this daily; keep practising what you practised.'), 'Practice this daily; keep practicing what you practiced.');
+});
