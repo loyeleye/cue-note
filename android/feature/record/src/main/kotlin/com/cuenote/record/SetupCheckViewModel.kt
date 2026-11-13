@@ -167,6 +167,8 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
      */
     fun runStep() {
         if (job?.isActive == true) return
+        // Starting cuts off anything still playing, such as the voice preview.
+        speaker.stopAll()
         job = viewModelScope.launch {
             if (_state.value.spoken && !introSaid && _state.value.step == SetupStep.STUDENT_SPEAK) {
                 introSaid = true
@@ -316,7 +318,7 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
         _state.update { it.copy(voice = voice) }
         if (job?.isActive != true) {
             speaker.stopAll()
-            speaker.say(VoiceLine.CHECK_DONE.takeIf { _state.value.done } ?: VoiceLine.CHECK_INTRO)
+            speaker.say(VoiceLine.VOICE_PICKED)
         }
     }
 

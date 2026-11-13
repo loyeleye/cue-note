@@ -170,7 +170,7 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
     LaunchedEffect(state) {
         when (val s = state) {
             is Framing.Countdown -> {
-                if (s.seconds == COUNTDOWN) tts.say(VoiceLine.COUNTDOWN_INTRO)
+                if (s.seconds == COUNTDOWN) { tts.stopAll(); tts.say(VoiceLine.COUNTDOWN_INTRO) }
                 delay(1_000)
                 state = if (s.seconds > 1) Framing.Countdown(s.seconds - 1) else Framing.Checking(if (stance == PostureView.SIDE) FramingAdvice.SIDE_NOT_SEEN else FramingAdvice.NOT_SEEN)
                 if (state is Framing.Checking) checking.set(true)
@@ -219,7 +219,7 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
                                 voice = v
                                 Speaker.setVoice(context, v)
                                 tts.stopAll()
-                                tts.say(VoiceLine.COUNTDOWN_INTRO)
+                                tts.say(VoiceLine.VOICE_PICKED)
                             },
                             label = { Text(v.label) },
                         )
