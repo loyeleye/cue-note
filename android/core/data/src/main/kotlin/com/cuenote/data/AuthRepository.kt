@@ -125,6 +125,16 @@ class AuthRepository private constructor(internal val client: SupabaseClient?) {
             val client = createSupabaseClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY) {
                 // Turning a lesson into cards can take a minute or two.
                 requestTimeout = 150.seconds
+                // The card writer sends nothing until it is done. OkHttp's own read
+                // timeout is 10 s, which cut every long lesson off at 10 s with
+                // "Socket timeout has expired", whatever requestTimeout said.
+                httpEngine = io.ktor.client.engine.okhttp.OkHttp.create {
+                    config {
+                        connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                        readTimeout(150, java.util.concurrent.TimeUnit.SECONDS)
+                        writeTimeout(150, java.util.concurrent.TimeUnit.SECONDS)
+                    }
+                }
                 install(Auth) {
                     flowType = FlowType.PKCE
                     scheme = "cuenote"
