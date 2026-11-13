@@ -298,6 +298,20 @@ the screen shows the exercises and their tries only; how each block was
 linked to a take is under Details. Opening a lesson fetches her latest edits
 and the exercises' names from the dashboard.
 
+A bar at the bottom of the lesson screen keeps the next step in reach:
+**Start practising** opens the first point from this lesson on the setlist,
+and **Send to teacher** opens the next-lesson page, where tries and questions
+go to her with the full clips.
+
+On the dashboard each card shows the summary the student sees and asks the
+teacher **Did you say this?** (`check_summary`). Yes marks it as hers; no
+takes the summary off the student's card, so the phone shows her own words
+instead, and keeps it in `summary_rejected` for the tally. A summary the
+teacher writes in the card editor counts as one she said. Making the notes
+again leaves an answered or teacher-written summary alone. The lesson page
+and the home page show how many summaries have been checked
+(`summary_check_tally`), which tells us how far to trust them.
+
 Each run is logged in `cue_extraction` with its tokens and cost, to check the
 design doc's estimate of $0.03 a lesson.
 

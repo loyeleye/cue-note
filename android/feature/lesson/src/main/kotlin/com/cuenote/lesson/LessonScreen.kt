@@ -52,6 +52,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -107,6 +109,10 @@ fun LessonScreen(
     fullLesson: com.cuenote.data.FullLessonRepository? = null,
     /** The teachers who can open this lesson, and so could be invited to all of it. */
     viewers: List<LessonViewer> = emptyList(),
+    /** Opens practice on one card; null hides "Start practising". */
+    onPractice: ((cardId: String) -> Unit)? = null,
+    /** Opens the next-lesson page, where tries and questions go to the teacher; null hides it. */
+    onSendToTeacher: (() -> Unit)? = null,
 ) {
     val dao = repo.pipelineDao!!
     val cardDao = repo.cardDao!!
@@ -153,8 +159,15 @@ fun LessonScreen(
         groups.associate { g -> g.card.id to suggestions.filter { s -> g.all.any { it.id == s.feedbackId } } }
     }
 
+    // The points from this lesson on her setlist, in lesson order: what "Start practising" opens.
+    val onList = remember(groups, overrides) { groups.map { it.card }.filter { SetlistStore.isOn(it, overrides) } }
+
     Scaffold(topBar = {
         TopAppBar(title = { Text("Lesson") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
+    }, bottomBar = {
+        if ((onPractice != null || onSendToTeacher != null) && (cards.isNotEmpty() || takes.isNotEmpty())) {
+            NextStepBar(onList.size, onList.firstOrNull()?.id?.let { id -> onPractice?.let { { it(id) } } }, onSendToTeacher)
+        }
     }) { padding ->
         LazyColumn(
             Modifier.padding(padding).padding(horizontal = 16.dp).fillMaxSize(),
@@ -552,5 +565,28 @@ private fun SketchRow(sketches: List<PhotoEntity>, lessonDir: File, onOpenSketch
     if (sketches.isEmpty()) return
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
         for (p in sketches) SketchThumb(p, lessonDir, Modifier.size(96.dp, 72.dp).clickable { onOpenSketch(p.id) })
+    }
+}
+
+/**
+ * What to do after reading the lesson: practise the points on the setlist, or
+ * send tries and questions to the teacher. Always in reach at the bottom.
+ */
+@Composable
+private fun NextStepBar(onSetlist: Int, practise: (() -> Unit)?, send: (() -> Unit)?) {
+    Surface(tonalElevation = 3.dp, shadowElevation = 6.dp) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (send != null) OutlinedButton(onClick = send, modifier = Modifier.weight(1f)) { Text("Send to teacher") }
+                Button(onClick = { practise?.invoke() }, enabled = practise != null, modifier = Modifier.weight(1f)) {
+                    Text("Start practising")
+                }
+            }
+            Text(
+                if (onSetlist == 0) "Add a point to your setlist to practise it." else "${plural(onSetlist, "point")} from this lesson on your setlist.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
 }
