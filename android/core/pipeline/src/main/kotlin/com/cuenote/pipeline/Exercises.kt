@@ -7,6 +7,8 @@ package com.cuenote.pipeline
  *
  * - nobody sang for [PipelineConfig.exerciseBreakMs] (a long explanation, a
  *   story, a change of subject), or
+ * - the first song-length take begins after only short tries (the
+ *   warmups are over and the song has started), or
  * - she says something that moves the lesson on ("let's sing a scale",
  *   "now we go to the song", "next"), unless it only moves the same exercise
  *   ("let's start lower", "again", "one more time").
@@ -37,11 +39,15 @@ class Exercises(private val cfg: PipelineConfig = PipelineConfig()) {
         // which exercise each take is in, and why each exercise starts
         val group = IntArray(takes.size)
         val edges = mutableMapOf<Int, Edge>()   // exercise index -> why it starts
+        var groupHasSong = isSong(takes[0])
         for (i in 1 until takes.size) {
             val prev = takes[i - 1]; val cur = takes[i]
             val edge = edgeBetween(prev, cur, teacher)
+                // the first full run through the song starts it, even when she said nothing we caught
+                ?: if (isSong(cur) && !groupHasSong) Edge("the first long sung take (${(cur.endMs - cur.startMs) / 1000} s)", null) else null
             group[i] = group[i - 1] + if (edge != null) 1 else 0
-            if (edge != null) edges[group[i]] = edge
+            if (edge != null) { edges[group[i]] = edge; groupHasSong = false }
+            groupHasSong = groupHasSong || isSong(cur)
         }
         val count = group.last() + 1
         val ids = List(count) { "$lessonId-ex-%03d".format(it + 1) }
@@ -87,6 +93,8 @@ class Exercises(private val cfg: PipelineConfig = PipelineConfig()) {
     }
 
     private fun firstTakeOf(group: IntArray, g: Int) = group.indexOfFirst { it == g }
+
+    private fun isSong(t: Take) = t.endMs - t.startMs >= cfg.songTakeMs
 
     private fun edgeBetween(prev: Take, cur: Take, teacher: List<TranscriptLine>): Edge? {
         val gap = cur.startMs - prev.endMs
