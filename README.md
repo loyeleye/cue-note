@@ -100,7 +100,9 @@ battery or the Qi2 charger.
 
 Run **Setup check** in the app before the first lesson and whenever the setup
 changes. It confirms each voice lands on its own channel, that a loud note does
-not clip, and that the student's soft singing stays above the piano.
+not clip, and that the student's soft singing stays above the piano. A voice can read
+each step aloud, so nobody has to watch the screen; each step listens for up to
+12 to 15 seconds and moves on as soon as it has heard enough.
 
 Each lesson is saved on the phone as `lessons/<id>/audio/chunk_00000.wav, …`,
 `events.tsv` (marks, photos, gaps, mic changes) and `summary.tsv`. **Export to
@@ -137,7 +139,7 @@ adds a camera step after "Who's on which mic?":
    fresh baseline from the student's first three seconds back in view. It
    does the same after an in-app photo. Which way up the phone is comes from
    gravity, so a sideways mount works even with auto-rotate off.
-   **Recalibrate posture** on the recording screen is for a lesson that's
+   **Reset posture** on the recording screen is for a lesson that's
    about posture: a spoken framing check like the first one, whose result
    becomes the new baseline.
 5. **Audio always wins.** Posture pauses when the phone gets warm (Android's
@@ -146,9 +148,12 @@ adds a camera step after "Who's on which mic?":
    lesson. It runs in its own process, so a camera crash can't stop the
    recording.
 
-**The voice.** Every spoken line is a recorded clip in `android/app/src/main/assets/voice/`
-(Gemini text-to-speech, voice Iapetus), listed with its words in `VoiceLine.kt`.
-A line without a clip is read by the phone's best installed US English voice.
+**The voice.** Every spoken line is a recorded clip in two voices, Male (Gemini
+voice Iapetus) and Female (Erinome), in `android/app/src/main/assets/voice/<voice>/`,
+listed with its words in `VoiceLine.kt`. The choice is on the sound check and the
+framing check, and applies everywhere. A line without a clip is read by the phone's
+best installed US English voice. To record new lines, add them to `VoiceLine.kt` and
+run `tools/voice/say.py` once per voice (it checks each take says exactly its words).
 A new line waits for the one playing to finish.
 
 Files, in `lessons/<id>/posture/`: `pose.tsv` (the student's 33 body points

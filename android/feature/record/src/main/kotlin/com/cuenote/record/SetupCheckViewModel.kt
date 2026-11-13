@@ -8,14 +8,19 @@ import com.cuenote.audio.ChannelSwap
 import com.cuenote.audio.LessonRecorder
 import com.cuenote.audio.MicInfo
 import com.cuenote.audio.UsbMic
+import com.cuenote.posture.Speaker
 import com.cuenote.signal.Channel
 import com.cuenote.signal.MicVerdict
 import com.cuenote.signal.Problem
 import com.cuenote.signal.SetupCheck
+import com.cuenote.signal.StepEar
 import com.cuenote.signal.StepResult
 import com.cuenote.signal.StereoLevels
+import com.cuenote.signal.posture.Voice
+import com.cuenote.signal.posture.VoiceLine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +30,8 @@ import kotlinx.coroutines.launch
 /**
  * The soundcheck's steps, in order. Each has a friendly prompt to sing or
  * say (shown big, in quotes, so nobody reads instructions mid-lesson), who
- * should make sound, and who should stay quiet.
+ * should make sound, who should stay quiet, and the line that reads it aloud.
+ * [seconds] is the most a step waits: it ends sooner once it has heard [need].
  */
 enum class SetupStep(
     val title: String,
@@ -34,13 +40,33 @@ enum class SetupStep(
     val seconds: Int,
     /** Whose mic should stay quiet in this step, if anyone's. */
     val quiet: Who?,
+    val line: VoiceLine,
+    val need: StepEar.Need,
 ) {
-    STUDENT_SPEAK("Hi, I'm ready", "Student", "Sing \"Hi, I'm ready to sing.\"", 5, Who.TEACHER),
-    TEACHER_SPEAK("Teacher says hello", "Teacher", "Say \"Hello! Ready when you are.\"", 5, Who.STUDENT),
-    LOUD_NOTE("One big note", "Student", "Sing your biggest comfortable note and hold it.", 4, null),
-    PIANO_ALONE("Piano solo", "Teacher", "Play an exercise at your usual volume.", 5, Who.STUDENT),
-    PIANO_SOFT("Soft with piano", "Both", "Play it again. Student, sing it softly.", 6, null),
-    PIANO_LOUD("Full voice + piano", "Both", "Big chords, big voice.", 5, null),
+    STUDENT_SPEAK(
+        "Student's Do Re Mi", "Student", "Sing \"Do - Re - Mi.\"", 12, Who.TEACHER,
+        VoiceLine.CHECK_STUDENT, StepEar.Need(soundMs = 1_200, waitForPause = true),
+    ),
+    TEACHER_SPEAK(
+        "Teacher's Do Re Mi", "Teacher", "Speak or sing \"Do - Re - Mi.\"", 12, Who.STUDENT,
+        VoiceLine.CHECK_TEACHER, StepEar.Need(soundMs = 1_200, waitForPause = true),
+    ),
+    LOUD_NOTE(
+        "One big note", "Student", "Sing your biggest comfortable note and hold it.", 12, null,
+        VoiceLine.CHECK_BIG_NOTE, StepEar.Need(soundMs = 2_500),
+    ),
+    PIANO_ALONE(
+        "Piano solo", "Teacher", "Play an exercise at your usual volume.", 12, Who.STUDENT,
+        VoiceLine.CHECK_PIANO, StepEar.Need(soundMs = 3_000),
+    ),
+    PIANO_SOFT(
+        "Soft with piano", "Both", "Play it again. Student, sing it softly.", 15, null,
+        VoiceLine.CHECK_PIANO_SOFT, StepEar.Need(both = true, soundMs = 3_000),
+    ),
+    PIANO_LOUD(
+        "Full voice + piano", "Both", "Big chords, big voice.", 12, null,
+        VoiceLine.CHECK_PIANO_LOUD, StepEar.Need(both = true, soundMs = 2_500),
+    ),
     ;
 
     enum class Who { STUDENT, TEACHER }
@@ -59,6 +85,10 @@ data class SetupUiState(
     val phase: StepPhase = StepPhase.IDLE,
     /** No chime after each step, for a quiet room. */
     val quietCheck: Boolean = false,
+    /** A recorded voice reads each step aloud, so nobody has to watch the screen. */
+    val spoken: Boolean = true,
+    /** Whose voice reads it (and every other spoken prompt in the app). */
+    val voice: Voice = Voice.DEFAULT,
     val results: Map<SetupStep, StepResult> = emptyMap(),
     val error: String? = null,
     val done: Boolean = false,
@@ -93,6 +123,9 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
     val liveLevels = recorder.levels
     private val prefs = app.getSharedPreferences("soundcheck", android.content.Context.MODE_PRIVATE)
     private val chime = Chime()
+    private val speaker = Speaker(app)
+    /** The intro is read once, before the first step of the first run. */
+    private var introSaid = false
 
     init {
         val battery = app.getSystemService(BatteryManager::class.java)
@@ -103,6 +136,8 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
                 charging = battery.isCharging,
                 channelsSwitched = recorder.switchChannels,
                 quietCheck = prefs.getBoolean("quiet", false),
+                spoken = prefs.getBoolean("spoken", true),
+                voice = Speaker.voice(app),
             )
         }
         try {
@@ -114,31 +149,68 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
     }
 
     /**
-     * Starts the check, which then runs hands-free: each step listens for
-     * its seconds, a pass stamps and moves on after a short "get ready",
+     * Starts the check, which then runs hands-free: each step is read aloud
+     * (when spoken steps are on), listens until it has heard enough or its
+     * seconds run out, a pass stamps and moves on after a short "get ready",
      * and only a failure stops and waits for "Try again".
      */
     fun runStep() {
         if (job?.isActive == true) return
         job = viewModelScope.launch {
+            if (_state.value.spoken && !introSaid && _state.value.step == SetupStep.STUDENT_SPEAK) {
+                introSaid = true
+                _state.update { it.copy(phase = StepPhase.GET_READY) }
+                speaker.sayAndWait(VoiceLine.CHECK_INTRO)
+            }
             while (true) {
                 val step = _state.value.step
+                getReady(step)
                 if (!listen(step)) return@launch // failed: wait for Try again
                 delay(PASS_HOLD_MS)
                 if (!advance()) return@launch // all done
-                _state.update { it.copy(phase = StepPhase.GET_READY) }
-                delay(GET_READY_MS)
             }
         }
     }
 
-    /** Listens to one step and judges it; true when it passed (or only captured). */
+    /**
+     * The "get ready" before a step listens: its line read aloud, then a
+     * beat, so the instruction never ends up in the measurement. Without the
+     * voice it's a short pause, as before.
+     */
+    private suspend fun getReady(step: SetupStep) {
+        _state.update { it.copy(phase = StepPhase.GET_READY) }
+        if (_state.value.spoken) {
+            speaker.sayAndWait(step.line)
+            delay(AFTER_LINE_MS)
+        } else {
+            delay(GET_READY_MS)
+        }
+    }
+
+    /**
+     * Listens to one step and judges it; true when it passed (or only
+     * captured). It ends early once it has heard enough and the step already
+     * passes, and otherwise gives everyone the full [SetupStep.seconds].
+     */
     private suspend fun listen(step: SetupStep): Boolean {
         recorder.resetWindow()
-        _state.update { it.copy(phase = StepPhase.LISTENING) }
-        for (s in step.seconds downTo 1) {
-            _state.update { it.copy(secondsLeft = s) }
-            delay(1_000)
+        _state.update { it.copy(phase = StepPhase.LISTENING, secondsLeft = step.seconds) }
+        val ear = StepEar(step.need)
+        val hearing = viewModelScope.launch { liveLevels.filterNotNull().collect { ear.add(it) } }
+        val start = android.os.SystemClock.elapsedRealtime()
+        val endAt = start + step.seconds * 1_000L
+        try {
+            while (true) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now >= endAt) break
+                val heardSoFar = now - start >= MIN_LISTEN_MS && ear.enough()
+                if (heardSoFar && passesSoFar(step)) break
+                val left = ((endAt - now + 999) / 1_000).toInt()
+                if (left != _state.value.secondsLeft) _state.update { it.copy(secondsLeft = left) }
+                delay(TICK_MS)
+            }
+        } finally {
+            hearing.cancel()
         }
         captured[step] = recorder.windowLevels()
         val result = judge(step)
@@ -162,12 +234,48 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
         }
         // The window is captured, so the chime can't end up in the measurement.
         if (!_state.value.quietCheck) chime.play(passed)
+        if (!passed && _state.value.spoken) {
+            delay(CHIME_MS)
+            speaker.say(VoiceLine.CHECK_AGAIN)
+        }
         return passed
+    }
+
+    /** Whether the step, judged on what it has heard so far, would already pass. */
+    private fun passesSoFar(step: SetupStep): Boolean {
+        val levels = recorder.windowLevels()
+        return when (step) {
+            SetupStep.STUDENT_SPEAK -> rules.studentStep(levels).result == StepResult.Pass
+            SetupStep.TEACHER_SPEAK -> rules.teacherStep(levels) == StepResult.Pass
+            SetupStep.LOUD_NOTE -> rules.loudStep(levels) == StepResult.Pass
+            SetupStep.PIANO_ALONE, SetupStep.PIANO_SOFT -> true
+            SetupStep.PIANO_LOUD -> rules.pianoStep(
+                captured.getValue(SetupStep.PIANO_ALONE),
+                captured.getValue(SetupStep.PIANO_SOFT),
+                levels,
+            ) == StepResult.Pass
+        }
     }
 
     fun setQuietCheck(on: Boolean) {
         prefs.edit().putBoolean("quiet", on).apply()
         _state.update { it.copy(quietCheck = on) }
+    }
+
+    fun setSpoken(on: Boolean) {
+        prefs.edit().putBoolean("spoken", on).apply()
+        if (!on) speaker.stopAll()
+        _state.update { it.copy(spoken = on) }
+    }
+
+    /** Picks the voice, and plays a line in it so you can hear the choice. */
+    fun setVoice(voice: Voice) {
+        Speaker.setVoice(app, voice)
+        _state.update { it.copy(voice = voice) }
+        if (job?.isActive != true) {
+            speaker.stopAll()
+            speaker.say(VoiceLine.CHECK_DONE.takeIf { _state.value.done } ?: VoiceLine.CHECK_INTRO)
+        }
     }
 
     /** Skips the piano steps, for lessons without a piano. */
@@ -180,6 +288,7 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
         val verdict = studentMargin?.let { MicVerdict.judge(recorder.switchChannels, it, teacherMargin) }
         if (verdict != null) ChannelSwap.saveSoundcheck(app, verdict)
         _state.update { it.copy(done = true, verdict = verdict) }
+        if (_state.value.spoken) speaker.say(VoiceLine.CHECK_DONE)
     }
 
     fun retry() {
@@ -195,12 +304,9 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
             step == SetupStep.PIANO_LOUD -> _state.update { it.copy(step = SetupStep.PIANO_ALONE, results = it.results - step) }
             else -> _state.update { it.copy(results = it.results - step) }
         }
-        _state.update { it.copy(phase = StepPhase.GET_READY) }
-        job = viewModelScope.launch {
-            delay(GET_READY_MS)
-            job = null
-            runStep()
-        }
+        speaker.stopAll()
+        job = null
+        runStep()
     }
 
     /** Manual override: switch which input is the student's and start the check over. */
@@ -243,12 +349,20 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
     override fun onCleared() {
         recorder.stop()
         chime.release()
+        speaker.close()
     }
 
     private companion object {
         /** How long a passed step's stamp shows before the next step. */
         const val PASS_HOLD_MS = 1_200L
-        /** "Get ready" before each step listens. */
+        /** "Get ready" before each step listens, when the steps aren't read aloud. */
         const val GET_READY_MS = 2_000L
+        /** A beat between a step's spoken line and listening. */
+        const val AFTER_LINE_MS = 400L
+        /** Every step listens at least this long, however quickly it hears enough. */
+        const val MIN_LISTEN_MS = 2_000L
+        const val TICK_MS = 200L
+        /** Lets the "not quite" chime finish before the voice explains. */
+        const val CHIME_MS = 600L
     }
 }

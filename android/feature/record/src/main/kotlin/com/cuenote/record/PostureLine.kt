@@ -24,7 +24,7 @@ import com.cuenote.posture.PostureService
 /**
  * One line on the recording screen while posture is on: what the camera is
  * doing ("watching", "waiting for singing", "paused: phone warm") and how
- * many moments it has flagged, and a "Recalibrate posture" button. Posture keeps the screen on, dimmed right
+ * many moments it has flagged, and a "Reset posture" button. Posture keeps the screen on, dimmed right
  * down, since some phones close the camera when the screen turns off.
  */
 @Composable
@@ -60,9 +60,9 @@ internal fun PostureLine() {
     )
     // For a lesson that's about posture: both pause, and the phone talks the
     // student back into place and takes how they stand now as the new baseline.
-    if (!status.startsWith("off") && status != "recalibrating") {
+    if (!status.startsWith("off") && status != "resetting") {
         TextButton(onClick = { PostureService.recalibrate(context) }) {
-            Text("Recalibrate posture", color = Color(0xFFE0A94A))
+            Text("Reset posture", color = Color(0xFFE0A94A))
         }
     }
 }
