@@ -745,15 +745,13 @@ private fun TeacherRule() = HorizontalDivider(
     color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
 )
 
-/** The teacher's words from the recording: italic, with a plum bar on the left, as speech. */
+/** The teacher's words from the recording, in italics and quotes. */
 @Composable
 private fun TeacherQuote(words: String, color: androidx.compose.ui.graphics.Color) {
-    val bar = MaterialTheme.colorScheme.secondary
     Text(
         "“$words”",
         style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic), color = color,
         maxLines = 4, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.drawBehind { drawRect(bar, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height)) }.padding(start = 12.dp),
     )
 }
 
