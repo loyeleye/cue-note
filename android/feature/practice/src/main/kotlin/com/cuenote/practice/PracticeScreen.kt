@@ -340,6 +340,7 @@ fun PracticeScreen(
                         note = if (on) "Shared. $teacher can listen before your lesson." else null
                     },
                 ),
+                repo = repo,
             ) { confirmDelete = it }
             if (sharing) {
                 item(key = "askh") {
@@ -355,7 +356,7 @@ fun PracticeScreen(
                     }
                 }
                 items(questions, key = { "q-" + it.id }) { q ->
-                    QuestionRow(q, teacher.replaceFirstChar { it.uppercase() }, where = "This note", onDrop = { scope.launch { repo.drop(q.id) } })
+                    QuestionRow(q, teacher.replaceFirstChar { it.uppercase() }, where = "This note", onDrop = { scope.launch { repo.drop(q.id) } }, voice = repo to player)
                 }
             }
         }
@@ -412,6 +413,7 @@ private fun LazyListScope.takesList(
     analysed: (String) -> Boolean,
     postureDir: (PracticeTakeEntity) -> java.io.File,
     share: TakeSharing?,
+    repo: PracticeRepository,
     onDelete: (PracticeTakeEntity) -> Unit,
 ) {
     if (takes.isEmpty()) return
@@ -428,6 +430,7 @@ private fun LazyListScope.takesList(
     itemsIndexed(takes, key = { _, t -> t.id }) { i, t ->
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             TakeRow(takes.size - i, t, player.playing == t.file, share, onPlay = { player.toggle(t.file) }, onDelete = { onDelete(t) })
+            if (share != null) TeacherReply(share.teacher.replaceFirstChar { it.uppercase() }, t.reply, t.replyClipPath, repo, player, Modifier.padding(horizontal = 12.dp))
             val p = pitch(t.id)
             when {
                 p != null -> PitchStrip(p, Modifier.padding(horizontal = 12.dp))

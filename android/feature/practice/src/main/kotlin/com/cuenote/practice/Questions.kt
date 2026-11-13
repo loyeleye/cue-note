@@ -69,14 +69,22 @@ fun AskDialog(teacher: String, aboutNote: Boolean, onSend: (body: String, bar: I
 
 /** One question: the words, and the answer or where it stands. */
 @Composable
-fun QuestionRow(q: PracticeQuestionEntity, teacher: String, where: String?, onDrop: () -> Unit) {
+fun QuestionRow(
+    q: PracticeQuestionEntity,
+    teacher: String,
+    where: String?,
+    onDrop: () -> Unit,
+    /** To play a voice answer; without it only the words show. */
+    voice: Pair<com.cuenote.data.PracticeRepository, com.cuenote.ui.ClipPlayer>? = null,
+) {
     val m = MaterialTheme.colorScheme
-    TicketRow(faded = q.answered && q.answer == null) {
+    TicketRow(faded = q.answered && q.answer == null && q.answerClipPath == null) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(listOfNotNull(where, q.bar?.let { "bar $it" }).joinToString(", ").ifEmpty { "Question" }.replaceFirstChar { it.uppercase() },
                 color = m.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
             Text(q.body, style = MaterialTheme.typography.bodyLarge)
             when {
+                q.answerClipPath != null && voice != null -> TeacherReply(teacher, q.answer, q.answerClipPath, voice.first, voice.second)
                 q.answer != null -> Text("$teacher: ${q.answer}", color = m.primary, style = MaterialTheme.typography.bodyMedium)
                 q.answered -> Text("Talked about in your lesson", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 q.dirty -> Text("Sends when you're online", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

@@ -85,7 +85,12 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
     )
 
     @Serializable
-    private data class HeardRow(val id: String, @SerialName("heard_at") val heardAt: String? = null)
+    private data class HeardRow(
+        val id: String,
+        @SerialName("heard_at") val heardAt: String? = null,
+        val reply: String? = null,
+        @SerialName("reply_clip_path") val replyClipPath: String? = null,
+    )
 
     private fun clipPath(student: String, t: PracticeTakeEntity) = "$student/${t.lessonId}/practice-${t.id}.${ClipPlan.EXTENSION}"
 
@@ -139,14 +144,17 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
                 }
             }
         }
-        // Whether the teacher has listened.
-        val heard = table.select(Columns.list("id", "heard_at")) { filter { eq("student_id", student) } }
+        // Whether the teacher has listened, and any reply.
+        val heard = table.select(Columns.list("id", "heard_at", "reply", "reply_clip_path")) { filter { eq("student_id", student) } }
             .decodeList<HeardRow>().associateBy { it.id }
         for (t in dao.takesToSync()) {
             if (!t.shared || !t.cloudShared || t.deleted) continue
             val r = heard[t.id]
             if (r == null) dao.markSynced(t.id, cloudShared = false, heardAt = null)   // gone from the cloud (lesson deleted)
-            else dao.markSynced(t.id, cloudShared = true, heardAt = r.heardAt?.let { Instant.parse(it).toEpochMilli() })
+            else {
+                dao.markSynced(t.id, cloudShared = true, heardAt = r.heardAt?.let { Instant.parse(it).toEpochMilli() })
+                if (r.reply != t.reply || r.replyClipPath != t.replyClipPath) dao.setReply(t.id, r.reply, r.replyClipPath)
+            }
         }
     }
 
@@ -197,12 +205,13 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
         val id: String,
         val status: String,
         val answer: String? = null,
+        @SerialName("answer_clip_path") val answerClipPath: String? = null,
         @SerialName("answered_at") val answeredAt: String? = null,
     )
 
     private suspend fun syncQuestions(client: SupabaseClient, student: String, dao: PracticeDao) {
         val table = client.from("student_question")
-        val cloud = table.select(Columns.list("id", "status", "answer", "answered_at")) { filter { eq("student_id", student) } }
+        val cloud = table.select(Columns.list("id", "status", "answer", "answer_clip_path", "answered_at")) { filter { eq("student_id", student) } }
             .decodeList<CloudQuestion>().associateBy { it.id }
         for (q in dao.questions().filter { it.dirty }) {
             if (q.id !in cloud) {
@@ -227,8 +236,8 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
             val c = cloud[q.id] ?: continue
             if (q.dirty || q.status == "dropped") continue
             val at = c.answeredAt?.let { Instant.parse(it).toEpochMilli() }
-            if (c.status != q.status || c.answer != q.answer || at != q.answeredAt) {
-                dao.upsertQuestion(q.copy(status = c.status, answer = c.answer, answeredAt = at))
+            if (c.status != q.status || c.answer != q.answer || c.answerClipPath != q.answerClipPath || at != q.answeredAt) {
+                dao.upsertQuestion(q.copy(status = c.status, answer = c.answer, answerClipPath = c.answerClipPath, answeredAt = at))
             }
         }
     }

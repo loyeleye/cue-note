@@ -63,6 +63,7 @@ fun NextLessonScreen(
     val week by remember { repo.week() }.collectAsStateWithLifecycle(PracticeWeek(0, 0, 0, 0))
     val waiting by remember { repo.waiting() }.collectAsStateWithLifecycle(emptyList())
     val questions by remember { repo.questions() }.collectAsStateWithLifecycle(emptyList())
+    val replied by remember { repo.replied() }.collectAsStateWithLifecycle(emptyList())
     val next by repo.agenda.nextLessonAt.collectAsStateWithLifecycle()
     val player = rememberClipPlayer()
     val scope = rememberCoroutineScope()
@@ -167,6 +168,20 @@ fun NextLessonScreen(
                 }
             }
 
+            if (replied.isNotEmpty()) {
+                item(key = "rh") { Text("$whoCap replied", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
+                items(replied, key = { "r-" + it.id }) { t ->
+                    TicketRow(onClick = { onPractice(t.cardId) }) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(about(t.cardId) ?: "A practice take", style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                            Text("Your take from ${dayAndTime(t.recordedAt)}", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            TeacherReply(whoCap, t.reply, t.replyClipPath, repo, player)
+                        }
+                        PlayPill("Your take", player.playing == t.file, filled = false, onClick = { player.toggle(t.file) })
+                    }
+                }
+            }
+
             item(key = "qh") {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                     Text("Questions", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -182,7 +197,7 @@ fun NextLessonScreen(
                 }
             }
             items(questions, key = { "q-" + it.id }) { q ->
-                QuestionRow(q, whoCap, where = about(q.cardId)?.let { "On \"$it\"" }, onDrop = { scope.launch { repo.drop(q.id) } })
+                QuestionRow(q, whoCap, where = about(q.cardId)?.let { "On \"$it\"" }, onDrop = { scope.launch { repo.drop(q.id) } }, voice = repo to player)
             }
         }
     }

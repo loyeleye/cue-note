@@ -56,6 +56,10 @@ data class PracticeTakeEntity(
     val heardAt: Long? = null,
     /** Deleted on the phone, still to be taken out of the cloud. Its file is already gone. */
     @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
+    /** The teacher's reply in words, from the cloud. */
+    val reply: String? = null,
+    /** The teacher's voice reply: its path in the clips bucket (…/teacher-notes/…). */
+    val replyClipPath: String? = null,
 )
 
 /**
@@ -78,6 +82,8 @@ data class PracticeQuestionEntity(
     val createdAt: Long,
     /** Changed on the phone since the last sync. */
     val dirty: Boolean,
+    /** The teacher's voice answer: its path in the clips bucket (…/teacher-notes/…). */
+    val answerClipPath: String? = null,
 ) {
     val open: Boolean get() = status == "open"
     val answered: Boolean get() = status == "answered"
@@ -104,6 +110,13 @@ interface PracticeDao {
 
     @Query("update practice_take set cloudShared = :cloudShared, heardAt = :heardAt where id = :id")
     suspend fun markSynced(id: String, cloudShared: Boolean, heardAt: Long?)
+
+    @Query("update practice_take set reply = :reply, replyClipPath = :clip where id = :id")
+    suspend fun setReply(id: String, reply: String?, clip: String?)
+
+    /** Takes the teacher replied to, newest first. */
+    @Query("select * from practice_take where deleted = 0 and (reply is not null or replyClipPath is not null) order by recordedAt desc limit :limit")
+    fun observeReplied(limit: Int = 10): Flow<List<PracticeTakeEntity>>
 
     @Query("update practice_take set shared = :shared where id = :id")
     suspend fun setShared(id: String, shared: Boolean)
