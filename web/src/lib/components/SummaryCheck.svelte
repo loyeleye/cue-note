@@ -103,7 +103,7 @@
     <p class="muted small">{HELP[current]}{card.summary_checked_at ? ` Answered ${ago(card.summary_checked_at)}.` : ''}</p>
   {/if}
   {#if current === 'not_said' && card.summary_rejected}
-    <p class="old small"><span class="muted">The app had:</span> “{card.summary_rejected}”</p>
+    <details class="old small"><summary>App summary (you marked it wrong)</summary><p>“{card.summary_rejected}”</p></details>
   {/if}
 
   {#if current === 'close' || current === 'not_said'}
@@ -156,7 +156,13 @@
   .slider button[aria-disabled='true'] { cursor: progress; }
   .slider button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   @media (prefers-reduced-motion: reduce) { .thumb { transition: none; } }
-  .old { margin: 0; color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+  .old { color: var(--muted); }
+  .old summary { cursor: pointer; list-style: none; display: inline-flex; gap: 6px; align-items: center; min-height: 32px; }
+  .old summary::-webkit-details-marker { display: none; }
+  .old summary::before { content: '›'; display: inline-block; width: 10px; font-size: 16px; transition: transform 0.15s; }
+  .old[open] summary::before { transform: rotate(90deg); }
+  .old p { padding-left: 16px; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+  @media (prefers-reduced-motion: reduce) { .old summary::before { transition: none; } }
   .actions button:disabled { color: var(--muted); border: 1px solid var(--border); background: transparent; opacity: 1; }
   .explain { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
   .explain textarea { width: 100%; resize: vertical; }
