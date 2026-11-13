@@ -86,6 +86,10 @@ fun LessonScreen(
     taughtBy: String? = null,
     /** Opens the "who taught this?" picker; null hides the row. */
     onChangeTeacher: (() -> Unit)? = null,
+    /** Inviting a teacher to hear the whole lesson; null when signed out. */
+    fullLesson: com.cuenote.data.FullLessonRepository? = null,
+    /** The teachers who can open this lesson, and so could be invited to all of it. */
+    viewers: List<LessonViewer> = emptyList(),
 ) {
     val dao = repo.pipelineDao!!
     val cardDao = repo.cardDao!!
@@ -159,6 +163,10 @@ fun LessonScreen(
                 }
                 refreshNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 player.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+
+            if (fullLesson != null && viewers.isNotEmpty() && cards.isNotEmpty()) {
+                item(key = "full-lesson") { FullLessonSection(lesson.id, fullLesson, viewers) }
             }
 
             if (photos.isNotEmpty()) {

@@ -35,6 +35,7 @@ class CueNoteApp : Application() {
     lateinit var ageGate: AgeGate private set
     lateinit var auth: AuthRepository private set
     lateinit var shares: ShareRepository private set
+    lateinit var fullLesson: com.cuenote.data.FullLessonRepository private set
     lateinit var lessonTeachers: LessonTeacherStore private set
     lateinit var sketches: SketchRepository private set
     lateinit var diagrams: DiagramRepository private set
@@ -62,6 +63,7 @@ class CueNoteApp : Application() {
         ageGate = AgeGate(this)
         auth = AuthRepository.get()
         shares = ShareRepository(auth)
+        fullLesson = com.cuenote.data.FullLessonRepository(auth)
         lessonTeachers = LessonTeacherStore(this)
         posture = PostureLink(this, scope)
         practicePosture = PracticePosture(this, scope)
