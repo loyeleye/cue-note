@@ -90,7 +90,7 @@ const mine = (s: DemoState) => s.shares.filter((sh) => sh.teacher_id === DEMO_TE
 
 function snapshot(f: Feedback): Partial<CardFields> {
   return {
-    cue: f.cue, category: f.category, her_words: f.her_words, practice_flag: f.practice_flag,
+    cue: f.cue, summary: f.summary ?? '', category: f.category, her_words: f.her_words, practice_flag: f.practice_flag,
     take_id: f.take_id, song_id: f.song_id, bar_start: f.bar_start, bar_end: f.bar_end
   };
 }
@@ -280,12 +280,41 @@ export const demoApi: Api = {
       throw new Error('a card can only link to a take from the same lesson');
     }
     Object.assign(f, changes, { updated_at: now() });
+    // As in save_card: a summary the teacher writes counts as one she said.
+    if (changes.summary) Object.assign(f, { summary_check: 'said', summary_checked_by: DEMO_TEACHER.id, summary_checked_at: now() });
     s.versions.push({
       id: id(), feedback_id: f.id, author: 'teacher', author_id: DEMO_TEACHER.id, created_at: now(),
       payload: snapshot(f), restored_from: opts.restoredFrom ?? null
     });
     save();
     return { ...f } as Feedback;
+  },
+
+  async checkSummary(feedbackId, said) {
+    await wait();
+    const s = load();
+    const f = s.feedback.find((x) => x.id === feedbackId);
+    if (!f) throw new Error('card not found');
+    if (said) {
+      if (!f.summary) throw new Error('this card has no summary to check');
+      Object.assign(f, { summary_check: 'said' });
+    } else {
+      Object.assign(f, { summary_rejected: f.summary || f.summary_rejected || null, summary: '', summary_check: 'not_said' });
+    }
+    Object.assign(f, { summary_checked_by: DEMO_TEACHER.id, summary_checked_at: now(), updated_at: now() });
+    save();
+    return { ...f } as Feedback;
+  },
+
+  async summaryTally() {
+    const fs = load().feedback;
+    const open = fs.filter((f) => !f.summary_check && f.summary);
+    return {
+      said: fs.filter((f) => f.summary_check === 'said').length,
+      not_said: fs.filter((f) => f.summary_check === 'not_said').length,
+      unchecked: open.length,
+      lessons: new Set(open.map((f) => f.lesson_id)).size
+    };
   },
 
   async listCheckpoints(lessonId) {

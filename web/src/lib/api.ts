@@ -5,7 +5,7 @@
 import type { FullLessonPass, LessonViewRequest,
   Agenda, Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Exercise, Feedback,
   Lesson, PhotoMark,
-  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
+  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, SummaryTally, Take, Teacher
 } from './types';
 
 export type Bucket = 'clips' | 'photos' | 'scores';
@@ -130,6 +130,13 @@ export interface Api {
   removeCard(card: Feedback): Promise<void>;
   /** Deletes a card's clip but keeps the note. */
   removeCardAudio(card: Feedback): Promise<Feedback>;
+  /**
+   * The teacher's answer to "Did you say this?" about a card's summary. No
+   * takes the summary off the student's card, so she sees the teacher's own words.
+   */
+  checkSummary(feedbackId: string, said: boolean): Promise<Feedback>;
+  /** How the summaries this teacher can see have been answered, across lessons. */
+  summaryTally(): Promise<SummaryTally>;
 
   listCheckpoints(lessonId: string): Promise<Checkpoint[]>;
   addCheckpoint(lessonId: string, label: string): Promise<Checkpoint>;

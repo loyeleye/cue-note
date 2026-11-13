@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
 
   // ---------------------------------------------------------------- write the cards
   const ids = blocks.map((b) => b.id);
-  const { data: existing } = await db.from('feedback').select('id, audio_removed_at').eq('lesson_id', lesson.id);
+  const { data: existing } = await db.from('feedback').select('id, audio_removed_at, summary_check').eq('lesson_id', lesson.id);
   // Audio a teacher removed isn't linked again; the note stays.
   const muted = new Set((existing ?? []).filter((r) => r.audio_removed_at).map((r) => r.id as string));
   const { data: versions } = await db.from('card_version')
@@ -208,16 +208,19 @@ Deno.serve(async (req) => {
     transcript: c.block.transcript,
     link_confidence: c.block.link_confidence,
     exercise_id: c.block.exercise_id ?? null,
-    // The writer's reading of her point; refreshed on every run, her edits or not.
-    summary: c.summary,
     weight: c.weight,
   });
+  // The writer's reading of her point. A summary a teacher wrote, or answered
+  // "Did you say this?" about, stays as she left it.
+  const answered = new Set((existing ?? []).filter((r) => r.summary_check).map((r) => r.id as string));
+  const keepsSummary = (id: string) => answered.has(id) || 'summary' in (latest.get(id) ?? {});
 
   const fresh = checked.filter((c) => !edited.has(c.block.id));
   const kept = checked.filter((c) => edited.has(c.block.id));
   if (fresh.length) {
     const { error } = await db.from('feedback').upsert(fresh.map((c) => ({
       ...measured(c),
+      ...(keepsSummary(c.block.id) ? {} : { summary: c.summary }),
       take_id: c.payload.take_id,
       cue: c.payload.cue,
       category: c.payload.category,
@@ -236,7 +239,8 @@ Deno.serve(async (req) => {
   }
   // Her edits stand; only what the phone measured is refreshed.
   for (const c of kept) {
-    const { error } = await db.from('feedback').update(measured(c)).eq('id', c.block.id);
+    const row = keepsSummary(c.block.id) ? measured(c) : { ...measured(c), summary: c.summary };
+    const { error } = await db.from('feedback').update(row).eq('id', c.block.id);
     if (error) return json({ error: error.message }, 500);
   }
   // Blocks the phone no longer finds (it processed the lesson again) go,

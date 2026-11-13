@@ -265,6 +265,8 @@ private fun AppNav(app: CueNoteApp) {
                     onChangeTeacher = { changing = true },
                     fullLesson = if (email != null) app.fullLesson else null,
                     viewers = lessonViewers(myTeachers, app.lessonTeachers.get(id).teacherId),
+                    onPractice = { cardId -> withPermission { nav.navigate("practice/$cardId") } },
+                    onSendToTeacher = { nav.navigate("next") },
                 )
             }
         }

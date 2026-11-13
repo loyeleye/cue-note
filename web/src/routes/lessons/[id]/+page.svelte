@@ -193,6 +193,27 @@
     editor?.load(payload, versionId);
   }
 
+  // "Did you say this?": the teacher's answer about each card's summary.
+  let checking = $state<string | null>(null);
+  let checkError = $state<{ card: string; message: string } | null>(null);
+  async function checkSummary(c: Feedback, said: boolean) {
+    checking = c.id;
+    checkError = null;
+    try {
+      const f = await api().checkSummary(c.id, said);
+      cards = cards.map((x) => (x.id === f.id ? f : x));
+    } catch (e) {
+      checkError = { card: c.id, message: e instanceof Error ? e.message : String(e) };
+    } finally {
+      checking = null;
+    }
+  }
+  const summaryTally = $derived({
+    said: cards.filter((c) => c.summary_check === 'said').length,
+    notSaid: cards.filter((c) => c.summary_check === 'not_said').length,
+    open: cards.filter((c) => !c.summary_check && c.summary).length
+  });
+
   let claimError = $state('');
   async function claim(mine: boolean) {
     if (!lesson) return;
@@ -302,6 +323,26 @@
       {#if last?.author === 'teacher'}
         <p class="edited-by"><span class="muted">Edited by</span> <Who teacher={findTeacher(teachers, last.author_id)} {me} /> <span class="muted">{ago(last.created_at)}</span></p>
       {/if}
+      {#if c.summary || c.summary_check === 'not_said'}
+        <div class="summary" class:said={c.summary_check === 'said'} class:not-said={c.summary_check === 'not_said'}>
+          {#if c.summary}
+            <span class="muted small">Summary the student sees</span>
+            <p>{c.summary}</p>
+          {/if}
+          {#if c.summary_check === 'said'}
+            <p class="muted small">You said this{c.summary_checked_at ? `, ${ago(c.summary_checked_at)}` : ''}. <button class="link small" onclick={() => checkSummary(c, false)} disabled={checking === c.id}>Actually, I didn't</button></p>
+          {:else if c.summary_check === 'not_said'}
+            <p class="muted small">You said you didn't say {c.summary_rejected ? `"${c.summary_rejected}"` : 'the summary'}. The student sees your own words instead. Use Edit to write the point the way you meant it.</p>
+          {:else}
+            <div class="ask">
+              <span>Did you say this?</span>
+              <button class="ghost small" onclick={() => checkSummary(c, true)} disabled={checking === c.id}>Yes</button>
+              <button class="ghost small" onclick={() => checkSummary(c, false)} disabled={checking === c.id}>No</button>
+            </div>
+          {/if}
+          {#if checkError?.card === c.id}<p class="error small" role="alert">{checkError.message}</p>{/if}
+        </div>
+      {/if}
       {#if c.her_words}<blockquote class="quote">“{c.her_words}”</blockquote>{/if}
       <div class="chips">
         <span class="chip">{clock(c.span_start_ms)}</span>
@@ -374,6 +415,12 @@
     {/if}
   </div>
   <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${n(exercises.length, 'exercise')}` : ''} · {n(takes.length, 'take')} · {n(cards.length, 'card')}. Every save keeps the earlier version.</p>
+  {#if summaryTally.said + summaryTally.notSaid + summaryTally.open}
+    <p class="tally small">
+      Summaries checked: {summaryTally.said + summaryTally.notSaid} of {summaryTally.said + summaryTally.notSaid + summaryTally.open}{summaryTally.notSaid ? ` · ${summaryTally.notSaid} not said` : ''}.
+      {#if summaryTally.open}<span class="muted">Each card asks "Did you say this?" A no takes the summary off the student's card.</span>{/if}
+    </p>
+  {/if}
   {#if teachers.length > 1 || (!lesson.taught_by && lesson.teacher_name)}
     <p class="taught">
       {#if lesson.taught_by}
@@ -498,6 +545,12 @@
   .cue-head h3 { margin: 0; font-size: 16px; }
   blockquote { margin: 0; color: var(--chip-fg); font-size: 15.5px; line-height: 1.45; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .summary { background: var(--chip); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; border-left: 3px solid var(--border); }
+  .summary.said { border-left-color: var(--accent); }
+  .summary.not-said { border-left-color: var(--danger); }
+  .summary p { margin: 0; }
+  .summary .ask { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+  .tally { margin: 0; }
   .her-clip { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
   .edit-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }
   .after { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 12px; }

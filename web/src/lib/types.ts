@@ -183,11 +183,32 @@ export interface Feedback {
   audio_removed_at?: string | null;
   /** The exercise it is part of, when the phone grouped the lesson. */
   exercise_id?: string | null;
+  /** One or two sentences to the student: what she meant. Empty until made. */
+  summary?: string;
+  /** How much the point is worth drilling, 0..1, from the card writer. */
+  weight?: number | null;
+  /** A teacher's answer to "Did you say this?" about the summary. */
+  summary_check?: SummaryCheck | null;
+  summary_checked_by?: string | null;
+  summary_checked_at?: string | null;
+  /** The summary a teacher said she didn't say, kept for the tally. */
+  summary_rejected?: string | null;
+}
+
+export type SummaryCheck = 'said' | 'not_said';
+
+/** How the summaries the teacher can see have been checked. */
+export interface SummaryTally {
+  said: number;
+  not_said: number;
+  unchecked: number;
+  lessons: number;
 }
 
 /** The fields a teacher may change on a card; also what a version stores. */
 export interface CardFields {
   cue: string;
+  summary: string;
   category: string | null;
   her_words: string;
   practice_flag: PracticeFlag | null;
@@ -197,7 +218,7 @@ export interface CardFields {
   bar_end: number | null;
 }
 export const CARD_FIELDS: (keyof CardFields)[] = [
-  'cue', 'her_words', 'category', 'practice_flag', 'take_id', 'song_id', 'bar_start', 'bar_end'
+  'cue', 'summary', 'her_words', 'category', 'practice_flag', 'take_id', 'song_id', 'bar_start', 'bar_end'
 ];
 
 export interface CardVersion {
