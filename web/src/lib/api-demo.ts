@@ -3,10 +3,10 @@
 // reload; "Reset demo" puts everything back.
 import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeacher } from './api';
 import { EditConflict, scoreFormatOf } from './api';
-import type { FullLessonPass, CardFields, CardVersion, DiagramSuggestion, Feedback, Profile, StorageRow, Teacher } from './types';
+import type { FullLessonPass, PlanSetting, CardFields, CardVersion, DiagramSuggestion, Feedback, Profile, StorageRow, Teacher } from './types';
 import { CARD_FIELDS, passState } from './types';
 import {
-  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoPasses, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, demoExercises, initialDemoState, type DemoState
+  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoPasses, demoPlanSittings, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, demoExercises, initialDemoState, type DemoState
 } from './demo-data';
 import { wavFor } from './tone';
 
@@ -538,12 +538,33 @@ export const demoApi: Api = {
     const s = withAgenda();
     const since = new Date(Date.now() - 28 * 864e5).toISOString();
     return {
+      sittings: (s.planSittings ??= demoPlanSittings()).filter((p) => p.student_id === studentId && p.started_at >= since),
       sessions: s.practiceSessions!.filter((p) => p.student_id === studentId && p.started_at >= since)
         .sort((a, b) => b.started_at.localeCompare(a.started_at)),
       takes: s.sharedTakes!.filter((t) => t.student_id === studentId).sort((a, b) => b.shared_at.localeCompare(a.shared_at)),
       questions: s.questions!.filter((q) => q.student_id === studentId && q.status !== 'dropped')
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
     };
+  },
+
+  async getPlanSetting(studentId) {
+    await wait();
+    return load().planSettings?.find((p) => p.student_id === studentId) ?? null;
+  },
+
+  async savePlanSetting(studentId, changes) {
+    await wait();
+    const s = load();
+    const list = (s.planSettings ??= []);
+    let p = list.find((x) => x.student_id === studentId);
+    if (!p) {
+      p = { student_id: studentId, teacher_id: DEMO_TEACHER.id, pinned_feedback_id: null, minutes: null, days_per_week: null,
+        max_minutes: null, rest_until: null, gentle_start: null, cool_down: null } satisfies PlanSetting;
+      list.push(p);
+    }
+    Object.assign(p, changes);
+    save();
+    return { ...p };
   },
 
   async markTakeHeard(takeId, heard) {

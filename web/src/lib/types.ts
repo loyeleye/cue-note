@@ -355,7 +355,45 @@ export interface StudentQuestion {
 }
 
 /** Everything for the next lesson's agenda. */
+/**
+ * What a teacher sets for a student's suggested practice. The phone orders
+ * the teacher's own "practice this" notes each day; this steers it.
+ */
+export interface PlanSetting {
+  student_id: string;
+  teacher_id: string;
+  /** The card the plan always starts with. */
+  pinned_feedback_id: string | null;
+  minutes: 10 | 20 | 30 | null;
+  days_per_week: number | null;
+  /** The longest sitting the student may pick. */
+  max_minutes: 10 | 20 | 30 | null;
+  /** Listening only until this day (yyyy-mm-dd). */
+  rest_until: string | null;
+  gentle_start: string | null;
+  cool_down: string | null;
+}
+
+export type PlanVoice = 'fine' | 'tired' | 'hoarse';
+
+/** One sitting of suggested practice, as the phone logged it. */
+export interface PlanSitting {
+  id: string;
+  student_id: string;
+  day: string;
+  started_at: string;
+  ended_at: string;
+  voice: PlanVoice;
+  minutes: number;
+  steps: number;
+  done: number;
+  /** Cards the student skipped. */
+  skipped: string[];
+}
+
 export interface Agenda {
+  /** Sittings of suggested practice, newest first. */
+  sittings: PlanSitting[];
   sessions: PracticeSession[];
   takes: SharedTake[];
   questions: StudentQuestion[];

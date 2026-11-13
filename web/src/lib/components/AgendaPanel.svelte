@@ -48,6 +48,17 @@
       .sort((a, b) => b.n - a.n)
       .slice(0, 4);
   });
+  // Sittings of suggested practice since the last lesson, and a tired-then-hoarse pattern worth a word.
+  const sittings = $derived(agenda?.sittings.filter((s) => !lastLesson || s.started_at >= lastLesson) ?? []);
+  const VOICE: Record<string, string> = { fine: 'voice fine', tired: 'a bit tired', hoarse: 'hoarse or sore' };
+  const strained = $derived(sittings.filter((s) => s.voice !== 'fine' && Date.now() - Date.parse(s.started_at) < 7 * 864e5));
+  const pattern = $derived(strained.some((s) => s.voice === 'hoarse') && strained.length >= 2
+    ? strained.slice().reverse().map((s) => `${VOICE[s.voice]} ${date(s.started_at, { weekday: 'long' })}`).join(', then ')
+    : null);
+  const skippedLine = (ids: string[]) => {
+    const names = ids.map((i) => cueOf(i)).filter(Boolean);
+    return names.length ? 'skipped “' + names.join('”, “') + '”' : ids.length ? `skipped ${ids.length}` : null;
+  };
   const takes = $derived(agenda?.takes.filter((t) => keepLesson(t.lesson_id)) ?? []);
   const waiting = $derived(takes.filter((t) => !t.heard_at));
   const heard = $derived(takes.filter((t) => t.heard_at));
@@ -143,6 +154,21 @@
     {/if}
   </section>
 
+  {#if sittings.length}
+    <section>
+      <h3>Suggested practice</h3>
+      {#if pattern}<p class="caution" role="note"><span aria-hidden="true">⚠</span> Voice {pattern}. Worth asking about.</p>{/if}
+      <ul class="plain">
+        {#each sittings as s (s.id)}
+          <li>
+            {date(s.started_at, { weekday: 'short' })} · {s.voice === 'hoarse' ? 'listening' : `${s.minutes} min`}
+            <span class="muted small">· {s.done} of {s.steps} · {[skippedLine(s.skipped), VOICE[s.voice]].filter(Boolean).join(' · ')}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
   <section>
     <h3>Takes to hear {#if waiting.length}<span class="count">{waiting.length}</span>{/if}</h3>
     {#each waiting as t (t.id)}
@@ -234,6 +260,8 @@
   .row.between { justify-content: space-between; align-items: center; }
   .reply { display: grid; gap: 4px; padding-left: 10px; border-left: 2px solid var(--accent-soft, var(--muted)); }
   .felt { margin: 0; font-style: italic; }
+  .caution { font-weight: 600; margin-bottom: 6px; }
+  .caution span { color: var(--muted); }
   .q { margin: 0; font-size: 15px; }
   .where { margin: 0; }
   .plain { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

@@ -11,7 +11,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.cuenote.data.AuthRepository
 import com.cuenote.data.LessonDatabase
+import com.cuenote.data.PlanSettingsStore
 import com.cuenote.data.PracticeDao
+import com.cuenote.data.PracticePlans
+import com.cuenote.data.TeacherPlanSetting
 import com.cuenote.data.PracticeRepository
 import com.cuenote.data.PracticeTakeEntity
 import com.cuenote.pipeline.cards.ClipAudio
@@ -45,6 +48,9 @@ import java.util.concurrent.TimeUnit
  *   log        each sitting of the last few weeks: when, how long, which notes
  *   questions  new and changed ones go up; answers come back
  *   agenda     whether the teacher has listened, and the next lesson's date
+ *   plans      each sitting of suggested practice goes up (how the voice
+ *              felt, steps done, notes skipped); the teachers' settings
+ *              for the plan come back
  *
  * Nothing goes up without a signed-in student. It runs as the unique work
  * "practice-sync" whenever there is a network, after any change.
@@ -64,6 +70,7 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
             syncTakes(client, student, dao, repo)
             syncQuestions(client, student, dao)
             syncAgenda(client, student, repo)
+            syncPlans(client, student, dao)
             Result.success()
         } catch (e: Exception) {
             if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
@@ -253,6 +260,44 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
         }.decodeList<ShareDate>().mapNotNull { it.nextLessonAt?.let { s -> Instant.parse(s).toEpochMilli() } }
             .filter { it > now - 3 * 3_600_000L }.minOrNull()
         repo.agenda.setNextLesson(next)
+    }
+
+    @Serializable
+    private data class PlanRow(
+        val id: String,
+        @SerialName("student_id") val studentId: String,
+        val day: String,
+        @SerialName("started_at") val startedAt: String,
+        @SerialName("ended_at") val endedAt: String,
+        val voice: String,
+        val minutes: Int,
+        val steps: Int,
+        val done: Int,
+        val skipped: List<String>,
+    )
+
+    /** Finished sittings go up; the teachers' settings for the plan come back. */
+    private suspend fun syncPlans(client: SupabaseClient, student: String, dao: PracticeDao) {
+        val plans = PracticePlans(dao, LessonDatabase.get(applicationContext).cards(), null)
+        val ready = dao.plansToSync()
+        if (ready.isNotEmpty()) {
+            val rows = ready.map { p ->
+                val ended = p.endedAt ?: p.updatedAt
+                PlanRow(
+                    id = p.id, studentId = student, day = p.day,
+                    startedAt = Instant.ofEpochMilli(p.startedAt).toString(), endedAt = Instant.ofEpochMilli(ended).toString(),
+                    voice = p.voice.lowercase(),
+                    minutes = (((ended - p.startedAt) / 60_000).toInt()).coerceIn(0, 120),
+                    steps = plans.steps(p).size.coerceAtMost(20), done = p.done.coerceAtMost(20),
+                    skipped = plans.skippedCards(p),
+                )
+            }
+            client.from("practice_plan_log").upsert(rows) { onConflict = "id" }
+            ready.forEach { dao.markPlanSynced(it.id, it.updatedAt) }
+        }
+        val settings = client.from("practice_plan_setting").select { filter { eq("student_id", student) } }
+            .decodeList<TeacherPlanSetting>()
+        PlanSettingsStore.get(applicationContext).set(settings)
     }
 
     companion object {

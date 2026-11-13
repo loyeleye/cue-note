@@ -82,6 +82,9 @@ import kotlinx.coroutines.launch
 const val GENTLE_START = "Hums on \"mm\", in the middle of your range. Easy and quiet; nothing high yet."
 const val COOL_DOWN = "Gentle slides down on a hum or a lip trill, soft and slow. Then drink some water."
 
+/** The words of a gentle start or cool-down: the teacher's, when she wrote some. */
+fun fixedText(s: PlanStep): String = s.hint ?: if (s.kind == StepKind.GENTLE_START) GENTLE_START else COOL_DOWN
+
 /** A step of today's plan, as the practice screen shows it. */
 data class PlanStepUi(
     val index: Int,
@@ -150,11 +153,14 @@ internal fun StepButtons(step: PlanStepUi, modifier: Modifier = Modifier) {
 fun TodayCard(
     plans: PracticePlans,
     teacher: String?,
-    maxMinutes: Int = PracticePlan.DEFAULT_MAX,
     onStart: (Voice, Int) -> Unit,
     onResume: (planId: String) -> Unit,
 ) {
     val today by remember { plans.today() }.collectAsStateWithLifecycle(null)
+    val set by (plans.settings?.settings ?: remember { kotlinx.coroutines.flow.MutableStateFlow(com.cuenote.data.PlanSettings()) })
+        .collectAsStateWithLifecycle()
+    val maxMinutes = set.maxMinutes ?: PracticePlan.DEFAULT_MAX
+    val resting = set.resting(PracticePlans.day(System.currentTimeMillis()))
     val m = MaterialTheme.colorScheme
     var voice by rememberSaveable { mutableStateOf<Voice?>(null) }
     val lengths = PracticePlan.lengths(maxMinutes)
@@ -185,6 +191,14 @@ fun TodayCard(
                     color = m.onSurfaceVariant,
                 )
                 TextButton(onClick = { again = true }) { Text("Practice again") }
+            }
+            resting -> {
+                Text("Rest your voice", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "${teacher ?: "Your teacher"} asked you to rest until ${restDate(set.restUntil!!)}. Listening still counts.",
+                    color = m.onSurfaceVariant,
+                )
+                StartButton("Listen instead", { again = false; onStart(Voice.HOARSE, PracticePlan.LENGTHS.first()) }, Modifier.fillMaxWidth())
             }
             else -> {
                 Text("How's your voice today?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
@@ -227,6 +241,11 @@ fun TodayCard(
     }
 }
 
+
+private fun restDate(day: String): String = runCatching {
+    val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(day)!!
+    java.text.SimpleDateFormat("EEEE, MMM d", java.util.Locale.getDefault()).format(d)
+}.getOrDefault(day)
 
 // ---- B, C, F: the plan ----
 
@@ -321,7 +340,7 @@ private fun PlanRow(i: Int, s: PlanStep, repo: PracticeRepository, teacherName: 
                             modifier = Modifier.border(1.dp, m.primary, RoundedCornerShape(50)).padding(horizontal = 7.dp, vertical = 1.dp),
                         )
                     }
-                    Text(if (s.kind == StepKind.GENTLE_START) GENTLE_START else COOL_DOWN, style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
+                    Text(fixedText(s), style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
                 }
                 StepKind.WARMUP, StepKind.SONG -> {
                     Text(stepTitle(s, null, teacher), style = MaterialTheme.typography.titleSmall)
@@ -394,7 +413,7 @@ fun PlanRunScreen(
     val ui = PlanStepUi(
         index = i, total = steps.size,
         title = stepTitle(s, row?.card?.cue, teacher.replaceFirstChar { it.uppercase() }),
-        hint = s.hint,
+        hint = if (s.cardId == null) null else s.hint,
         nextLabel = nextTitle?.let { "Next: $it" } ?: "Finish",
         onSkip = if (s.kind == StepKind.COOL_DOWN || s.kind == StepKind.GENTLE_START) null else ({ go(true) }),
         onNext = { go(false) },
@@ -445,7 +464,7 @@ private fun TextStep(step: PlanStepUi, s: PlanStep, onEnd: () -> Unit) {
     ) { padding ->
         Column(Modifier.padding(padding).padding(horizontal = 16.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             StepHeader(step)
-            Text(if (s.kind == StepKind.GENTLE_START) GENTLE_START else COOL_DOWN, style = MaterialTheme.typography.headlineSmall)
+            Text(fixedText(s), style = MaterialTheme.typography.headlineSmall)
             Text("About ${s.minutes} minutes.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

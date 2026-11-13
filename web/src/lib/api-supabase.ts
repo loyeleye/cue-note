@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeacher } from './api';
 import { EditConflict, scoreFormatOf } from './api';
 import type {
-  FullLessonPass, PracticeSession, SharedTake, StudentQuestion,
+  FullLessonPass, PlanSetting, PlanSitting, PracticeSession, SharedTake, StudentQuestion,
   Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark,
   LessonViewRequest, PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
@@ -380,7 +380,9 @@ export const supabaseApi: Api = {
 
   async getAgenda(studentId) {
     const since = new Date(Date.now() - 28 * 864e5).toISOString();
-    const [sessions, takes, questions] = await Promise.all([
+    const [sittings, sessions, takes, questions] = await Promise.all([
+      supabase.from('practice_plan_log').select('*').eq('student_id', studentId).gte('started_at', since)
+        .order('started_at', { ascending: false }),
       supabase.from('practice_session').select('*').eq('student_id', studentId).gte('started_at', since)
         .order('started_at', { ascending: false }),
       supabase.from('practice_take').select('*').eq('student_id', studentId).order('shared_at', { ascending: false }),
@@ -388,10 +390,24 @@ export const supabaseApi: Api = {
         .order('created_at', { ascending: false })
     ]);
     return {
+      sittings: check(sittings) as PlanSitting[],
       sessions: check(sessions) as PracticeSession[],
       takes: check(takes) as SharedTake[],
       questions: check(questions) as StudentQuestion[]
     };
+  },
+
+  async getPlanSetting(studentId) {
+    const me = await uid();
+    return check(await supabase.from('practice_plan_setting').select('*').eq('student_id', studentId).eq('teacher_id', me)
+      .maybeSingle()) as PlanSetting | null;
+  },
+
+  async savePlanSetting(studentId, changes) {
+    const me = await uid();
+    return check(await supabase.from('practice_plan_setting')
+      .upsert({ student_id: studentId, teacher_id: me, ...changes }, { onConflict: 'student_id,teacher_id' })
+      .select().single()) as PlanSetting;
   },
 
   async markTakeHeard(takeId, heard) {
