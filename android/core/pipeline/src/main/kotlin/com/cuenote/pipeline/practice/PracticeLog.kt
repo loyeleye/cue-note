@@ -61,7 +61,30 @@ object PracticeLog {
 
     /** True when another take can be shared, given how many are still waiting for the teacher. */
     fun canShare(waiting: Int): Boolean = waiting < MAX_WAITING
+
+    /**
+     * The takes to offer, ticked, before the next lesson: the latest take on
+     * each note the teacher marked "practice this", since [since] (the last
+     * lesson). A note that already has a take shared since then is left out,
+     * so is a take the student said "not this one" to ([skipped]), and only
+     * as many as there are free places (three, less those still waiting).
+     * Newest first. Nothing goes up until the student taps Send.
+     */
+    fun toOffer(homework: Set<String>, takes: List<OfferTake>, waiting: Int, since: Long, skipped: Set<String> = emptySet()): List<OfferTake> {
+        val recent = takes.filter { it.cardId in homework && it.recordedAt >= since }
+        val done = recent.filter { it.shared }.map { it.cardId }.toSet()
+        val free = (MAX_WAITING - waiting).coerceAtLeast(0)
+        return recent.filter { it.cardId !in done }
+            .groupBy { it.cardId }
+            .mapNotNull { (_, ts) -> ts.maxByOrNull { it.recordedAt } }
+            .filter { it.id !in skipped }
+            .sortedByDescending { it.recordedAt }
+            .take(free)
+    }
 }
+
+/** A practice take, as the pre-lesson offer needs it. */
+data class OfferTake(val id: String, val cardId: String, val recordedAt: Long, val shared: Boolean)
 
 /** A take's pitch as it goes up: one row per note, no pitch line. */
 @Serializable

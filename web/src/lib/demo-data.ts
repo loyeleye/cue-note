@@ -1,7 +1,7 @@
 // Made-up sample data for demo mode: two students, three lessons, cards with
 // their AI originals, notes, practice and a song with a score. Nothing here
 // touches the real database. Dates are relative to today so it looks fresh.
-import type {
+import type { FullLessonPass,
   Annotation, CardVersion, Checkpoint, Comment, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark, PracticeItem,
   PracticeSession, Profile, Score, Share, SharedTake, Song, StudentQuestion, Take
 } from './types';
@@ -94,6 +94,8 @@ export interface DemoState {
   annotations: Annotation[];
   /** Data URLs for voice notes recorded in the demo, so they survive a reload. */
   files: Record<string, string>;
+  /** Full-lesson asks and passes; missing from demo states saved before them. */
+  passes?: FullLessonPass[];
 }
 
 export function initialDemoState(): DemoState {
@@ -320,6 +322,15 @@ export function demoSketchSvg(): string {
   <text x="40" y="262" font-family="Comic Sans MS, cursive" font-size="20" fill="#222">tongue fwd</text>
   <text x="150" y="45" font-family="Comic Sans MS, cursive" font-size="26" fill="#222">"ah" not "aw"</text>
 </svg>`;
+}
+
+/** Priya has invited the demo teacher to hear her whole lesson before an audition. */
+export function demoPasses(): FullLessonPass[] {
+  return [{
+    id: 'demo-pass-1', lesson_id: L3, student_id: PRIYA, teacher_id: DEMO_TEACHER.id, asked_by: 'student',
+    status: 'pending', note: 'Audition next Friday. Can you hear the whole thing?', created_at: ago(0, 9),
+    decided_at: null, ends_at: null, ended_at: null
+  }];
 }
 
 /** Sam's week since the last lesson: three sittings, two shared takes, three questions. */

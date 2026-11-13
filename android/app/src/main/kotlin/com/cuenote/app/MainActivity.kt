@@ -263,6 +263,8 @@ private fun AppNav(app: CueNoteApp) {
                     onBack = { nav.popBackStack() },
                     taughtBy = teacherNameFor(app, myTeachers, null, id, teacherVersion),
                     onChangeTeacher = { changing = true },
+                    fullLesson = if (email != null) app.fullLesson else null,
+                    viewers = lessonViewers(myTeachers, app.lessonTeachers.get(id).teacherId),
                 )
             }
         }
@@ -320,6 +322,7 @@ private fun AppNav(app: CueNoteApp) {
                 repo = app.practice,
                 setlist = setlist,
                 teacher = onlyTeacher,
+                sharing = sharing,
                 onPractice = { cardId -> withPermission { nav.navigate("practice/$cardId") } },
                 onBack = { nav.popBackStack() },
             )
@@ -421,5 +424,13 @@ private fun teacherNameFor(
         ?: teachers.firstOrNull { it.teacherId != null && it.teacherId == t.teacherId }?.teacherName?.takeIf { it.isNotBlank() }
         ?: firstTeacher?.takeIf { it.isNotBlank() && !t.isSet }
 }
+
+/**
+ * The teachers who can open this lesson, and so can be invited to hear all of
+ * it: the one who taught it, and any the student lets see every lesson.
+ */
+private fun lessonViewers(teachers: List<InvitedTeacher>, taughtBy: String?): List<com.cuenote.lesson.LessonViewer> =
+    teachers.filter { it.active && it.teacherId != null && (it.teacherId == taughtBy || !it.restrictedToTaught) }
+        .map { com.cuenote.lesson.LessonViewer(it.teacherId!!, it.teacherName?.takeIf { n -> n.isNotBlank() } ?: it.email) }
 
 private data class PendingLesson(val consentAt: Long, val teacher: LessonTeacher, val posture: Boolean)

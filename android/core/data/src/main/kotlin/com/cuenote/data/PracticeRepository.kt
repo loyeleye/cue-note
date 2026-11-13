@@ -18,6 +18,7 @@ import com.cuenote.pipeline.practice.PracticeLog
 import com.cuenote.pipeline.practice.PracticeWeek
 import com.cuenote.pipeline.practice.Questions
 import com.cuenote.data.sync.PracticeSyncWorker
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.Json
 import com.cuenote.pipeline.practice.StartingNote
@@ -193,10 +194,35 @@ class PracticeRepository(
     /** Shared takes the teacher hasn't listened to yet. */
     fun waiting(): Flow<List<PracticeTakeEntity>> = dao.observeWaiting()
 
+    /** Every take (not deleted) recorded since [since], newest first. */
+    fun takesSince(since: Long): Flow<List<PracticeTakeEntity>> = dao.observeTakesSince(since)
+
     /** Shares a take with the student's teachers, or stops sharing it. Goes up at the next sync. */
     suspend fun share(take: PracticeTakeEntity, on: Boolean) = withContext(Dispatchers.IO) {
         dao.setShared(take.id, on)
         PracticeSyncWorker.enqueue(context)
+    }
+
+    /** Shared takes the teacher replied to, newest first. */
+    fun replied(): Flow<List<PracticeTakeEntity>> = dao.observeReplied()
+
+    /**
+     * A teacher's voice note on the phone, fetched once from the cloud and
+     * kept beside the practice takes; null when it can't be fetched (offline,
+     * signed out, or taken back).
+     */
+    suspend fun voiceNote(path: String): File? = withContext(Dispatchers.IO) {
+        val f = File(File(root, "voice-notes"), path.substringAfterLast('/'))
+        if (f.isFile) return@withContext f
+        val client = com.cuenote.data.AuthRepository.get().client ?: return@withContext null
+        runCatching {
+            val bytes = client.storage.from("clips").downloadAuthenticated(path)
+            f.parentFile?.mkdirs()
+            val tmp = File(f.parentFile, f.name + ".part")
+            tmp.writeBytes(bytes)
+            tmp.renameTo(f)
+            f
+        }.getOrNull()
     }
 
     /** The questions not dropped, newest first. */
@@ -263,7 +289,22 @@ class PracticeAgenda(context: Context) {
         _nextLessonAt.value = at
     }
 
-    private companion object { const val KEY_NEXT = "next_lesson_at" }
+    private val _skipped = MutableStateFlow(prefs.getStringSet(KEY_SKIPPED, emptySet())!!.toSet())
+    /** Takes the student said "not this one" to when offered before a lesson, so they aren't offered again. */
+    val skipped: StateFlow<Set<String>> = _skipped.asStateFlow()
+
+    fun skip(takeIds: Collection<String>) {
+        if (takeIds.isEmpty()) return
+        // Only the last few hundred matter; older takes are long past their lesson.
+        val all = (_skipped.value + takeIds).toList().takeLast(300).toSet()
+        prefs.edit().putStringSet(KEY_SKIPPED, all).apply()
+        _skipped.value = all
+    }
+
+    private companion object {
+        const val KEY_NEXT = "next_lesson_at"
+        const val KEY_SKIPPED = "offer_skipped"
+    }
 }
 
 /**

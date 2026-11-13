@@ -33,6 +33,32 @@ export interface LessonViewRequest {
   decided_at: string | null;
 }
 
+/**
+ * The whole of one lesson, opened to one teacher for 14 days once both say
+ * yes. By default a teacher hears only the takes on "Practice this" cards and
+ * what the student shares; the rest of the lesson is the student's.
+ */
+export interface FullLessonPass {
+  id: string;
+  lesson_id: string;
+  student_id: string;
+  teacher_id: string;
+  /** Who asked first; the other person answers. */
+  asked_by: 'student' | 'teacher';
+  status: 'pending' | 'active' | 'declined' | 'ended';
+  note: string | null;
+  created_at: string;
+  decided_at: string | null;
+  ends_at: string | null;
+  ended_at: string | null;
+}
+
+/** Where a pass stands now: an active one past its end date has ended. */
+export function passState(p: FullLessonPass, now = Date.now()): FullLessonPass['status'] {
+  if (p.status === 'active' && p.ends_at && Date.parse(p.ends_at) <= now) return 'ended';
+  return p.status;
+}
+
 export const TEACHER_COLORS = ['blue', 'teal', 'green', 'amber', 'coral', 'rose', 'violet', 'indigo'] as const;
 export type TeacherColor = (typeof TEACHER_COLORS)[number];
 
@@ -78,6 +104,9 @@ export interface StudentSummary {
   student: Profile;
   lessonCount: number;
   lastLessonAt: string | null;
+  /** Shared takes not heard yet and open questions, for the next lesson. */
+  waitingTakes?: number;
+  openQuestions?: number;
 }
 
 export interface Lesson {
@@ -271,6 +300,11 @@ export interface SharedTake {
   shared_at: string;
   heard_at: string | null;
   heard_by: string | null;
+  /** The teacher's reply, in words and/or a voice note (clips/<student>/teacher-notes/...). */
+  reply?: string | null;
+  reply_clip_path?: string | null;
+  replied_by?: string | null;
+  replied_at?: string | null;
 }
 
 export type QuestionStatus = 'open' | 'answered' | 'dropped';
@@ -286,6 +320,8 @@ export interface StudentQuestion {
   body: string;
   status: QuestionStatus;
   answer: string | null;
+  /** A voice answer: clips/<student>/teacher-notes/... */
+  answer_clip_path?: string | null;
   answered_by: string | null;
   answered_at: string | null;
   created_at: string;

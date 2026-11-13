@@ -14,6 +14,7 @@
     CardFields, CardVersion, Checkpoint, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark, Profile, Song, Take, Teacher
   } from '$lib/types';
   import CardEditor from '$lib/components/CardEditor.svelte';
+  import FullLessonBanner from '$lib/components/FullLessonBanner.svelte';
   import LessonHistory from '$lib/components/LessonHistory.svelte';
   import Who from '$lib/components/Who.svelte';
   import ClipPlayer from '$lib/components/ClipPlayer.svelte';
@@ -45,6 +46,7 @@
   let watch: LessonWatch | null = null;
 
   const me = $derived(app.me?.id ?? null);
+  const n = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
   const others = $derived(present.filter((p) => p.id !== me));
 
   $effect(() => {
@@ -304,7 +306,7 @@
       <div class="chips">
         <span class="chip">{clock(c.span_start_ms)}</span>
         {#if c.category}<span class="chip">{c.category}</span>{/if}
-        {#if c.practice_flag}<span class="chip accent">{FLAG_LABEL[c.practice_flag]}</span>{/if}
+        {#if c.practice_flag}<span class="chip {c.practice_flag === 'practice_this' ? 'practice' : 'accent'}">{FLAG_LABEL[c.practice_flag]}</span>{/if}
         {#if c.bar_start != null}<span class="chip">{bars(c.bar_start, c.bar_end)}{songTitle(c.song_id) ? ` · ${songTitle(c.song_id)}` : ''}</span>{/if}
       </div>
       {#if c.clip_path}
@@ -371,7 +373,7 @@
       </div>
     {/if}
   </div>
-  <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${exercises.length} exercises` : ''} · {takes.length} takes · {cards.length} cards. Every save keeps the earlier version.</p>
+  <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${n(exercises.length, 'exercise')}` : ''} · {n(takes.length, 'take')} · {n(cards.length, 'card')}. Every save keeps the earlier version.</p>
   {#if teachers.length > 1 || (!lesson.taught_by && lesson.teacher_name)}
     <p class="taught">
       {#if lesson.taught_by}
@@ -387,6 +389,10 @@
       {/if}
       {#if claimError}<span class="error small" role="alert">{claimError}</span>{/if}
     </p>
+  {/if}
+
+  {#if !app.me?.debug}
+    <FullLessonBanner lessonId={lesson.id} studentName={student?.display_name ?? ''} onchanged={() => load(lesson!.id)} />
   {/if}
 
   {#if photos.length}
@@ -407,7 +413,7 @@
               {#if cs.length}
                 <ul class="takeaways">
                   {#each cs.slice(0, 3) as c (c.id)}
-                    <li><a href="#card-{c.id}">{c.cue || c.her_words}</a>{#if c.practice_flag === 'practice_this'} <span class="chip accent">Practise</span>{/if}</li>
+                    <li><a href="#card-{c.id}">{c.cue || c.her_words}</a>{#if c.practice_flag === 'practice_this'} <span class="chip practice">Practice this</span>{/if}</li>
                   {/each}
                   {#if cs.length > 3}<li class="muted small">and {cs.length - 3} more</li>{/if}
                 </ul>

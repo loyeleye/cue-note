@@ -3,7 +3,7 @@
   import { api, app, enterDemo, refreshMe } from '$lib/app.svelte';
   import { isConfigured, supabase } from '$lib/supabase';
   import { date, ago } from '$lib/format';
-  import type { LessonViewRequest, Share, StudentSummary } from '$lib/types';
+  import type { FullLessonPass, LessonViewRequest, Share, StudentSummary } from '$lib/types';
 
   let email = $state('');
   let status = $state('');
@@ -12,6 +12,8 @@
   let invites = $state<(Share & { student_name: string })[]>([]);
   let error = $state('');
   let requests = $state<LessonViewRequest[]>([]);
+  // Students' invites to hear a whole lesson, waiting for this teacher's answer.
+  let passInvites = $state<FullLessonPass[]>([]);
   // A debug account uses the teacher dashboard too, seeing every student.
   const teacherView = $derived(app.me?.role === 'teacher' || !!app.me?.debug);
 
@@ -22,6 +24,9 @@
       invites = await api().listInvites();
       students = teacherView ? await api().listStudents() : [];
       requests = app.me?.role === 'teacher' ? await api().listLessonViewRequests() : [];
+      passInvites = app.me?.role === 'teacher'
+        ? (await api().listFullLessonPasses()).filter((p) => p.status === 'pending' && p.asked_by === 'student')
+        : [];
     } catch (e) {
       error = (e as Error).message;
     }
@@ -55,6 +60,18 @@
       error = (e as Error).message;
     }
   }
+
+  async function answerPass(p: FullLessonPass, yes: boolean) {
+    try {
+      await api().answerFullLesson(p.id, yes);
+      await reload();
+    } catch (e) {
+      error = (e as Error).message;
+    }
+  }
+
+  const nameOf = (studentId: string) =>
+    students?.find((x) => x.student.id === studentId)?.student.display_name.split(' ')[0] || 'A student';
 
   async function accept(id: string) {
     try {
@@ -130,6 +147,23 @@
     </section>
   {/if}
 
+  {#if passInvites.length}
+    <section class="requests" aria-label="Invites to hear a whole lesson">
+      {#each passInvites as p (p.id)}
+        <div class="card request pending">
+          <span>
+            <strong>{nameOf(p.student_id)}</strong> invited you to hear their <a href="/lessons/{p.lesson_id}">whole lesson</a>. If you accept, you can hear every take for 14 days.
+            {#if p.note}<span class="muted">“{p.note}”</span>{/if}
+          </span>
+          <span class="actions">
+            <button class="primary small" onclick={() => answerPass(p, true)}>Accept</button>
+            <button class="ghost small" onclick={() => answerPass(p, false)}>Not this time</button>
+          </span>
+        </div>
+      {/each}
+    </section>
+  {/if}
+
   {#if invites.length}
     <section class="invites">
       {#each invites as inv (inv.id)}
@@ -160,6 +194,12 @@
                 {s.lessonCount} lesson{s.lessonCount === 1 ? '' : 's'}{s.lastLessonAt ? ` · last ${ago(s.lastLessonAt)}` : ''}
               </span>
             </span>
+            {#if s.waitingTakes || s.openQuestions}
+              <span class="chip practice" title="Shared takes you haven't heard, and open questions">
+                {[s.waitingTakes ? `${s.waitingTakes} take${s.waitingTakes === 1 ? '' : 's'}` : '',
+                  s.openQuestions ? `${s.openQuestions} question${s.openQuestions === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ')} waiting
+              </span>
+            {/if}
             {#if s.share.next_lesson_at}<span class="chip">Next: {date(s.share.next_lesson_at)}</span>{/if}
           </a>
         </li>

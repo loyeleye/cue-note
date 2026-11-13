@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cuenote.data.PracticeRepository
 import com.cuenote.data.SetlistRow
+import com.cuenote.pipeline.practice.OfferTake
 import com.cuenote.pipeline.practice.PracticeLog
 import com.cuenote.pipeline.practice.PracticeWeek
 import com.cuenote.ui.Masthead
@@ -51,6 +55,8 @@ fun NextLessonScreen(
     setlist: List<SetlistRow>,
     /** The teacher's name when there's one teacher, else null for "your teacher". */
     teacher: String?,
+    /** Signed in with a teacher who has accepted, so takes can be shared. */
+    sharing: Boolean = false,
     onPractice: (cardId: String) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -58,6 +64,7 @@ fun NextLessonScreen(
     val week by remember { repo.week() }.collectAsStateWithLifecycle(PracticeWeek(0, 0, 0, 0))
     val waiting by remember { repo.waiting() }.collectAsStateWithLifecycle(emptyList())
     val questions by remember { repo.questions() }.collectAsStateWithLifecycle(emptyList())
+    val replied by remember { repo.replied() }.collectAsStateWithLifecycle(emptyList())
     val next by repo.agenda.nextLessonAt.collectAsStateWithLifecycle()
     val player = rememberClipPlayer()
     val scope = rememberCoroutineScope()
@@ -67,6 +74,22 @@ fun NextLessonScreen(
     val cards = remember(setlist) { setlist.associateBy { it.card.id } }
     fun about(cardId: String?): String? = cardId?.let { cards[it] }?.card?.let { c -> c.cue.ifBlank { c.herWords }.take(60) }
     val m = MaterialTheme.colorScheme
+
+    // The offer: the latest take on each note the teacher marked "practice
+    // this", since the last lesson, ticked to start with. Nothing is sent
+    // until the student taps Send; an unticked take isn't offered again.
+    val homework = remember(setlist) { setlist.filter { it.card.practiceFlag == "practice_this" }.map { it.card.id }.toSet() }
+    val since = remember(setlist) { setlist.maxOfOrNull { it.recordedAt } ?: 0L }
+    val recent by remember(since) { repo.takesSince(since) }.collectAsStateWithLifecycle(emptyList())
+    val skipped by repo.agenda.skipped.collectAsStateWithLifecycle()
+    val offer = remember(recent, homework, waiting, skipped) {
+        val byId = recent.associateBy { it.id }
+        PracticeLog.toOffer(homework, recent.map { OfferTake(it.id, it.cardId, it.recordedAt, it.shared) }, waiting.size, since, skipped)
+            .mapNotNull { byId[it.id] }
+    }
+    var unticked by remember { mutableStateOf(emptySet<String>()) }
+    // What just happened to the offer, until the screen is left.
+    var offerNote by remember { mutableStateOf<String?>(null) }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Next lesson") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
@@ -92,11 +115,50 @@ fun NextLessonScreen(
                 }
             }
 
+            if (sharing && offer.isNotEmpty()) {
+                item(key = "offerh") { Text("Send $who your practice takes?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
+                item(key = "offer0") {
+                    Text(
+                        "Your latest go at each note $who asked you to practise. Untick any you'd rather keep to yourself.",
+                        color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                items(offer, key = { "o-" + it.id }) { t ->
+                    val on = t.id !in unticked
+                    // The whole row ticks; Play sits at the far end so it isn't hit by mistake.
+                    TicketRow(onClick = { unticked = if (on) unticked + t.id else unticked - t.id }) {
+                        Checkbox(checked = on, onCheckedChange = null)
+                        Column(Modifier.weight(1f)) {
+                            Text(about(t.cardId) ?: "A practice take", style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                            Text("${dayAndTime(t.recordedAt)} · ${clock(t.durationMs)}", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                        }
+                        PlayPill("Play", player.playing == t.file, filled = false, onClick = { player.toggle(t.file) })
+                    }
+                }
+                item(key = "offerb") {
+                    val send = offer.filter { it.id !in unticked }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(enabled = send.isNotEmpty(), onClick = {
+                            scope.launch {
+                                send.forEach { repo.share(it, true) }
+                                repo.agenda.skip(offer.filter { it.id in unticked }.map { it.id })
+                                unticked = emptySet()
+                                offerNote = (if (send.size == 1) "Sent 1 take." else "Sent ${send.size} takes.") +
+                                    " $whoCap can listen before your lesson. If you're offline, they go when you're back."
+                            }
+                        }) { Text(if (send.size == 1) "Send 1 take" else "Send ${send.size} takes") }
+                        OutlinedButton(onClick = { repo.agenda.skip(offer.map { it.id }); unticked = emptySet(); offerNote = "Kept to yourself. Your next takes will be offered before the next lesson." }) { Text("Not this time") }
+                    }
+                }
+            }
+
+            offerNote?.let { n -> item(key = "offern") { Text(n, color = m.primary, style = MaterialTheme.typography.bodyMedium) } }
+
             item(key = "takesh") { Text("Takes for $who to hear", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
             if (waiting.isEmpty()) {
                 item(key = "takes0") {
                     Text(
-                        "Share up to ${PracticeLog.MAX_WAITING} practice takes from a note's ⋮ menu. Pick ones you'd like help with.",
+                        "Share up to ${PracticeLog.MAX_WAITING} practice takes from a note's ⋮ menu. Pick the ones you're least sure about, not your best.",
                         color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -114,6 +176,20 @@ fun NextLessonScreen(
                 }
             }
 
+            if (replied.isNotEmpty()) {
+                item(key = "rh") { Text("$whoCap replied", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
+                items(replied, key = { "r-" + it.id }) { t ->
+                    TicketRow(onClick = { onPractice(t.cardId) }) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(about(t.cardId) ?: "A practice take", style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                            Text("Your take from ${dayAndTime(t.recordedAt)}", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            TeacherReply(whoCap, t.reply, t.replyClipPath, repo, player)
+                        }
+                        PlayPill("Your take", player.playing == t.file, filled = false, onClick = { player.toggle(t.file) })
+                    }
+                }
+            }
+
             item(key = "qh") {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                     Text("Questions", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -123,13 +199,13 @@ fun NextLessonScreen(
             if (questions.isEmpty()) {
                 item(key = "q0") {
                     Text(
-                        "Anything you'd like to go over? A question on a note goes there; a general one goes here.",
+                        "Something feel odd, or not sure you've got it? A question on a note goes there; a general one goes here.",
                         color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
             items(questions, key = { "q-" + it.id }) { q ->
-                QuestionRow(q, whoCap, where = about(q.cardId)?.let { "On \"$it\"" }, onDrop = { scope.launch { repo.drop(q.id) } })
+                QuestionRow(q, whoCap, where = about(q.cardId)?.let { "On \"$it\"" }, onDrop = { scope.launch { repo.drop(q.id) } }, voice = repo to player)
             }
         }
     }
