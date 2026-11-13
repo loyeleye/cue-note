@@ -14,6 +14,7 @@ import com.cuenote.signal.MicVerdict
 import com.cuenote.signal.Problem
 import com.cuenote.signal.SetupCheck
 import com.cuenote.signal.StepEar
+import com.cuenote.signal.SyllableCounter
 import com.cuenote.signal.StepResult
 import com.cuenote.signal.StereoLevels
 import com.cuenote.signal.posture.Voice
@@ -42,14 +43,20 @@ enum class SetupStep(
     val quiet: Who?,
     val line: VoiceLine,
     val need: StepEar.Need,
+    /** For a Do · Re · Mi step: the verb shown above the big syllables, which light as they're heard. */
+    val verb: String? = null,
+    /** A reassuring line under the syllables. */
+    val hint: String? = null,
 ) {
     STUDENT_SPEAK(
-        "Student's Do Re Mi", "Student", "Sing \"Do - Re - Mi.\"", 12, Who.TEACHER,
+        "Student's Do Re Mi", "Student", "Sing \"Do · Re · Mi.\"", 12, Who.TEACHER,
         VoiceLine.CHECK_STUDENT, StepEar.Need(soundMs = 1_200, waitForPause = true),
+        verb = "Sing", hint = "Any comfortable note.",
     ),
     TEACHER_SPEAK(
-        "Teacher's Do Re Mi", "Teacher", "Speak or sing \"Do - Re - Mi.\"", 12, Who.STUDENT,
+        "Teacher's Do Re Mi", "Teacher", "Speak or sing \"Do · Re · Mi.\"", 12, Who.STUDENT,
         VoiceLine.CHECK_TEACHER, StepEar.Need(soundMs = 1_200, waitForPause = true),
+        verb = "Speak or sing", hint = "Speaking is fine.",
     ),
     LOUD_NOTE(
         "One big note", "Student", "Sing your biggest comfortable note and hold it.", 12, null,
@@ -76,6 +83,10 @@ enum class SetupStep(
 enum class StepPhase { IDLE, GET_READY, LISTENING, PASSED, FAILED }
 
 data class SetupUiState(
+    /** Do · Re · Mi syllables heard so far in this step (0 to 3). */
+    val syllables: Int = 0,
+    /** In the teacher step: the student's mic is the one hearing it. */
+    val wrongMic: Boolean = false,
     val mic: MicInfo? = null,
     val routedTo: String = "",
     val batteryPercent: Int = 100,
@@ -178,7 +189,7 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
      * voice it's a short pause, as before.
      */
     private suspend fun getReady(step: SetupStep) {
-        _state.update { it.copy(phase = StepPhase.GET_READY) }
+        _state.update { it.copy(phase = StepPhase.GET_READY, syllables = 0, wrongMic = false) }
         if (_state.value.spoken) {
             speaker.sayAndWait(step.line)
             delay(AFTER_LINE_MS)
@@ -194,9 +205,22 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
      */
     private suspend fun listen(step: SetupStep): Boolean {
         recorder.resetWindow()
-        _state.update { it.copy(phase = StepPhase.LISTENING, secondsLeft = step.seconds) }
+        _state.update { it.copy(phase = StepPhase.LISTENING, secondsLeft = step.seconds, syllables = 0, wrongMic = false) }
         val ear = StepEar(step.need)
-        val hearing = viewModelScope.launch { liveLevels.filterNotNull().collect { ear.add(it) } }
+        // Before the student step settles the channels, either mic can be the student's.
+        val syllables = step.verb?.let { SyllableCounter(if (step == SetupStep.TEACHER_SPEAK) Channel.TEACHER else null) }
+        val hearing = viewModelScope.launch {
+            liveLevels.filterNotNull().collect { block ->
+                ear.add(block)
+                if (syllables != null) {
+                    syllables.add(block)
+                    val s = _state.value
+                    if (s.syllables != syllables.heard || s.wrongMic != syllables.wrongMic) {
+                        _state.update { it.copy(syllables = syllables.heard, wrongMic = syllables.wrongMic) }
+                    }
+                }
+            }
+        }
         val start = android.os.SystemClock.elapsedRealtime()
         val endAt = start + step.seconds * 1_000L
         try {
