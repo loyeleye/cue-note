@@ -7,7 +7,7 @@ import com.cuenote.pipeline.cards.CloudIds
  * section of the song), each with its tries and the few points that matter,
  * rather than a card for every take. Pure, so it is tested on the JVM.
  *
- * A singer practises exercises, not takes: half of a lesson's takes are
+ * A singer practices exercises, not takes: half of a lesson's takes are
  * three-second tries nobody comments on, and her feedback runs across them.
  * So each section shows at most [MAIN_POINTS] points, the ones the card writer
  * judged most worth drilling (its weight; a long explanation of technique
@@ -40,7 +40,21 @@ object LessonOutline {
         val weight get() = all.mapNotNull { it.weight }.maxOrNull()
         /** The writer's summary, else her own line. */
         val text get() = card.summary.ifBlank { card.herWords }
+        /** Where the summary stands with the teacher. */
+        val check get() = when {
+            card.summaryRejected != null && card.summary.isNotBlank() -> SummaryCheck.CORRECTED
+            card.summaryRejected != null -> SummaryCheck.FLAGGED
+            card.summaryCheck == "said" && card.summary.isNotBlank() -> SummaryCheck.CONFIRMED
+            else -> SummaryCheck.UNCHECKED
+        }
     }
+
+    /**
+     * The teacher's answer to "Did you say this?" about a point's summary.
+     * FLAGGED: she said no and wrote nothing, so the summary is off the card.
+     * CORRECTED: she said no and wrote her own line, which is now the summary.
+     */
+    enum class SummaryCheck { UNCHECKED, CONFIRMED, FLAGGED, CORRECTED }
 
     /** Before cards: something she said at length about a try, as her own words cut short. */
     data class Guess(val feedback: FeedbackEntity, val excerpt: String)

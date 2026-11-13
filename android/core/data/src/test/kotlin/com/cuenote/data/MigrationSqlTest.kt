@@ -111,6 +111,18 @@ class MigrationSqlTest {
         }
     }
 
+    @Test fun `migration 10 to 11 matches the exported schema`() {
+        val ten = tables(10)
+        val eleven = tables(11)
+        assertEquals(ten.keys, eleven.keys)
+        ten.forEach { (name, sql) ->
+            val added = MIGRATION_10_11_ADDED_COLUMNS[name].orEmpty()
+            val expected = if (added.isEmpty()) sql
+            else sql.replace(", PRIMARY KEY(", ", " + added.joinToString(", ") + ", PRIMARY KEY(")
+            assertEquals(name, expected, eleven[name])
+        }
+    }
+
     private fun tables(version: Int): Map<String, String> {
         val schema = Json.parseToJsonElement(File("schemas/com.cuenote.data.LessonDatabase/$version.json").readText())
         return schema.jsonObject["database"]!!.jsonObject["entities"]!!.jsonArray.map { it.jsonObject }.associate {

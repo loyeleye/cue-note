@@ -66,6 +66,10 @@ data class CardEntity(
     @ColumnInfo(defaultValue = "") val summary: String = "",
     /** 0..1: how much the point is worth drilling, from the card writer; null when unknown. */
     val weight: Float? = null,
+    /** The teacher's answer about the summary: "said", "not_said", or null before she answers. */
+    val summaryCheck: String? = null,
+    /** The app's summary she said she didn't say; set means a summary was corrected or taken off. */
+    val summaryRejected: String? = null,
 )
 
 /** How many cards a lesson has, and how many she marked to practice. */

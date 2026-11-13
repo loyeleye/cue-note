@@ -299,7 +299,7 @@ linked to a take is under Details. Opening a lesson fetches her latest edits
 and the exercises' names from the dashboard.
 
 A bar at the bottom of the lesson screen keeps the next step in reach:
-**Start practising** opens the first point from this lesson on the setlist,
+**Start practicing** opens the first point from this lesson on the setlist,
 and **Send to teacher** opens the next-lesson page, where tries and questions
 go to her with the full clips.
 
@@ -311,6 +311,21 @@ teacher writes in the card editor counts as one she said. Making the notes
 again leaves an answered or teacher-written summary alone. The lesson page
 and the home page show how many summaries have been checked
 (`summary_check_tally`), which tells us how far to trust them.
+
+After a no, the dashboard offers one optional line, "What did you mean?",
+saved as the card's summary, so the student reads her correction in its
+place. On the phone a point she flagged without a correction leads with her
+clip and the try, says "Your teacher flagged the app's summary of this", keeps
+the old summary a tap away (so a student who practiced from it knows to stop),
+and offers "Add to my questions" or "Got it". The lesson says once how many
+summaries she corrected; a summary she confirmed says so. Room 10 to 11 adds
+`card.summaryCheck` and `card.summaryRejected`.
+
+"Make my notes" replaces any earlier try still waiting to retry, and sketch
+uploads have their own chain (`photos-<id>`), started again as soon as the
+cards are in the cloud. They used to share the cards' chain, where a sketch
+waiting for the cards could hold "Make my notes" back for up to a day. If
+making the notes fails, the lesson screen says why.
 
 Each run is logged in `cue_extraction` with its tokens and cost, to check the
 design doc's estimate of $0.03 a lesson.

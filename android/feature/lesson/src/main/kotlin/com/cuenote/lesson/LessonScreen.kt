@@ -52,6 +52,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -109,10 +111,12 @@ fun LessonScreen(
     fullLesson: com.cuenote.data.FullLessonRepository? = null,
     /** The teachers who can open this lesson, and so could be invited to all of it. */
     viewers: List<LessonViewer> = emptyList(),
-    /** Opens practice on one card; null hides "Start practising". */
+    /** Opens practice on one card; null hides "Start practicing". */
     onPractice: ((cardId: String) -> Unit)? = null,
     /** Opens the next-lesson page, where tries and questions go to the teacher; null hides it. */
     onSendToTeacher: (() -> Unit)? = null,
+    /** Adds a point to the questions for the next lesson; null hides "Add to my questions". */
+    onAsk: (suspend (CardEntity) -> Unit)? = null,
 ) {
     val dao = repo.pipelineDao!!
     val cardDao = repo.cardDao!!
@@ -147,6 +151,15 @@ fun LessonScreen(
     }
 
     val overrides by repo.setlistStore.overrides.collectAsStateWithLifecycle()
+    // Flagged summaries whose nudge she has answered ("Got it", or asked): kept on the phone.
+    val nudgePrefs = LocalContext.current.getSharedPreferences("summary_nudges", android.content.Context.MODE_PRIVATE)
+    var nudged by remember { mutableStateOf(nudgePrefs.getStringSet("done", emptySet())!!.toSet()) }
+    var asked by remember { mutableStateOf(nudgePrefs.getStringSet("asked", emptySet())!!.toSet()) }
+    fun doneNudge(id: String, ask: Boolean) {
+        nudged = nudged + id
+        if (ask) asked = asked + id
+        nudgePrefs.edit().putStringSet("done", nudged).putStringSet("asked", asked).apply()
+    }
     // Checked once per change, not on every frame: only clips that are on the phone.
     val clipFile: Map<String, String> = remember(clips) { clips.filter { File(it.file).isFile }.associate { it.id to it.file } }
     val clipMs: Map<String, Long> = remember(clips) { clips.associate { it.file to (it.endMs - it.startMs) } }
@@ -159,7 +172,7 @@ fun LessonScreen(
         groups.associate { g -> g.card.id to suggestions.filter { s -> g.all.any { it.id == s.feedbackId } } }
     }
 
-    // The points from this lesson on her setlist, in lesson order: what "Start practising" opens.
+    // The points from this lesson on her setlist, in lesson order: what "Start practicing" opens.
     val onList = remember(groups, overrides) { groups.map { it.card }.filter { SetlistStore.isOn(it, overrides) } }
 
     Scaffold(topBar = {
@@ -222,6 +235,13 @@ fun LessonScreen(
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                val corrected = groups.count { it.check == LessonOutline.SummaryCheck.FLAGGED || it.check == LessonOutline.SummaryCheck.CORRECTED }
+                if (corrected > 0) item(key = "corrected") {
+                    Text(
+                        "Your teacher corrected the app's summary on ${plural(corrected, "point")}. Each is marked below, with her clip.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 for (sec in outline) {
                     val key = sec.exercise?.id ?: "loose"
                     item(key = "ex-$key") { ExerciseHeader(sec, clipFile, player, first = sec === outline.first()) }
@@ -241,6 +261,11 @@ fun LessonScreen(
                             sketchesBy[c.id].orEmpty(), lessonDir, onOpenSketch,
                             suggestionsBy[c.id].orEmpty(), onDecide,
                             SetlistStore.isOn(c, overrides),
+                            nudge = Nudge(
+                                open = c.id !in nudged, asked = c.id in asked,
+                                ask = onAsk?.let { ask -> { scope.launch { runCatching { ask(c) }.onSuccess { doneNudge(c.id, true) } } } },
+                                gotIt = { doneNudge(c.id, false) },
+                            ),
                         ) { on -> repo.setlistStore.set(c.id, on) }
                     }
                     items(sec.cues, key = { it.card.id }) { card(it, Modifier.animateItem()) }
@@ -321,6 +346,9 @@ private fun Status(
         carding -> (LessonUploadWorker.STAGE_NAMES[c?.stage] ?: "Making cards") + "… ${c?.percent ?: 0}%"
         p?.state == WorkInfo.State.ENQUEUED -> "Your notes will be ready after the phone's next charge, or tap Make my notes now."
         c?.state == WorkInfo.State.ENQUEUED -> "Waiting for the internet to finish your notes."
+        c?.state == WorkInfo.State.BLOCKED -> "Your notes will start in a moment."
+        c?.state == WorkInfo.State.FAILED && c.error != "not signed in" ->
+            "We couldn't make your notes this time (${c.error?.take(120) ?: "no reason given"}). Tap Make my notes to try again."
         cards.isNotEmpty() -> {
             val n = cards.count { it.category != "chat" && it.cue.isNotBlank() }
             val edited = cards.count { it.editedByTeacher }
@@ -425,9 +453,12 @@ private fun CueCard(
     suggestions: List<DiagramSuggestion>,
     onDecide: suspend (DiagramSuggestion, String) -> Unit,
     onSetlist: Boolean,
+    nudge: Nudge,
     onSetlistChange: (Boolean) -> Unit,
 ) {
     val card = group.card
+    var showOld by rememberSaveable(card.id + "-old") { mutableStateOf(false) }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     var showAll by rememberSaveable(card.id) { mutableStateOf(false) }
     val transcript = group.all.joinToString("\n\n") { it.transcript.trim() }.trim()
     Card(
@@ -436,12 +467,24 @@ private fun CueCard(
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleMedium)
+            val check = group.check
+            if (check == LessonOutline.SummaryCheck.FLAGGED) {
+                // She said the app got this one wrong: her words lead, the old summary is a tap away.
+                Text(
+                    "Your teacher flagged the app's summary of this. Her clip and your try are the real thing.",
+                    style = MaterialTheme.typography.labelMedium, color = muted,
+                )
+            }
             if (card.summary.isNotBlank()) {
                 Text(card.summary, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                // Say whose words these are: the summary is the app's reading, her clip is the truth.
+                // Say whose words these are: the summary is the app's reading unless she wrote or checked it.
                 Text(
-                    "Summary of what she said. Her words are the real thing.",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    when (check) {
+                        LessonOutline.SummaryCheck.CORRECTED -> "Your teacher's own words. She corrected the app's summary."
+                        LessonOutline.SummaryCheck.CONFIRMED -> "✓ Your teacher checked this summary."
+                        else -> "Summary of what she said. Her words are the real thing."
+                    },
+                    style = MaterialTheme.typography.labelSmall, color = muted,
                 )
             } else if (card.herWords.isNotBlank()) {
                 Text(
@@ -449,6 +492,27 @@ private fun CueCard(
                     style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
                     maxLines = 4, overflow = TextOverflow.Ellipsis,
                 )
+            }
+            val old = card.summaryRejected?.takeIf { it.isNotBlank() }
+            if (old != null) {
+                TextButton(onClick = { showOld = !showOld }, contentPadding = PaddingValues(0.dp)) {
+                    Text(if (showOld) "Hide the app's summary" else "See the app's summary she flagged", style = MaterialTheme.typography.labelMedium)
+                }
+                AnimatedVisibility(showOld) {
+                    Text(
+                        "The app had: “$old” If you practiced from this, go by her clip instead.",
+                        style = MaterialTheme.typography.bodySmall, color = muted,
+                    )
+                }
+            }
+            if (check == LessonOutline.SummaryCheck.FLAGGED && (nudge.open || nudge.asked)) {
+                if (nudge.asked) {
+                    Text("On your questions for the next lesson.", style = MaterialTheme.typography.bodySmall, color = muted)
+                } else Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Listen to her clip. Still unclear?", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    nudge.ask?.let { TextButton(onClick = it) { Text("Add to my questions") } }
+                    TextButton(onClick = nudge.gotIt) { Text("Got it") }
+                }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 card.category?.let { TopicChip(Topic.of(it), Topic.of(it)?.label ?: it.replaceFirstChar { c -> c.uppercase() }) }
@@ -479,6 +543,9 @@ private fun CueCard(
         }
     }
 }
+
+/** The "Still unclear?" line on a flagged summary: open until she asks or says she got it. */
+private class Nudge(val open: Boolean, val asked: Boolean, val ask: (() -> Unit)?, val gotIt: () -> Unit)
 
 /**
  * Before the notes are made: a stretch where she talked at length about a
@@ -569,21 +636,21 @@ private fun SketchRow(sketches: List<PhotoEntity>, lessonDir: File, onOpenSketch
 }
 
 /**
- * What to do after reading the lesson: practise the points on the setlist, or
+ * What to do after reading the lesson: practice the points on the setlist, or
  * send tries and questions to the teacher. Always in reach at the bottom.
  */
 @Composable
-private fun NextStepBar(onSetlist: Int, practise: (() -> Unit)?, send: (() -> Unit)?) {
+private fun NextStepBar(onSetlist: Int, practice: (() -> Unit)?, send: (() -> Unit)?) {
     Surface(tonalElevation = 3.dp, shadowElevation = 6.dp) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (send != null) OutlinedButton(onClick = send, modifier = Modifier.weight(1f)) { Text("Send to teacher") }
-                Button(onClick = { practise?.invoke() }, enabled = practise != null, modifier = Modifier.weight(1f)) {
-                    Text("Start practising")
+                Button(onClick = { practice?.invoke() }, enabled = practice != null, modifier = Modifier.weight(1f)) {
+                    Text("Start practicing")
                 }
             }
             Text(
-                if (onSetlist == 0) "Add a point to your setlist to practise it." else "${plural(onSetlist, "point")} from this lesson on your setlist.",
+                if (onSetlist == 0) "Add a point to your setlist to practice it." else "${plural(onSetlist, "point")} from this lesson on your setlist.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )

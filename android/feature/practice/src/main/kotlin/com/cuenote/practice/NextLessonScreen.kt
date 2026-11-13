@@ -119,7 +119,7 @@ fun NextLessonScreen(
                 item(key = "offerh") { Text("Send $who your practice takes?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
                 item(key = "offer0") {
                     Text(
-                        "Your latest go at each note $who asked you to practise. Untick any you'd rather keep to yourself.",
+                        "Your latest go at each note $who asked you to practice. Untick any you'd rather keep to yourself.",
                         color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
                     )
                 }

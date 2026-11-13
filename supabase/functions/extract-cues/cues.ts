@@ -192,13 +192,13 @@ export const SYSTEM_PROMPT = `You read the transcript of a one-to-one singing le
 
 The lesson was recorded on two microphones and split by software into takes (the student singing) and feedback blocks (the teacher talking, and sometimes demonstrating, after a take). Each block is labeled B1, B2, ... and names the take it follows. The transcript comes from speech recognition, so expect misheard words; music terms and Italian lyrics are often garbled.
 
-The student reads these cards on a phone between lessons, to practise. A card is a reminder, not a summary: one thing to do, in a few words, with her own words underneath.
+The student reads these cards on a phone between lessons, to practice. A card is a reminder, not a summary: one thing to do, in a few words, with her own words underneath.
 
 For each block, write:
 - cue: the teacher's main instruction as a short imperative in plain English, at most 8 words, such as "Land high notes from above, don't reach", "Oo lips, ee inside" or "Breathe low before the phrase". Name one action in the student's body or sound. Use her idea and her images; never add advice she didn't give. If she gives several instructions, keep the one she spends the most time on. If the block has no instruction (greetings, scheduling, small talk, thinking aloud such as "Okay, so now what?", or only praise with nothing to change), leave cue empty and set category to "chat", unless it is clear praise of the singing, which is "encouragement" with a cue like "Keep that open sound".
 - When she comes back to an instruction she already gave in the same exercise, reuse that earlier card's cue word for word, so the student sees one cue, not several versions of it.
 - her_words: the one sentence of hers that best carries the cue, copied verbatim from the block's teacher lines. Fix nothing, not even recognition errors. Never paraphrase here.
-- summary: what she meant, in one or two plain sentences of at most 40 words, written to the student ("you"). This is where you paraphrase: see past the recognition errors and the false starts to her point, and say what to do and why. Keep her images and comparisons in her own words ("land on the high notes from above, like from the sky, instead of reaching up for them"); never swap them for jargon, and use no technical term she didn't use herself (if she never said "mix" or "register", neither do you). Never add an instruction she didn't give, never turn a "not only" into a "not", and never reverse what she said: when unsure what she meant, stay closer to her words. Say nothing about the student's ability beyond what she said. Empty for chat.
+- summary: what she meant, in one or two plain sentences of at most 40 words, written to the student ("you"). This is where you paraphrase: see past the recognition errors and the false starts to her point, and say what to do and why. Keep her images and comparisons in her own words ("land on the high notes from above, like from the sky, instead of reaching up for them"); never swap them for jargon, and use no technical term she didn't use herself (if she never said "mix" or "register", neither do you). Never add an instruction she didn't give, never turn a "not only" into a "not", and never reverse what she said: when unsure what she meant, stay closer to her words. Say nothing about the student's ability beyond what she said. Use American spelling ("practice" as a verb too, never "practise"). Empty for chat.
 - weight: from 0 to 1, how much this block is a technique for the student to drill at home. Near 1 when she explains a point at length, demonstrates it or keeps coming back to it. In the middle for a quick correction ("drop the jaw"). Near 0 for stories and anecdotes, music theory (octaves, keys, how the piano is laid out), choosing a song or key, scheduling, and a quick "yes, that was it", however long the block is. 0 for chat. Long blocks are often the deep ones, but judge by what she says, not by its length.
 - category: the one that fits best.
 - practice_flag: "practice_this" when she asks the student to work on it at home or keeps returning to it; "just_listen" when it is something to hear or notice rather than drill; null when neither is clear.
@@ -428,7 +428,8 @@ export function check(labels: Map<string, Block>, cards: ModelCard[]): Checked[]
 
 /** One or two sentences, on one line, cut at a sentence end near 300 characters. */
 export function tidySummary(text: unknown): string {
-  const s = String(text ?? '').replace(/\s+/g, ' ').trim();
+  // American spelling throughout the app: "practice" is the verb too.
+  const s = String(text ?? '').replace(/\s+/g, ' ').trim().replace(/\b([Pp])ractis(e|ed|es|ing)\b/g, '$1ractic$2');
   if (s.length <= 300) return s;
   const cut = s.slice(0, 300);
   const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));

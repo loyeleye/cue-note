@@ -108,4 +108,16 @@ class LessonOutlineTest {
         assertEquals(1, out[1].cues.size)
         assertTrue(out[0].cues.isEmpty())
     }
+
+    @Test fun `the teacher's answer about a summary reads as confirmed, flagged or corrected`() {
+        val base = card("f1", 1_000, "Sing it", summary = "Let the note fall in from above.")
+        fun check(c: CardEntity) = LessonOutline.CueGroup(c).check
+        assertEquals(LessonOutline.SummaryCheck.UNCHECKED, check(base))
+        assertEquals(LessonOutline.SummaryCheck.CONFIRMED, check(base.copy(summaryCheck = "said")))
+        assertEquals(LessonOutline.SummaryCheck.FLAGGED, check(base.copy(summary = "", summaryCheck = "not_said", summaryRejected = "Push up to it.")))
+        assertEquals(LessonOutline.SummaryCheck.CORRECTED, check(base.copy(summaryCheck = "said", summaryRejected = "Push up to it.")))
+        // A flagged point falls back to her words.
+        val flagged = base.copy(summary = "", herWords = "Fall into it.", summaryRejected = "Push up to it.")
+        assertEquals("Fall into it.", LessonOutline.CueGroup(flagged).text)
+    }
 }

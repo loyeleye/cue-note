@@ -267,6 +267,7 @@ private fun AppNav(app: CueNoteApp) {
                     viewers = lessonViewers(myTeachers, app.lessonTeachers.get(id).teacherId),
                     onPractice = { cardId -> withPermission { nav.navigate("practice/$cardId") } },
                     onSendToTeacher = { nav.navigate("next") },
+                    onAsk = { card -> app.practice.ask(card, null, "Can we go over this one? “${card.cue.ifBlank { card.herWords.take(80) }}”") },
                 )
             }
         }
