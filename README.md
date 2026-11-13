@@ -38,7 +38,14 @@ teacher set, or only a typed name, need no one's agreement.
 
 **Email for those requests.** Set three secrets, or the requests only show on
 the dashboard: `supabase secrets set RESEND_API_KEY=… CONSENT_EMAIL_FROM="Cue Note <notifications@cuenote.cc>"
-DASHBOARD_URL=https://your-dashboard --project-ref tgytbytwofiymsvajdkd`.
+DASHBOARD_URL=https://dashboard.cuenote.cc --project-ref tgytbytwofiymsvajdkd`.
+
+**Hosting the dashboard.** It's a static site on Cloudflare Pages, connected to
+this repo: root directory `web`, build command `npm run build`, output `build`,
+env vars `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY`, custom domain
+`dashboard.cuenote.cc`. Each push to main redeploys it. In Supabase Auth's URL
+settings, `https://dashboard.cuenote.cc/**` must be an allowed redirect, or
+sign-in links go to localhost.
 
 **Debug role (remove before release).** A debug account sees every student and
 lesson in the normal teacher dashboard, read-only. Make one by running this in
