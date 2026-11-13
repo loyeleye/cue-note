@@ -194,13 +194,17 @@ test('each exercise gets a name from the model, unless someone already named it'
   tables.exercise = [
     { id: ex(1), lesson_id: lessonId, start_ms: 30_000, kind: 'warmup', title: null },
     { id: ex(2), lesson_id: lessonId, start_ms: 200_000, kind: 'song', title: 'Morning Light' },
+    { id: ex(3), lesson_id: lessonId, start_ms: 400_000, kind: 'song', title: 'Mary, Did You Know?', title_by_model: true },
   ];
-  answers.exercises = [{ exercise: 'E1', title: 'Lip trill on a 5-note scale' }, { exercise: 'E2', title: 'A guess' }];
-  const body = { ...sample.request, blocks: sample.request.blocks.map((b: any, i: number) => ({ ...b, exercise_id: i === 0 ? null : i < 3 ? ex(1) : ex(2) })) };
+  answers.exercises = [{ exercise: 'E1', title: 'Lip trill on a 5-note scale' }, { exercise: 'E2', title: 'A guess' }, { exercise: 'E3', title: 'Let It Snow, first verse' }];
+  const body = { ...sample.request, blocks: sample.request.blocks.map((b: any, i: number) => ({ ...b, exercise_id: [null, ex(1), ex(2), ex(3)][i] ?? ex(3) })) };
   const out = await (await post(body)).json();
-  assert.equal(out.exercises_named, 1);
+  assert.equal(out.exercises_named, 2);
   assert.equal(tables.exercise[0].title, 'Lip trill on a 5-note scale');
+  assert.equal(tables.exercise[0].title_by_model, true);
   assert.equal(tables.exercise[1].title, 'Morning Light', 'a name someone gave stays');
+  assert.equal(tables.exercise[2].title, 'Let It Snow, first verse', "the model's earlier guess is replaced");
+  assert.match(calls[0].system, /A title she only mentions/);
   assert.match(calls[0].content, /== E1: a warmup ==/);
   assert.match(calls[0].system, /at most 8 words/);
 });

@@ -276,7 +276,10 @@ cards by itself (or from **Make cards** on the lesson's screen):
    words one sentence. Each exercise goes to the model in one call where it
    fits, and when she returns to a point the model reuses the cue word for
    word. It also names each exercise ("Lip trill on a 5-note scale"), which is
-   written to `exercise.title` unless someone already named it.
+   written to `exercise.title` unless a person named it (`title_by_model`
+   marks the model's own names, so making the notes again can fix one). The
+   model sees what the student sang on each take, so a song is named from its
+   lyrics; a title the teacher only mentions is not taken as the song sung.
 
 It also writes a one- or two-sentence `summary` of each point, in plain
 words that keep her images and add nothing she didn't say, and a `weight`

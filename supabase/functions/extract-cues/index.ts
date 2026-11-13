@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
   // A card a teacher deleted stays deleted when the notes are made again.
   const { data: removedRows } = await db.from('feedback_removed').select('feedback_id').eq('lesson_id', lesson.id);
   const removed = new Set((removedRows ?? []).map((r) => r.feedback_id as string));
-  const { data: exRows, error: exErr } = await db.from('exercise').select('id, start_ms, kind, title').eq('lesson_id', lesson.id);
+  const { data: exRows, error: exErr } = await db.from('exercise').select('id, start_ms, kind, title, title_by_model').eq('lesson_id', lesson.id);
   if (exErr) return json({ error: exErr.message }, 500);
   const exercises = (exRows ?? []) as ExerciseRow[];
   const exIds = new Set(exercises.map((e) => e.id));
@@ -263,12 +263,14 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
   }
 
-  // Each exercise gets the model's name, unless someone has already named it.
+  // Each exercise gets the model's name, unless a person named it. A name the model gave
+  // before is replaced, so making the notes again can fix a song it got wrong.
   let named = 0;
   for (const e of exercises) {
     const title = titles.get(e.id);
-    if (!title || (e as ExerciseRow & { title?: string | null }).title) continue;
-    const { error } = await db.from('exercise').update({ title }).eq('id', e.id).is('title', null);
+    const had = e as ExerciseRow & { title?: string | null; title_by_model?: boolean };
+    if (!title || (had.title && !had.title_by_model) || title === had.title) continue;
+    const { error } = await db.from('exercise').update({ title, title_by_model: true }).eq('id', e.id);
     if (error) return json({ error: error.message }, 500);
     named++;
   }
