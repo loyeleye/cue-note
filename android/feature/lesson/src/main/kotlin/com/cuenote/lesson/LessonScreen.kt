@@ -82,6 +82,10 @@ fun LessonScreen(
     onOpenTimeline: () -> Unit,
     onOpenSketch: (photoId: String) -> Unit,
     onBack: () -> Unit,
+    /** Who taught this lesson, by name, when set. */
+    taughtBy: String? = null,
+    /** Opens the "who taught this?" picker; null hides the row. */
+    onChangeTeacher: (() -> Unit)? = null,
 ) {
     val dao = repo.pipelineDao!!
     val cardDao = repo.cardDao!!
@@ -126,6 +130,15 @@ fun LessonScreen(
         ) {
             item {
                 Status(lesson, takes, feedback, cards, progress, cardProgress, stages.any { it.stage == "upload" && it.status == "waiting" })
+                if (onChangeTeacher != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (taughtBy != null) "Taught by $taughtBy" else "No teacher set for this lesson",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (taughtBy != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onChangeTeacher) { Text(if (taughtBy != null) "Change" else "Set teacher") }
+                }
                 Spacer(Modifier.padding(4.dp))
                 val busy = progress?.state == WorkInfo.State.RUNNING || cardProgress?.state == WorkInfo.State.RUNNING
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

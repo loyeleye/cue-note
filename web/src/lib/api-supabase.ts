@@ -106,12 +106,12 @@ export const supabaseApi: Api = {
   },
 
   async listLessons(studentId) {
-    return check(await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state, taught_by')
+    return check(await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state, taught_by, teacher_name')
       .eq('student_id', studentId).order('recorded_at', { ascending: false })) as Lesson[];
   },
 
   async getLesson(lessonId) {
-    return (await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state, taught_by')
+    return (await supabase.from('lesson').select('id, student_id, recorded_at, duration_ms, pipeline_state, taught_by, teacher_name')
       .eq('id', lessonId).maybeSingle()).data as Lesson | null;
   },
 

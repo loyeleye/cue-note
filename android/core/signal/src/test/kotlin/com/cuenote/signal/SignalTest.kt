@@ -151,3 +151,29 @@ class LessonEventTest {
         assertEquals(events, events.map { LessonEvent.parse(it.toLine()) })
     }
 }
+
+class MicVerdictTest {
+    @Test fun `well separated mics are very sure`() {
+        val v = MicVerdict.judge(studentOnRight = true, studentMarginDb = 26.0, teacherMarginDb = 22.0)
+        assertEquals(MicVerdict.Confidence.HIGH, v.confidence)
+        assertEquals(22.0, v.separationDb!!, 0.01)
+        assertTrue(v.studentOnRight)
+    }
+
+    @Test fun `bleed on one mic lowers the confidence to the weaker step`() {
+        assertEquals(MicVerdict.Confidence.MEDIUM, MicVerdict.judge(false, 25.0, 16.0).confidence)
+        assertEquals(MicVerdict.Confidence.LOW, MicVerdict.judge(false, 25.0, 11.0).confidence)
+    }
+
+    @Test fun `the student step alone is never very sure`() {
+        val v = MicVerdict.judge(false, 30.0, null)
+        assertEquals(MicVerdict.Confidence.MEDIUM, v.confidence)
+        assertEquals(30.0, v.separationDb!!, 0.01)
+    }
+
+    @Test fun `margin reads the voice's own channel against the other`() {
+        val l = TestSignals.levels(TestSignals.stereo(2.0, leftDb = -25.0, rightDb = -45.0))
+        assertEquals(20.0, MicVerdict.margin(l, Channel.STUDENT), 1.0)
+        assertEquals(-20.0, MicVerdict.margin(l, Channel.TEACHER), 1.0)
+    }
+}

@@ -14,7 +14,7 @@ data class ShareRow(
     val status: String,
     @SerialName("created_at") val createdAt: String,
     @SerialName("accepted_at") val acceptedAt: String? = null,
-    @SerialName("restricted_to_taught") val restrictedToTaught: Boolean = false,
+    @SerialName("restricted_to_taught") val restrictedToTaught: Boolean = true,
 )
 
 @Serializable
@@ -43,8 +43,8 @@ private data class RestrictChange(@SerialName("restricted_to_taught") val restri
  * their alias and real name, "Tiger (Marigold Stewart)". Other teachers may
  * see only the alias, but the student always sees both.
  *
- * [restrictedToTaught] is the student's choice to show this teacher only the
- * lessons they taught.
+ * [restrictedToTaught]: this teacher sees only the lessons they taught. It's
+ * the default; the student lifts it with "Can see all my lessons".
  */
 data class InvitedTeacher(
     val shareId: String,
@@ -52,7 +52,7 @@ data class InvitedTeacher(
     val active: Boolean,
     val teacherName: String?,
     val teacherId: String? = null,
-    val restrictedToTaught: Boolean = false,
+    val restrictedToTaught: Boolean = true,
 ) {
     val title: String get() = teacherName?.takeIf { it.isNotBlank() } ?: email
 }

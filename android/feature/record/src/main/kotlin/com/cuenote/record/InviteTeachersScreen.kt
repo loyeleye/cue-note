@@ -169,7 +169,7 @@ private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit
                     Text(
                         when {
                             !t.active -> "Invite sent. Waiting on them."
-                            t.restrictedToTaught -> "Active: sees only the lessons they teach"
+                            t.restrictedToTaught -> "Active: sees only the lessons they taught"
                             else -> "Active: can see all your lessons"
                         },
                         style = MaterialTheme.typography.bodySmall,
@@ -180,14 +180,18 @@ private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit
             }
             if (t.active) {
                 // Lessons are linked to a teacher by "Who's teaching today?"
-                // before recording; this limits this teacher to those.
+                // (or later, from the lesson). By default a teacher sees only
+                // those; this lets them see every lesson.
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Only lessons they teach",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Switch(checked = t.restrictedToTaught, enabled = enabled, onCheckedChange = onRestrict)
+                    Column(Modifier.weight(1f)) {
+                        Text("Can see all my lessons", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Off: only lessons marked as theirs.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = !t.restrictedToTaught, enabled = enabled, onCheckedChange = { all -> onRestrict(!all) })
                 }
             }
         }
