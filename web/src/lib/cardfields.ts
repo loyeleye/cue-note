@@ -5,12 +5,12 @@ import type { CardFields, Song, Take } from './types';
 import { CARD_FIELDS } from './types';
 
 export const FIELD_LABEL: Record<keyof CardFields, string> = {
-  cue: 'Cue', her_words: "Teacher's words", category: 'Category', practice_flag: 'Practice',
+  cue: 'Cue', summary: 'Summary', her_words: "Teacher's words", category: 'Category', practice_flag: 'Practice',
   take_id: 'Take', song_id: 'Song', bar_start: 'Bars', bar_end: 'Bars'
 };
 
 /** Fields shown as running text, where a word-by-word comparison helps. */
-export const TEXT_FIELDS: (keyof CardFields)[] = ['cue', 'her_words'];
+export const TEXT_FIELDS: (keyof CardFields)[] = ['cue', 'summary', 'her_words'];
 
 export function showField(k: keyof CardFields, p: Partial<CardFields>, takes: Take[], songs: Song[]): string {
   switch (k) {

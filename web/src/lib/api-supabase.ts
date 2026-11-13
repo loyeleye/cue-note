@@ -253,6 +253,16 @@ export const supabaseApi: Api = {
       .eq('id', card.id).select('*').single()) as Feedback;
   },
 
+  async checkSummary(feedbackId, said) {
+    return check(await supabase.rpc('check_summary', { fb: feedbackId, said })) as Feedback;
+  },
+
+  async summaryTally() {
+    const rows = check(await supabase.rpc('summary_check_tally')) as Record<string, number | string>[];
+    const r = rows?.[0] ?? {};
+    return { said: Number(r.said ?? 0), not_said: Number(r.not_said ?? 0), unchecked: Number(r.unchecked ?? 0), lessons: Number(r.lessons ?? 0) };
+  },
+
   async listCheckpoints(lessonId) {
     return check(await supabase.from('lesson_checkpoint').select('*').eq('lesson_id', lessonId)
       .order('created_at', { ascending: false })) as Checkpoint[];

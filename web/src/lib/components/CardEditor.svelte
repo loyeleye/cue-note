@@ -31,7 +31,7 @@
   const CATEGORIES = ['breath', 'resonance', 'vowel', 'registration', 'phrasing', 'pitch', 'diction', 'posture', 'warm-up', 'encouragement', 'chat'];
 
   const pick = (f: Feedback | Partial<CardFields>): CardFields => ({
-    cue: f.cue ?? '', category: f.category ?? null, her_words: f.her_words ?? '',
+    cue: f.cue ?? '', summary: f.summary ?? '', category: f.category ?? null, her_words: f.her_words ?? '',
     practice_flag: f.practice_flag ?? null, take_id: f.take_id ?? null, song_id: f.song_id ?? null,
     bar_start: f.bar_start ?? null, bar_end: f.bar_end ?? null
   });
@@ -145,6 +145,10 @@
   <label>
     <span>Cue</span>
     <textarea rows="2" bind:value={draft.cue} placeholder="The cue in a few words"></textarea>
+  </label>
+  <label>
+    <span>Summary for the student</span>
+    <textarea rows="2" bind:value={draft.summary} placeholder="One or two sentences: what you meant"></textarea>
   </label>
   <label>
     <span>The teacher's exact words</span>

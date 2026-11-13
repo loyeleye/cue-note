@@ -3,7 +3,7 @@
   import { api, app, enterDemo, refreshMe } from '$lib/app.svelte';
   import { isConfigured, supabase } from '$lib/supabase';
   import { date, ago } from '$lib/format';
-  import type { FullLessonPass, LessonViewRequest, Share, StudentSummary } from '$lib/types';
+  import type { FullLessonPass, LessonViewRequest, Share, StudentSummary, SummaryTally } from '$lib/types';
 
   let email = $state('');
   let status = $state('');
@@ -14,6 +14,8 @@
   let requests = $state<LessonViewRequest[]>([]);
   // Students' invites to hear a whole lesson, waiting for this teacher's answer.
   let passInvites = $state<FullLessonPass[]>([]);
+  // How the point summaries have been answered, so a teacher knows how well they read.
+  let tally = $state<SummaryTally | null>(null);
   // A debug account uses the teacher dashboard too, seeing every student.
   const teacherView = $derived(app.me?.role === 'teacher' || !!app.me?.debug);
 
@@ -27,6 +29,7 @@
       passInvites = app.me?.role === 'teacher'
         ? (await api().listFullLessonPasses()).filter((p) => p.status === 'pending' && p.asked_by === 'student')
         : [];
+      tally = teacherView ? await api().summaryTally().catch(() => null) : null;
     } catch (e) {
       error = (e as Error).message;
     }
@@ -124,6 +127,12 @@
 {:else}
   <h1>Students</h1>
   <p class="muted">Newest lesson first.</p>
+  {#if tally && tally.said + tally.not_said + tally.unchecked}
+    <p class="muted small" aria-label="Summary checks">
+      Point summaries you've checked: {tally.said + tally.not_said} of {tally.said + tally.not_said + tally.unchecked}{tally.not_said ? `, ${tally.not_said} you didn't say` : ''}.
+      {#if tally.unchecked}{tally.unchecked} waiting in {tally.lessons} {tally.lessons === 1 ? 'lesson' : 'lessons'}.{/if}
+    </p>
+  {/if}
   {#if app.me.debug}
     <p class="card debug" role="note"><strong>Debug view.</strong> You see every student and lesson, as a teacher with full access would. Nothing can be changed from here.</p>
   {/if}

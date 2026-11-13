@@ -114,15 +114,18 @@ export function initialDemoState(): DemoState {
   const feedback = [
     card('demo-fb-1', L1, 'demo-take-1', min(2, 30), {
       cue: 'Keep the hum buzzing forward', category: 'resonance', practice_flag: 'practice_this',
+      summary: 'Keep the buzz you feel on your lips and behind your nose when you open from the hum to the vowel.', weight: 0.8, summary_check: 'said',
       her_words: 'Feel it buzz on your lips, right behind your nose. Keep that buzz when you open to the vowel.'
     }),
     card('demo-fb-2', L1, 'demo-take-2', min(7, 8), {
       cue: 'Breathe low before the first phrase, shoulders still', category: 'breath', practice_flag: 'practice_this',
+      summary: 'Let your belly drop to breathe, with your shoulders still, before you start the phrase.', weight: 0.7,
       her_words: "Don't lift the shoulders. Let the belly drop out, then sing.", song_id: SONG, bar_start: 1, bar_end: 2,
       updated_at: ago(3)
     }),
     card('demo-fb-3', L1, 'demo-take-3', min(9, 45), {
       cue: "Don't reach up for the high F", category: 'registration', practice_flag: 'practice_this',
+      summary: 'Don\'t reach up for the high F. Think of it as going down and over, like going over a hill.', weight: 0.9,
       her_words: "You're reaching up for it. Think of it as down and over, like going over a hill.",
       song_id: SONG, bar_start: 7, bar_end: 7
     }),
