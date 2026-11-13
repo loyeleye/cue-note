@@ -49,6 +49,7 @@ import com.cuenote.signal.posture.FramingAdvice
 import com.cuenote.signal.posture.FramingCheck
 import com.cuenote.signal.posture.PostureView
 import com.cuenote.signal.posture.StudentPicker
+import com.cuenote.signal.posture.Voice
 import com.cuenote.signal.posture.VoiceLine
 import com.cuenote.signal.posture.rotationFromGravity
 import kotlinx.coroutines.delay
@@ -207,6 +208,23 @@ fun FramingCheckScreen(onReady: (PostureSetup) -> Unit, onSkip: () -> Unit, onCa
                     else "Facing the phone: watches chin forward, raised shoulders, and head tilt.",
                     style = MaterialTheme.typography.bodySmall,
                 )
+                // The voice that talks the student into place, and through recalibration later.
+                var voice by remember { mutableStateOf(Speaker.voice(context)) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Voice", Modifier.weight(1f))
+                    Voice.entries.forEach { v ->
+                        FilterChip(
+                            selected = voice == v,
+                            onClick = {
+                                voice = v
+                                Speaker.setVoice(context, v)
+                                tts.stopAll()
+                                tts.say(VoiceLine.COUNTDOWN_INTRO)
+                            },
+                            label = { Text(v.label) },
+                        )
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Front camera", Modifier.weight(1f))
                     Switch(checked = front, onCheckedChange = { front = it })

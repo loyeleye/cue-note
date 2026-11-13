@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Piano
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
@@ -67,6 +69,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cuenote.signal.MicVerdict
 import com.cuenote.signal.StepResult
 import com.cuenote.signal.StereoLevels
+import com.cuenote.signal.posture.Voice
 import com.cuenote.ui.Cue
 import com.cuenote.ui.Eyebrow
 import com.cuenote.ui.Fraunces
@@ -92,6 +95,7 @@ fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) 
         s, live, onDone,
         onStart = vm::runStep, onRetry = vm::retry, onSkipPiano = vm::skipPiano,
         onQuietCheck = vm::setQuietCheck, onSwitchChannels = vm::switchChannelsManually,
+        onSpoken = vm::setSpoken, onVoice = vm::setVoice,
     )
 }
 
@@ -106,6 +110,8 @@ fun SetupCheckContent(
     onSkipPiano: () -> Unit,
     onQuietCheck: (Boolean) -> Unit,
     onSwitchChannels: () -> Unit,
+    onSpoken: (Boolean) -> Unit = {},
+    onVoice: (Voice) -> Unit = {},
 ) {
     val m = MaterialTheme.colorScheme
     val total = SetupStep.entries.size
@@ -161,6 +167,10 @@ fun SetupCheckContent(
             }
         }
 
+        // Before the first Start, the voice choice sits up top where it's seen.
+        val notStarted = !s.done && s.phase == StepPhase.IDLE && s.step == SetupStep.STUDENT_SPEAK
+        if (notStarted) SpokenRow(s, onSpoken, onVoice)
+
         DoneRow(s)
 
         if (s.done) {
@@ -186,6 +196,8 @@ fun SetupCheckContent(
         }
 
         MicTip()
+
+        if (!notStarted) SpokenRow(s, onSpoken, onVoice)
 
         TicketRow {
             Column(Modifier.weight(1f)) {
@@ -357,11 +369,36 @@ private fun NowCard(
                 StartButton("Try again", onRetry, Modifier.fillMaxWidth())
             }
             else -> Text(
-                "Hands off the phone. It moves on by itself.",
+                "Hands off the phone. It moves on as soon as it has heard enough.",
                 color = x.nowMuted,
                 style = MaterialTheme.typography.labelMedium,
             )
         }
+    }
+}
+
+/** Read the steps aloud, and in whose voice. */
+@Composable
+private fun SpokenRow(s: SetupUiState, onSpoken: (Boolean) -> Unit, onVoice: (Voice) -> Unit) {
+    val m = MaterialTheme.colorScheme
+    TicketRow {
+        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = m.primary)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Read the steps aloud", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "A voice says what to do at each step, so nobody has to watch the screen.",
+                color = m.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (s.spoken) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Voice.entries.forEach { v ->
+                        FilterChip(selected = s.voice == v, onClick = { onVoice(v) }, label = { Text(v.label) })
+                    }
+                }
+            }
+        }
+        Switch(checked = s.spoken, onCheckedChange = onSpoken)
     }
 }
 
