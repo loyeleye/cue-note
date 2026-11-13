@@ -525,15 +525,15 @@ private fun CueCard(
             // 1. Your teacher.
             if (group.explained) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
             if (check == S.CORRECTED) {
-                Source("Your teacher's summary", teacher = true)
-                Text(card.summary, style = MaterialTheme.typography.bodyLarge)
+                TeacherBox("Your teacher's summary") { onBox -> Text(card.summary, style = MaterialTheme.typography.bodyLarge, color = onBox) }
             } else if ((check == S.FLAGGED || (check == S.CLOSE && !group.explained)) && card.herWords.isNotBlank()) {
-                Source("What your teacher said in the lesson", teacher = true)
-                Text(
-                    "“${card.herWords}”",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
-                    maxLines = 4, overflow = TextOverflow.Ellipsis,
-                )
+                TeacherBox("What your teacher said in the lesson") { onBox ->
+                    Text(
+                        "“${card.herWords}”",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic), color = onBox,
+                        maxLines = 4, overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             // 2. The app.
             if (card.summary.isNotBlank() && check != S.CORRECTED) {
@@ -561,12 +561,13 @@ private fun CueCard(
                     }
                 }
             } else if (card.summary.isBlank() && check != S.FLAGGED && card.herWords.isNotBlank()) {
-                Source("What your teacher said in the lesson", teacher = true)
-                Text(
-                    "“${card.herWords}”",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
-                    maxLines = 4, overflow = TextOverflow.Ellipsis,
-                )
+                TeacherBox("What your teacher said in the lesson") { onBox ->
+                    Text(
+                        "“${card.herWords}”",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic), color = onBox,
+                        maxLines = 4, overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             if (old != null) {
                 // Wrong, so folded away by default: one quiet line, open only if they want it.
@@ -724,6 +725,19 @@ private fun TalkCard(card: CardEntity, clip: String?, player: ClipPlayer) {
 }
 
 /** A label, filled and borderless, so it doesn't look like something to tap. */
+/** The plum box that holds anything in the teacher's own words, so it reads apart from the app's. */
+@Composable
+private fun TeacherBox(label: String, content: @Composable (androidx.compose.ui.graphics.Color) -> Unit) {
+    val m = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().background(m.secondaryContainer, RoundedCornerShape(10.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = m.onSecondaryContainer)
+        content(m.onSecondaryContainer)
+    }
+}
+
 /** Who a block of words comes from. The teacher's label is bold and coloured; the app's is muted. */
 @Composable
 private fun Source(label: String, teacher: Boolean) {
