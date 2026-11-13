@@ -66,7 +66,7 @@ interface LessonDao {
         PhotoEntity::class, PracticeSessionEntity::class, PracticeTakeEntity::class,
         PracticeQuestionEntity::class, ExerciseEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class LessonDatabase : RoomDatabase() {
@@ -82,7 +82,7 @@ abstract class LessonDatabase : RoomDatabase() {
         /** One database for the app and its background workers. */
         fun get(context: Context): LessonDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, LessonDatabase::class.java, "cuenote.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .build().also { instance = it }
         }
 
@@ -126,6 +126,13 @@ abstract class LessonDatabase : RoomDatabase() {
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_7_8_SQL.forEach(db::execSQL)
+            }
+        }
+
+        /** Exercises get the names the card writer (or the dashboard) gives them. */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_9_SQL.forEach(db::execSQL)
             }
         }
 
@@ -197,5 +204,14 @@ internal val MIGRATION_7_8_ADDED_COLUMNS = mapOf(
 )
 
 internal val MIGRATION_7_8_SQL = MIGRATION_7_8_ADDED_COLUMNS.flatMap { (table, cols) ->
+    cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
+}
+
+/** Copied from schemas/com.cuenote.data.LessonDatabase/9.json (Room checks they match). */
+internal val MIGRATION_8_9_ADDED_COLUMNS = mapOf(
+    "exercise" to listOf("`title` TEXT"),
+)
+
+internal val MIGRATION_8_9_SQL = MIGRATION_8_9_ADDED_COLUMNS.flatMap { (table, cols) ->
     cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
 }

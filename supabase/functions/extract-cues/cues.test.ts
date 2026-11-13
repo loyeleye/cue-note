@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  ANSWER_SCHEMA, batches, CATEGORIES, check, costUsd, examplesText, invalidRequest, labelBlocks, lessonText,
+  ANSWER_SCHEMA, batches, batchesByExercise, CATEGORIES, exerciseTitles, labelExercises, check, costUsd, examplesText, invalidRequest, labelBlocks, lessonText,
   samePayload, supportsFallback, verbatim, diagramPick, DIAGRAM_MIN_CONFIDENCE, SYSTEM_PROMPT,
   type ModelCard, type Request, type TakeRow,
 } from './cues.ts';
@@ -61,9 +61,9 @@ test('the lesson text puts blocks under their warmup or song, without uuids', ()
   const blocks = sample.request.blocks.map((b, i) => ({ ...b, exercise_id: i === 0 ? null : i < 3 ? ex[0].id : ex[1].id }));
   const text = lessonText(labelBlocks(blocks), sample.takes, sample.request.transcript, undefined, ex);
   assert.match(text, /^== Talk between exercises ==\nB1 /);
-  assert.match(text, /== Exercise 1: a warmup ==\nB2 /);
-  assert.equal(text.match(/== Exercise 1/g)!.length, 1);   // one heading for B2 and B3
-  assert.match(text, /== Exercise 2: singing the song ==\nB4 /);
+  assert.match(text, /== E1: a warmup ==\nB2 /);
+  assert.equal(text.match(/== E1:/g)!.length, 1);   // one heading for B2 and B3
+  assert.match(text, /== E2: singing the song ==\nB4 /);
   assert.doesNotMatch(text, /[0-9a-f]{8}-[0-9a-f]{4}-/);
   // a bad exercise id is refused
   const bad = { ...sample.request, blocks: [{ ...sample.request.blocks[0], exercise_id: 'warmup-1' }] };
@@ -182,4 +182,37 @@ test('the library matches the drawings on the dashboard', () => {
   const index = JSON.parse(readFileSync(new URL('../../../web/static/diagrams/index.json', import.meta.url), 'utf8'));
   assert.deepEqual(index, DIAGRAMS);
   for (const d of DIAGRAMS) readFileSync(new URL(`../../../web/static/diagrams/${d.id}.svg`, import.meta.url));
+});
+
+test('an exercise stays in one call where it fits, so repeats can share a cue', () => {
+  const blocks = Array.from({ length: 20 }, (_, i) => ({
+    ...sample.request.blocks[0],
+    id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    local_id: `l-fb-${i}`, span_start_ms: i * 1000, span_end_ms: i * 1000 + 500,
+    exercise_id: i < 6 ? 'a' : i < 18 ? 'b' : 'c',
+  }));
+  const labels = labelBlocks(blocks);
+  const groups = batchesByExercise(labels, [...labels.keys()], 15);
+  // 6 + 12 won't fit in 15, so E2 gets its own call; E3's 2 join it.
+  assert.deepEqual(groups.map((g) => g.length), [6, 14]);
+  // A long exercise is still split.
+  const long = labelBlocks(blocks.map((b) => ({ ...b, exercise_id: 'a' })));
+  assert.deepEqual(batchesByExercise(long, [...long.keys()], 15).map((g) => g.length), [15, 5]);
+});
+
+test('exercise titles come back by id, tidied, first answer kept', () => {
+  const labels = labelExercises([
+    { id: 'x2', start_ms: 50, kind: 'song' },
+    { id: 'x1', start_ms: 10, kind: 'warmup' },
+  ]);
+  assert.equal(labels.get('E1')!.id, 'x1');
+  const t = exerciseTitles(labels, [
+    { exercise: 'E1', title: '  "Lip trill on a  5-note scale." ' },
+    { exercise: 'E1', title: 'Something else' },
+    { exercise: 'E9', title: 'Unknown' },
+    { exercise: 'E2', title: '' },
+  ]);
+  assert.deepEqual([...t], [['x1', 'Lip trill on a 5-note scale']]);
+  const long = exerciseTitles(labels, [{ exercise: 'E2', title: 'word '.repeat(20) }]);
+  assert.ok(long.get('x2')!.length <= 61 && long.get('x2')!.endsWith('…'));
 });

@@ -120,6 +120,12 @@ export interface ModelCard {
   diagram_confidence: number;
 }
 
+/** The model's name for one warmup or song section. "E2" is the lesson's second exercise. */
+export interface ModelExercise {
+  exercise: string;
+  title: string;
+}
+
 /** What a card_version stores; the same keys save_card snapshots. */
 export interface CardPayload {
   cue: string;
@@ -144,9 +150,9 @@ export const ANSWER_SCHEMA = {
         type: 'object',
         properties: {
           block: { type: 'string', description: 'The block label, such as "B3".' },
-          cue: { type: 'string', description: 'Her instruction as a short imperative, at most about 12 words. Empty for chat.' },
+          cue: { type: 'string', description: 'Her instruction as a short imperative, at most 8 words. Empty for chat.' },
           category: { type: 'string', enum: [...CATEGORIES] },
-          her_words: { type: 'string', description: 'Her exact words that carry the cue, copied from the block, one or two sentences.' },
+          her_words: { type: 'string', description: 'Her exact words that carry the cue, copied from the block, one sentence.' },
           practice_flag: nullable({ type: 'string', enum: ['practice_this', 'just_listen'] }),
           bar_start: nullable({ type: 'integer' }),
           bar_end: nullable({ type: 'integer' }),
@@ -157,8 +163,20 @@ export const ANSWER_SCHEMA = {
         additionalProperties: false,
       },
     },
+    exercises: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          exercise: { type: 'string', description: 'The exercise label, such as "E2".' },
+          title: { type: 'string', description: 'A name for the exercise in 2 to 6 words, such as "Lip trill on a 5-note scale".' },
+        },
+        required: ['exercise', 'title'],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ['cards'],
+  required: ['cards', 'exercises'],
   additionalProperties: false,
 } as const;
 
@@ -168,9 +186,12 @@ export const SYSTEM_PROMPT = `You read the transcript of a one-to-one singing le
 
 The lesson was recorded on two microphones and split by software into takes (the student singing) and feedback blocks (the teacher talking, and sometimes demonstrating, after a take). Each block is labeled B1, B2, ... and names the take it follows. The transcript comes from speech recognition, so expect misheard words; music terms and Italian lyrics are often garbled.
 
+The student reads these cards on a phone between lessons, to practise. A card is a reminder, not a summary: one thing to do, in a few words, with her own words underneath.
+
 For each block, write:
-- cue: the teacher's main instruction as a short imperative in plain English, at most about 12 words, such as "Drop the jaw on the high G" or "Breathe low before the phrase". Use her idea and her images; never add advice she didn't give. If she gives several instructions, keep the one she spends the most time on. If the block has no instruction (greetings, scheduling, small talk, or only praise with nothing to change), leave cue empty and set category to "chat", unless it is clear praise of the singing, which is "encouragement" with a cue like "Keep that open sound".
-- her_words: her exact words that carry the cue, copied verbatim from the block's teacher lines, one or two sentences. Fix nothing, not even recognition errors. Never paraphrase here.
+- cue: the teacher's main instruction as a short imperative in plain English, at most 8 words, such as "Land high notes from above, don't reach", "Oo lips, ee inside" or "Breathe low before the phrase". Name one action in the student's body or sound. Use her idea and her images; never add advice she didn't give. If she gives several instructions, keep the one she spends the most time on. If the block has no instruction (greetings, scheduling, small talk, thinking aloud such as "Okay, so now what?", or only praise with nothing to change), leave cue empty and set category to "chat", unless it is clear praise of the singing, which is "encouragement" with a cue like "Keep that open sound".
+- When she comes back to an instruction she already gave in the same exercise, reuse that earlier card's cue word for word, so the student sees one cue, not several versions of it.
+- her_words: the one sentence of hers that best carries the cue, copied verbatim from the block's teacher lines. Fix nothing, not even recognition errors. Never paraphrase here.
 - category: the one that fits best.
 - practice_flag: "practice_this" when she asks the student to work on it at home or keeps returning to it; "just_listen" when it is something to hear or notice rather than drill; null when neither is clear.
 - bar_start and bar_end: only when she names bar or measure numbers ("from bar 17", "measures 9 to 12"); otherwise null. A single bar has the same start and end.
@@ -179,6 +200,8 @@ For each block, write:
 - diagram_confidence: from 0 to 1, how sure you are that the diagram shows what she explained. 0 when diagram is null.
 
 Write exactly one card for every block, in order, and use the block labels exactly as given. The student's lines are context only; never take a cue from them.
+
+The lesson is split into exercises under headings such as "== E2: a warmup ==". For every exercise heading you see, also give the exercise a title of 2 to 6 words that a singer would recognise: what was sung and how, such as "Lip trill on a 5-note scale", "Ng hum, sliding up" or "Morning Light, first verse". Use the song's name when she or the student says it. Never invent details you can't hear in the lesson; "Warmup on oo" is better than a guess.
 
 The diagram library (id: what it shows):
 ${DIAGRAMS.map((d) => `${d.id}: ${d.title}. ${d.shows}.`).join('\n')}`;
@@ -210,7 +233,7 @@ export function lessonText(labels: Map<string, Block>, takes: TakeRow[], lines: 
     const ex = b.exercise_id && exNo.has(b.exercise_id) ? b.exercise_id : null;
     if (exercises.length && ex !== lastEx) {
       const e = exercises.find((x) => x.id === ex);
-      out.push(e ? `== Exercise ${exNo.get(e.id)}: ${e.kind === 'song' ? 'singing the song' : 'a warmup'} ==` : '== Talk between exercises ==');
+      out.push(e ? `== E${exNo.get(e.id)}: ${e.kind === 'song' ? 'singing the song' : 'a warmup'} ==` : '== Talk between exercises ==');
       lastEx = ex;
     }
     const take = b.take_id ? takes.find((t) => t.id === b.take_id) : undefined;
@@ -242,6 +265,51 @@ export function examplesText(corrections: Correction[]): string {
 export function batches<T>(items: T[], size = 15): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Like [batches], but keeps each exercise's blocks in one call where it can,
+ * so the model sees every time she returns to a point and can give it one
+ * cue. Only an exercise longer than [size] blocks is split.
+ */
+export function batchesByExercise(labels: Map<string, Block>, spoken: string[], size = 15): string[][] {
+  const runs: string[][] = [];
+  let last: string | null | undefined;
+  for (const l of spoken) {
+    const ex = labels.get(l)?.exercise_id ?? null;
+    if (runs.length === 0 || ex !== last) runs.push([]);
+    runs[runs.length - 1].push(l);
+    last = ex;
+  }
+  const out: string[][] = [];
+  for (const run of runs) {
+    for (const piece of batches(run, size)) {
+      const cur = out[out.length - 1];
+      if (cur && cur.length + piece.length <= size) cur.push(...piece);
+      else out.push([...piece]);
+    }
+  }
+  return out;
+}
+
+/** Labels "E1"... for the exercises in time order, as lessonText heads them. */
+export function labelExercises(exercises: ExerciseRow[]): Map<string, ExerciseRow> {
+  return new Map([...exercises].sort((a, b) => a.start_ms - b.start_ms).map((e, i) => [`E${i + 1}`, e]));
+}
+
+/**
+ * The model's exercise names, by exercise id: unknown labels dropped, the
+ * first answer for a label kept, trimmed to one short line.
+ */
+export function exerciseTitles(labels: Map<string, ExerciseRow>, answers: ModelExercise[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const a of answers ?? []) {
+    const e = labels.get(a?.exercise);
+    const title = String(a?.title ?? '').replace(/\s+/g, ' ').trim().replace(/^["“']+|["”'.]+$/g, '').trim();
+    if (!e || !title || out.has(e.id)) continue;
+    out.set(e.id, title.length > 60 ? title.slice(0, 60).replace(/\s+\S*$/, '') + '…' : title);
+  }
   return out;
 }
 

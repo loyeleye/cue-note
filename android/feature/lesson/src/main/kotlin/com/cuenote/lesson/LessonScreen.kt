@@ -58,6 +58,8 @@ import androidx.work.WorkInfo
 import com.cuenote.data.CardEntity
 import com.cuenote.data.FeedbackEntity
 import com.cuenote.data.LessonEntity
+import com.cuenote.data.LessonOutline
+import androidx.compose.ui.text.style.TextOverflow
 import com.cuenote.data.LessonRepository
 import com.cuenote.data.TakeEntity
 import com.cuenote.data.pipeline.LessonPipelineWorker
@@ -67,10 +69,12 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * One lesson as a timeline of cards: each take with a button to hear it,
- * and under it her cue, her exact words and a button to hear her say them.
+ * One lesson, exercise by exercise (see [LessonOutline]): each warmup or
+ * song section with its tries to replay, then the few cues that matter, each
+ * a short instruction with one sentence of hers and the try it was about.
  * Cards come from extract-cues and carry any edits she made on the
- * dashboard. Before there are cards, it shows what processing found.
+ * dashboard. Before there are cards, it shows the exercises and their tries;
+ * the raw transcript and the linker's reasons stay under Details.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +100,7 @@ fun LessonScreen(
     val stages by dao.observeStages(lesson.id).collectAsStateWithLifecycle(emptyList())
     val takes by dao.observeTakes(lesson.id).collectAsStateWithLifecycle(emptyList())
     val feedback by dao.observeFeedback(lesson.id).collectAsStateWithLifecycle(emptyList())
+    val exercises by dao.observeExercises(lesson.id).collectAsStateWithLifecycle(emptyList())
     val cards by cardDao.observeCards(lesson.id).collectAsStateWithLifecycle(emptyList())
     val clips by cardDao.observeClips(lesson.id).collectAsStateWithLifecycle(emptyList())
     val progress by repo.progress(lesson.id).collectAsStateWithLifecycle(null)
@@ -106,6 +111,7 @@ fun LessonScreen(
     var refreshNote by remember { mutableStateOf<String?>(null) }
     var showTalk by rememberSaveable { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
+    var openMore by rememberSaveable { mutableStateOf(setOf<String>()) }
 
     val photos by sketches.observe(lesson.id).collectAsStateWithLifecycle(emptyList())
     val lessonDir = File(lesson.dirPath)
@@ -123,7 +129,7 @@ fun LessonScreen(
 
     val overrides by repo.setlistStore.overrides.collectAsStateWithLifecycle()
     val clipFile: Map<String, String> = clips.associate { it.id to it.file }
-    val takeNo = takes.withIndex().associate { (i, t) -> CloudIds.take(t.id) to i + 1 }
+    val outline = remember(exercises, takes, feedback, cards) { LessonOutline.build(exercises, takes, feedback, cards) }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Lesson") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
@@ -133,7 +139,7 @@ fun LessonScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
-                Status(lesson, takes, feedback, cards, progress, cardProgress, stages.any { it.stage == "upload" && it.status == "waiting" })
+                Status(lesson, takes, feedback, cards, outline.size, progress, cardProgress, stages.any { it.stage == "upload" && it.status == "waiting" })
                 if (onChangeTeacher != null) Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (taughtBy != null) "Taught by $taughtBy" else "No teacher set for this lesson",
@@ -174,31 +180,43 @@ fun LessonScreen(
                 item { SketchStrip(photos, lessonDir, feedback) { onOpenSketch(it.id) } }
             }
 
-            if (cards.isNotEmpty()) {
-                val (talk, cues) = cards.partition { it.category == "chat" }
-                val opening = cues.filter { it.takeId == null || it.takeId !in takeNo }
-                if (opening.isNotEmpty()) {
-                    item { SectionTitle("Before the first take") }
-                    items(opening, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch, suggestions.filter { s -> s.feedbackId == it.id }, onDecide, SetlistStore.isOn(it, overrides)) { on -> repo.setlistStore.set(it.id, on) } }
+            if (outline.isNotEmpty()) {
+                if (cards.isEmpty()) item {
+                    Text(
+                        "Your teacher's notes will appear under each exercise once they're made.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                for ((i, t) in takes.withIndex()) {
-                    val id = CloudIds.take(t.id)
-                    val mine = cues.filter { it.takeId == id }
-                    item(key = "take-${t.id}") { TakeRow(i + 1, t, clipFile[id], player) }
-                    items(mine, key = { it.id }) { CueCard(it, clipFile[it.id], player, onCard(it.localId), lessonDir, onOpenSketch, suggestions.filter { s -> s.feedbackId == it.id }, onDecide, SetlistStore.isOn(it, overrides)) { on -> repo.setlistStore.set(it.id, on) } }
+                for (sec in outline) {
+                    val key = sec.exercise?.id ?: "loose"
+                    item(key = "ex-$key") { ExerciseHeader(sec, clipFile, player) }
+                    val card: @Composable (LessonOutline.CueGroup) -> Unit = { g ->
+                        val c = g.card
+                        CueCard(
+                            g, clipFile[c.id], c.takeId?.let(clipFile::get), player,
+                            g.all.flatMap { onCard(it.localId) }, lessonDir, onOpenSketch,
+                            suggestions.filter { s -> g.all.any { it.id == s.feedbackId } }, onDecide,
+                            SetlistStore.isOn(c, overrides),
+                        ) { on -> repo.setlistStore.set(c.id, on) }
+                    }
+                    items(sec.cues, key = { it.card.id }) { card(it) }
+                    if (sec.more.isNotEmpty()) {
+                        val open = key in openMore
+                        item(key = "more-$key") {
+                            TextButton(onClick = { openMore = if (open) openMore - key else openMore + key }) {
+                                Text(if (open) "Fewer notes" else "${sec.more.size} more ${if (sec.more.size == 1) "note" else "notes"}")
+                            }
+                        }
+                        if (open) items(sec.more, key = { it.card.id }) { card(it) }
+                    }
                 }
+                val talk = cards.filter { it.category == "chat" }
                 if (talk.isNotEmpty()) item {
                     TextButton(onClick = { showTalk = !showTalk }) {
                         Text(if (showTalk) "Hide chat between songs" else "Chat between songs (${talk.size})")
                     }
                 }
                 if (showTalk) items(talk, key = { it.id }) { TalkCard(it, clipFile[it.id], player) }
-            } else if (takes.isNotEmpty() || feedback.isNotEmpty()) {
-                // Processed, no cards yet: what the pipeline found.
-                val opening = feedback.filter { it.takeId == null }
-                item { SectionTitle("Takes and feedback") }
-                items(opening, key = { it.id }) { FoundCard(null, listOf(it), photos, lessonDir, onOpenSketch) }
-                items(takes, key = { it.id }) { t -> FoundCard(t, feedback.filter { it.takeId == t.id }, photos, lessonDir, onOpenSketch) }
             }
 
             postureSection(File(lesson.dirPath))
@@ -212,6 +230,12 @@ fun LessonScreen(
                         OutlinedButton(onClick = { repo.process(lesson.id, again = true) }) { Text("Process again from scratch") }
                     }
                     if (hasTimeline) TextButton(onClick = onOpenTimeline) { Text("Open the debug timeline") }
+                }
+                if (feedback.isNotEmpty()) item {
+                    Text("How her feedback was linked to takes", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+                }
+                items(feedback, key = { "fb-" + it.id }) { f ->
+                    Text("${clock(f.spanStartMs)} · ${f.linkReason}", style = MaterialTheme.typography.bodySmall)
                 }
                 items(stages, key = { "s-" + it.stage }) { s ->
                     Text("${s.stage}: ${s.status} in ${(s.finishedAt - s.startedAt) / 1000} s. ${s.detail}", style = MaterialTheme.typography.bodySmall)
@@ -231,6 +255,7 @@ private fun Status(
     takes: List<TakeEntity>,
     feedback: List<FeedbackEntity>,
     cards: List<CardEntity>,
+    exerciseCount: Int,
     p: com.cuenote.data.pipeline.PipelineScheduler.Progress?,
     c: LessonUploadWorker.Companion.Progress?,
     needsSignIn: Boolean,
@@ -243,12 +268,12 @@ private fun Status(
         p?.state == WorkInfo.State.ENQUEUED -> "Your notes will be ready after the phone's next charge, or tap Make my notes now."
         c?.state == WorkInfo.State.ENQUEUED -> "Waiting for the internet to finish your notes."
         cards.isNotEmpty() -> {
-            val n = cards.count { it.category != "chat" }
+            val n = cards.count { it.category != "chat" && it.cue.isNotBlank() }
             val edited = cards.count { it.editedByTeacher }
-            "$n cards from ${takes.size} takes." + if (edited > 0) " Your teacher has edited $edited." else ""
+            "${plural(n, "note")} across ${plural(exerciseCount, "exercise")}." + if (edited > 0) " Your teacher has edited $edited." else ""
         }
         needsSignIn -> "Almost there. Sign in on the home screen to finish your notes."
-        lesson.pipelineState == "processed" -> "Processed: ${takes.size} takes and ${feedback.size} feedback blocks. Cards come next."
+        lesson.pipelineState == "processed" -> "Found ${plural(exerciseCount, "exercise")} and ${plural(takes.size, "try", "tries")}. Tap Make my notes to turn what she said into notes."
         lesson.pipelineState == "failed" -> "We couldn't make your notes this time. The details below say why, and you can try again."
         else -> "Your notes haven't been made yet."
     }
@@ -269,24 +294,38 @@ private fun PlayButton(file: String?, player: ClipPlayer, label: String) {
     OutlinedButton(onClick = { player.toggle(file) }) { Text(if (on) "Stop" else label) }
 }
 
+/** An exercise's name, what kind it is, and a button for each try. */
 @Composable
-private fun TakeRow(number: Int, take: TakeEntity, clip: String?, player: ClipPlayer) {
-    Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text("Take $number", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "at ${clock(take.startMs)}, ${(take.endMs - take.startMs) / 1000} s" + if (take.withPiano) ", with piano" else "",
-                style = MaterialTheme.typography.bodySmall,
-            )
+private fun ExerciseHeader(sec: LessonOutline.Section, clipFile: Map<String, String>, player: ClipPlayer) {
+    Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(sec.name, style = MaterialTheme.typography.titleLarge)
+        val kind = when (sec.kind) { "song" -> "Song"; "warmup" -> "Warmup"; else -> null }
+        val bits = listOfNotNull(
+            kind?.takeIf { sec.exercise?.title != null },
+            plural(sec.takes.size, "try", "tries").takeIf { sec.takes.isNotEmpty() },
+            clock(sec.startMs),
+        )
+        Text(bits.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val playable = sec.takes.withIndex().mapNotNull { (i, t) -> clipFile[CloudIds.take(t.id)]?.takeIf { File(it).isFile }?.let { i + 1 to it } }
+        if (playable.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Hear a try", style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.CenterVertically).padding(end = 2.dp))
+            for ((n, file) in playable) {
+                val on = player.playing == file
+                AssistChip(onClick = { player.toggle(file) }, label = { Text(if (on) "■ $n" else "▶ $n") })
+            }
         }
-        PlayButton(clip, player, "Hear take")
     }
 }
 
+/**
+ * One cue: the instruction, one sentence of hers, and the try it was about.
+ * Everything else she said is a tap away, never on the card.
+ */
 @Composable
 private fun CueCard(
-    card: CardEntity,
+    group: LessonOutline.CueGroup,
     clip: String?,
+    takeClip: String?,
     player: ClipPlayer,
     sketches: List<PhotoEntity>,
     lessonDir: File,
@@ -296,30 +335,38 @@ private fun CueCard(
     onSetlist: Boolean,
     onSetlistChange: (Boolean) -> Unit,
 ) {
+    val card = group.card
     var showAll by rememberSaveable(card.id) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(card.cue.ifBlank { "(no cue yet)" }, style = MaterialTheme.typography.titleLarge)
+            Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleLarge)
             if (card.herWords.isNotBlank()) {
-                Text("“${card.herWords}”", style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic))
+                Text(
+                    "“${card.herWords}”",
+                    style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis,
+                )
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 card.category?.let { TopicChip(Topic.of(it), Topic.of(it)?.label ?: it.replaceFirstChar { c -> c.uppercase() }, Modifier.align(Alignment.CenterVertically)) }
-                when (card.practiceFlag) {
-                    "practice_this" -> PracticeTag()
-                    "just_listen" -> Tag("Just listen")
-                }
+                if (group.practice) PracticeTag() else if (card.practiceFlag == "just_listen") Tag("Just listen")
                 bars(card.barStart, card.barEnd)?.let { Tag(it) }
-                if (card.editedByTeacher) Tag("✓ Checked by your teacher")
+                if (group.repeats.isNotEmpty()) Tag("She said this ${group.all.size} times")
+                if (group.all.any { it.editedByTeacher }) Tag("✓ Checked by your teacher")
             }
-            Row {
-                PlayButton(clip, player, "Their words")
-                Spacer(Modifier.width(8.dp))
-                if (card.transcript.isNotBlank() && card.transcript.trim() != card.herWords.trim()) {
-                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything your teacher said") }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlayButton(clip, player, "Her words")
+                PlayButton(takeClip, player, "The try")
+                val transcript = group.all.joinToString("\n\n") { it.transcript.trim() }.trim()
+                if (transcript.isNotBlank() && transcript != card.herWords.trim()) {
+                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything she said") }
                 }
             }
-            if (showAll) Text(card.transcript, style = MaterialTheme.typography.bodyMedium)
+            if (showAll) Text(
+                group.all.joinToString("\n\n") { it.transcript.trim() }.trim(),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             // The student's own switch: on for "practice this" cards to start with.
             Row(
                 Modifier
@@ -367,32 +414,6 @@ private fun PracticeTag() {
     )
 }
 
-/** Before cards: a take with the feedback the pipeline linked to it. */
-@Composable
-private fun FoundCard(
-    take: TakeEntity?,
-    feedback: List<FeedbackEntity>,
-    photos: List<PhotoEntity>,
-    lessonDir: File,
-    onOpenSketch: (String) -> Unit,
-) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Text(
-                take?.let { "Take at ${clock(it.startMs)}, ${(it.endMs - it.startMs) / 1000} s" + if (it.withPiano) ", with piano" else "" }
-                    ?: "Not about a take",
-                style = MaterialTheme.typography.titleSmall,
-            )
-            if (feedback.isEmpty()) Text("No feedback after this take.", style = MaterialTheme.typography.bodySmall)
-            for (f in feedback) {
-                Text(f.words.ifBlank { "(no words transcribed)" }, style = MaterialTheme.typography.bodyMedium)
-                Text("${clock(f.spanStartMs)} · ${f.linkReason}", style = MaterialTheme.typography.bodySmall)
-                SketchRow(photos.filter { it.feedbackId == f.id }, lessonDir, onOpenSketch)
-            }
-        }
-    }
-}
-
 private fun bars(a: Int?, b: Int?): String? = when {
     a == null && b == null -> null
     a == b || b == null -> "Bar $a"
@@ -401,6 +422,8 @@ private fun bars(a: Int?, b: Int?): String? = when {
 }
 
 private fun clock(ms: Long) = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)
+
+private fun plural(n: Int, one: String, many: String = one + "s") = "$n ${if (n == 1) one else many}"
 
 /** Her sketches on this card, as thumbnails; tap one to open it. */
 @Composable

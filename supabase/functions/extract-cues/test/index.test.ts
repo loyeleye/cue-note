@@ -29,6 +29,7 @@ beforeEach(() => {
   calls.length = 0;
   behavior.stop = 'end_turn';
   answers.cards = structuredClone(sample.answer.cards);
+  answers.exercises = [];
   tables.lesson = [{ id: sample.request.lesson_id, student_id: STUDENT, pipeline_state: 'uploading' }];
   tables.take = structuredClone(sample.takes).map((t: any) => ({ ...t, lesson_id: sample.request.lesson_id }));
   env.ANTHROPIC_API_KEY = 'k';
@@ -185,4 +186,21 @@ test('confident diagram picks become suggestions, once, keeping her decision', a
   assert.equal(tables.diagram_suggestion.length, 2, 'a rerun adds no copies');
   assert.equal(tables.diagram_suggestion[0].teacher_status, 'dismissed', 'her dismissal stands');
   assert.match(calls[0].system, /vowels-jaw: Jaw drop/);
+});
+
+test('each exercise gets a name from the model, unless someone already named it', async () => {
+  const lessonId = sample.request.lesson_id;
+  const ex = (n: number) => `e0000000-0000-4000-8000-00000000000${n}`;
+  tables.exercise = [
+    { id: ex(1), lesson_id: lessonId, start_ms: 30_000, kind: 'warmup', title: null },
+    { id: ex(2), lesson_id: lessonId, start_ms: 200_000, kind: 'song', title: 'Morning Light' },
+  ];
+  answers.exercises = [{ exercise: 'E1', title: 'Lip trill on a 5-note scale' }, { exercise: 'E2', title: 'A guess' }];
+  const body = { ...sample.request, blocks: sample.request.blocks.map((b: any, i: number) => ({ ...b, exercise_id: i === 0 ? null : i < 3 ? ex(1) : ex(2) })) };
+  const out = await (await post(body)).json();
+  assert.equal(out.exercises_named, 1);
+  assert.equal(tables.exercise[0].title, 'Lip trill on a 5-note scale');
+  assert.equal(tables.exercise[1].title, 'Morning Light', 'a name someone gave stays');
+  assert.match(calls[0].content, /== E1: a warmup ==/);
+  assert.match(calls[0].system, /at most 8 words/);
 });
