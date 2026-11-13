@@ -120,4 +120,12 @@ class LessonOutlineTest {
         val flagged = base.copy(summary = "", herWords = "Fall into it.", summaryRejected = "Push up to it.")
         assertEquals("Fall into it.", LessonOutline.CueGroup(flagged).text)
     }
+
+    @Test fun `talk about where the piano plays a note is theory, not a guess`() {
+        val piano = "Yes. If, look, I sing this note in exactly this position, right? But if I will play this one, I will also see this note " +
+            "and still I'm singing the same note even if I play it here. "
+        assertTrue(LessonOutline.guessScore(piano.repeat(2), 1f) < LessonOutline.GUESS_MIN_SCORE)
+        val tech = "When you go up, don't reach for the high note. Let it fall in from above, keep the jaw loose and the throat open. "
+        assertTrue(LessonOutline.guessScore(tech.repeat(2), 1f) > LessonOutline.guessScore(piano.repeat(2), 1f))
+    }
 }
