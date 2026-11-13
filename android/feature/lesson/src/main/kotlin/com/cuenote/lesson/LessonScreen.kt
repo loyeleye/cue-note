@@ -11,6 +11,14 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BookmarkAdded
+import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.graphicsLayer
@@ -187,7 +195,12 @@ fun LessonScreen(
     val onList = remember(groups, overrides) { groups.map { it.card }.filter { SetlistStore.isOn(it, overrides) } }
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Lesson") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
+        TopAppBar(
+            title = { Text("Lesson", style = MaterialTheme.typography.titleMedium) },
+            navigationIcon = {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+            },
+        )
     }, bottomBar = {
         if ((onPractice != null || onSendToTeacher != null) && (cards.isNotEmpty() || takes.isNotEmpty())) {
             NextStepBar(onList.size, onList.firstOrNull()?.id?.let { id -> onPractice?.let { { it(id) } } }, onSendToTeacher)
@@ -246,16 +259,16 @@ fun LessonScreen(
             if (outline.isNotEmpty()) {
                 if (cards.isEmpty()) item {
                     Text(
-                        "Until your notes are made, each exercise shows the app's best guess at what she said about your tries.",
+                        "Until your notes are made, each exercise shows the app's best guess at what your teacher said about your tries.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 val close = groups.count { it.check == LessonOutline.SummaryCheck.CLOSE }
                 val corrected = groups.count { it.check == LessonOutline.SummaryCheck.FLAGGED || it.check == LessonOutline.SummaryCheck.CORRECTED }
                 if (close + corrected > 0) item(key = "corrected") {
-                    val parts = listOfNotNull("$close close".takeIf { close > 0 }, "$corrected wrong".takeIf { corrected > 0 })
+                    val parts = listOfNotNull("$close close".takeIf { close > 0 }, "$corrected misheard".takeIf { corrected > 0 })
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.tertiary))
+                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.outline))
                         Text(
                             "Your teacher reviewed the app's summary on ${plural(close + corrected, "point")}: ${parts.joinToString(", ")}. Each is marked below.",
                             style = MaterialTheme.typography.labelLarge,
@@ -267,7 +280,7 @@ fun LessonScreen(
                     item(key = "ex-$key") { ExerciseHeader(sec, clipFile, player, first = sec === outline.first()) }
                     // The try she said was right, to compare against the one each point is about.
                     val liked = sec.takes.firstOrNull { it.id in sec.starred }
-                    val likedTry = liked?.let { Clip(clipFile[CloudIds.take(it.id)], "Try ${sec.tryNo(it.id)} ★, she liked it", null) }
+                    val likedTry = liked?.let { Clip(clipFile[CloudIds.take(it.id)], "Try ${sec.tryNo(it.id)} ★, your teacher liked it", null) }
                     val card: @Composable (LessonOutline.CueGroup, Modifier) -> Unit = { g, mod ->
                         val c = g.card
                         val take = c.takeId?.let(takeByCloud::get)
@@ -381,7 +394,7 @@ private fun Status(
             "${plural(n, "note")} across ${plural(exerciseCount, "exercise")}." + if (edited > 0) " Your teacher has edited $edited." else ""
         }
         needsSignIn -> "Almost there. Sign in on the home screen to finish your notes."
-        lesson.pipelineState == "processed" -> "Found ${plural(exerciseCount, "exercise")} and ${plural(takes.size, "try", "tries")}. Tap Make my notes to turn what she said into notes."
+        lesson.pipelineState == "processed" -> "Found ${plural(exerciseCount, "exercise")} and ${plural(takes.size, "try", "tries")}. Tap Make my notes to turn what your teacher said into notes."
         lesson.pipelineState == "failed" -> "We couldn't make your notes this time. The details below say why, and you can try again."
         else -> "Your notes haven't been made yet."
     }
@@ -492,8 +505,8 @@ private fun CueCard(
     val m = MaterialTheme.colorScheme
     // The same colours as the dashboard's slider: brass for close, red for corrected.
     val edge = when (check) {
-        LessonOutline.SummaryCheck.CLOSE -> m.tertiary
-        LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> m.error.copy(alpha = 0.7f)
+        // Slate, not red or brass: the app made the mistake, not the singer, and brass means praise.
+        LessonOutline.SummaryCheck.CLOSE, LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> m.outline
         else -> null
     }
     Card(
@@ -506,23 +519,24 @@ private fun CueCard(
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 when (check) {
-                    LessonOutline.SummaryCheck.CLOSE -> Tag("App: close", m.tertiaryContainer, m.onTertiaryContainer, bold = true)
-                    LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> Tag("App: wrong", m.errorContainer, m.onErrorContainer, bold = true)
+                    LessonOutline.SummaryCheck.CLOSE -> Tag("App: close", m.surfaceVariant, m.onSurfaceVariant, bold = true)
+                    LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> Tag("App misheard", m.surfaceVariant, m.onSurfaceVariant, bold = true)
                     else -> {}
+                }
+                // On the card's first line, so the play buttons below fit on one row.
+                IconToggleButton(checked = onSetlist, onCheckedChange = onSetlistChange, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        if (onSetlist) Icons.Filled.BookmarkAdded else Icons.Outlined.BookmarkAdd,
+                        contentDescription = if (onSetlist) "On your setlist. Tap to take it off." else "Add to your setlist",
+                        tint = if (onSetlist) m.primary else m.onSurfaceVariant,
+                    )
                 }
             }
             // Two sources, never mixed: the teacher's words first, then the app's, smaller and labeled.
             val old = card.summaryRejected?.takeIf { it.isNotBlank() }
-            when (check) {
-                S.FLAGGED -> Text(
-                    "The app got this one wrong. Go with what your teacher said.",
-                    style = MaterialTheme.typography.labelMedium, color = muted,
-                )
-                S.CLOSE -> Text(
-                    "The app's summary is close, but not quite right. Go with what your teacher said.",
-                    style = MaterialTheme.typography.labelMedium, color = m.tertiary,
-                )
-                else -> {}
+            if (check == S.FLAGGED || check == S.CLOSE) {
+                // The chip already says what the app got wrong; this only says where to look.
+                Text("Go with your teacher.", style = MaterialTheme.typography.labelMedium, color = muted)
             }
             // 1. Your teacher: everything in their own words, in one plum box, a thin rule between parts.
             val showQuote = (check == S.FLAGGED || (check == S.CLOSE && !group.explained)) && card.herWords.isNotBlank()
@@ -536,7 +550,7 @@ private fun CueCard(
                         Text(card.summary, style = MaterialTheme.typography.bodyLarge, color = onBox)
                     } else if (showQuote) {
                         TeacherLabel("What your teacher said in the lesson")
-                        TeacherQuote(card.herWords, onBox)
+                        TeacherQuote(card.herWords, onBox, her, player)
                     }
                 }
             }
@@ -568,12 +582,12 @@ private fun CueCard(
             } else if (card.summary.isBlank() && check != S.FLAGGED && card.herWords.isNotBlank()) {
                 TeacherBox { onBox ->
                     TeacherLabel("What your teacher said in the lesson")
-                    TeacherQuote(card.herWords, onBox)
+                    TeacherQuote(card.herWords, onBox, her, player)
                 }
             }
             if (old != null) {
                 // Wrong, so folded away by default: one quiet line, open only if they want it.
-                Disclosure("App summary (wrong)", showOld, { showOld = it }) {
+                Disclosure("App summary (misheard)", showOld, { showOld = it }) {
                     Text(
                         "“$old” If you've been practicing from this, switch to what your teacher said.",
                         style = MaterialTheme.typography.bodySmall, color = muted,
@@ -601,21 +615,15 @@ private fun CueCard(
                 card.category?.let { TopicChip(Topic.of(it), Topic.of(it)?.label ?: it.replaceFirstChar { c -> c.uppercase() }) }
                 if (group.practice) PracticeTag() else if (card.practiceFlag == "just_listen") Tag("Just listen")
                 bars(card.barStart, card.barEnd)?.let { Tag(it) }
-                if (group.repeats.isNotEmpty()) Tag("She said this ${group.all.size} times")
+                if (group.repeats.isNotEmpty()) Tag("Your teacher said this ${group.all.size} times")
                 if (group.all.any { it.editedByTeacher }) Tag("✓ Checked by your teacher")
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 PlayButton(her, player)
                 PlayButton(take, player)
                 PlayButton(liked, player)
-                FilterChip(
-                    selected = onSetlist,
-                    onClick = { onSetlistChange(!onSetlist) },
-                    label = { Text(if (onSetlist) "✓ On my setlist" else "+ Setlist") },
-                    modifier = Modifier.align(Alignment.CenterVertically),
-                )
                 if (transcript.isNotBlank() && transcript != card.summary.trim() && transcript != card.herWords.trim()) {
-                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything she said") }
+                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything your teacher said") }
                 }
             }
             AnimatedVisibility(showAll, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
@@ -688,7 +696,7 @@ private fun GuessCard(guess: LessonOutline.Guess, modifier: Modifier, her: Clip,
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                "Best guess from what she said, until your notes are made",
+                "Best guess from what your teacher said, until your notes are made",
                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
@@ -700,7 +708,7 @@ private fun GuessCard(guess: LessonOutline.Guess, modifier: Modifier, her: Clip,
                 PlayButton(her, player)
                 PlayButton(take, player)
                 if (guess.feedback.words.trim().length > guess.excerpt.length + 10) {
-                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything she said") }
+                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything your teacher said") }
                 }
             }
             AnimatedVisibility(showAll, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
@@ -749,17 +757,23 @@ private fun TeacherRule() = HorizontalDivider(
 
 /**
  * The teacher's words from the recording, in italics, with a large plum opening quote mark
- * hung in the box's padding so the words line up with the label above.
+ * hung in the box's padding. Tapping the words plays them from the lesson; the mark turns to ■.
  */
 @Composable
-private fun TeacherQuote(words: String, color: androidx.compose.ui.graphics.Color) {
-    Box {
+private fun TeacherQuote(words: String, color: androidx.compose.ui.graphics.Color, clip: Clip, player: ClipPlayer) {
+    val file = clip.file
+    val on = file != null && player.playing == file
+    Box(
+        if (file == null) Modifier else Modifier.clickable(
+            role = Role.Button, onClickLabel = if (on) "Stop" else "Hear it in the lesson",
+        ) { player.toggle(file) },
+    ) {
         Text(
-            "“", color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
+            if (on) "■" else "“", color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
             style = MaterialTheme.typography.titleLarge.copy(
-                fontFamily = com.cuenote.ui.Fraunces, fontSize = 28.sp, lineHeight = 28.sp, fontStyle = FontStyle.Normal,
+                fontFamily = com.cuenote.ui.Fraunces, fontSize = if (on) 14.sp else 28.sp, lineHeight = 28.sp, fontStyle = FontStyle.Normal,
             ),
-            modifier = Modifier.offset(x = (-12).dp, y = (-6).dp),
+            modifier = Modifier.offset(x = (-12).dp, y = (-6).dp).clearAndSetSemantics {},
         )
         Text(
             words, style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic), color = color,
