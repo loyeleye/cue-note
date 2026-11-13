@@ -50,7 +50,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import android.app.Activity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -117,6 +123,11 @@ fun SetupCheckContent(
 ) {
     val m = MaterialTheme.colorScheme
     val total = SetupStep.entries.size
+    // Before the first Start, the voice choice sits up top where it's seen.
+    val notStarted = !s.done && s.phase == StepPhase.IDLE && s.step == SetupStep.STUDENT_SPEAK
+    // Once started: full screen, and only what the check needs, so nothing is below the fold.
+    val focus = !notStarted && !s.done
+    FullScreen(focus)
 
     Surface(Modifier.fillMaxSize(), color = m.background) {
     Column(
@@ -132,10 +143,11 @@ fun SetupCheckContent(
                 style = MaterialTheme.typography.labelMedium,
             )
         }
-        Masthead("Sound", "check")
-
-        MicRow(s)
-        if (s.batteryLow) {
+        if (!focus) {
+            Masthead("Sound", "check")
+            MicRow(s)
+        }
+        if (s.batteryLow && !focus) {
             TicketRow {
                 Icon(Icons.Filled.BatteryAlert, contentDescription = null, tint = m.error)
                 Text(
@@ -169,8 +181,6 @@ fun SetupCheckContent(
             }
         }
 
-        // Before the first Start, the voice choice sits up top where it's seen.
-        val notStarted = !s.done && s.phase == StepPhase.IDLE && s.step == SetupStep.STUDENT_SPEAK
         if (notStarted) SpokenRow(s, onSpoken, onVoice)
 
         DoneRow(s)
@@ -197,22 +207,27 @@ fun SetupCheckContent(
             }
         }
 
-        MicTip()
+        if (!focus) {
+            MicTip()
 
-        if (!notStarted) SpokenRow(s, onSpoken, onVoice)
+            if (!notStarted) SpokenRow(s, onSpoken, onVoice)
 
-        TicketRow {
-            Column(Modifier.weight(1f)) {
-                Text("Quiet soundcheck", style = MaterialTheme.typography.titleSmall)
-                Text("No chime between steps", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            TicketRow {
+                Column(Modifier.weight(1f)) {
+                    Text("Quiet soundcheck", style = MaterialTheme.typography.titleSmall)
+                    Text("No chime between steps", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = s.quietCheck, onCheckedChange = onQuietCheck)
             }
-            Switch(checked = s.quietCheck, onCheckedChange = onQuietCheck)
         }
 
-        TextButton(
-            onClick = onSwitchChannels,
-            enabled = s.phase == StepPhase.IDLE || s.phase == StepPhase.FAILED || s.done,
-        ) { Text("Switch student and teacher channels") }
+        // A miss can be a swapped pair of mics, so the switch stays reachable then.
+        if (!focus || s.phase == StepPhase.FAILED) {
+            TextButton(
+                onClick = onSwitchChannels,
+                enabled = s.phase == StepPhase.IDLE || s.phase == StepPhase.FAILED || s.done,
+            ) { Text("Switch student and teacher channels") }
+        }
         if (!s.done) {
             TextButton(onClick = onDone) { Text("Skip the check for today") }
         }
@@ -409,6 +424,27 @@ private fun NowCard(
                 color = x.nowMuted,
                 style = MaterialTheme.typography.labelMedium,
             )
+        }
+    }
+}
+
+/** Hides the status and navigation bars while [on]; a swipe from the edge still shows them. */
+@Composable
+private fun FullScreen(on: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(on) {
+        val window = (view.context as? Activity)?.window
+        val bars = window?.let { WindowCompat.getInsetsController(it, view) }
+        if (on && bars != null) {
+            bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            bars.hide(WindowInsetsCompat.Type.systemBars())
+            view.keepScreenOn = true
+        }
+        onDispose {
+            if (on) {
+                bars?.show(WindowInsetsCompat.Type.systemBars())
+                view.keepScreenOn = false
+            }
         }
     }
 }
