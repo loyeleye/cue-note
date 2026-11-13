@@ -25,6 +25,8 @@ enum class VoiceLine(val key: String, val text: String) {
     RECAL_DONE("recal_done", "Posture reset. Carry on."),
     RECAL_NOT_FOUND("recal_not_found", "I couldn't find you, so I kept the posture from before."),
 
+    VOICE_PICKED("voice_picked", "Hi, I'll be your voice today."),
+
     // The sound check, read aloud so nobody has to watch the screen.
     CHECK_INTRO("check_intro", "Let's check the mics. It takes about a minute. I'll tell you what to do at each step, and move on as soon as I've heard enough."),
     CHECK_STUDENT("check_student", "Just the student for this one. Sing Do, Re, Mi, on any comfortable note."),
