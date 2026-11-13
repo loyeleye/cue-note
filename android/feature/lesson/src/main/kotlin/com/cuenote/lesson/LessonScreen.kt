@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -522,23 +524,26 @@ private fun CueCard(
                 )
                 else -> {}
             }
-            // 1. Your teacher.
-            if (group.explained) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
-            if (check == S.CORRECTED) {
-                Source("Your teacher's summary", teacher = true)
-                Text(card.summary, style = MaterialTheme.typography.bodyLarge)
-            } else if (check == S.FLAGGED && card.herWords.isNotBlank()) {
-                Source("What your teacher said in the lesson", teacher = true)
-                Text(
-                    "“${card.herWords}”",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
-                    maxLines = 4, overflow = TextOverflow.Ellipsis,
-                )
+            // 1. Your teacher: everything in their own words, in one plum box, a thin rule between parts.
+            val showQuote = (check == S.FLAGGED || (check == S.CLOSE && !group.explained)) && card.herWords.isNotBlank()
+            val ownSummary = check == S.CORRECTED
+            if (group.explained || showQuote || ownSummary) {
+                TeacherBox { onBox ->
+                    if (group.explained) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
+                    if (group.explained && (showQuote || ownSummary)) TeacherRule()
+                    if (ownSummary) {
+                        TeacherLabel("Your teacher's summary")
+                        Text(card.summary, style = MaterialTheme.typography.bodyLarge, color = onBox)
+                    } else if (showQuote) {
+                        TeacherLabel("What your teacher said in the lesson")
+                        TeacherQuote(card.herWords, onBox)
+                    }
+                }
             }
             // 2. The app.
             if (card.summary.isNotBlank() && check != S.CORRECTED) {
-                if (check == S.CLOSE && group.explained) {
-                    // The teacher's note says it better; the near miss folds away until asked for.
+                if (check == S.CLOSE && (group.explained || showQuote)) {
+                    // The teacher's own words say it better; the near miss folds away until asked for.
                     Disclosure("App summary (close)", showOld, { showOld = it }) {
                         Text(card.summary, style = MaterialTheme.typography.bodyMedium, color = muted)
                     }
@@ -561,12 +566,10 @@ private fun CueCard(
                     }
                 }
             } else if (card.summary.isBlank() && check != S.FLAGGED && card.herWords.isNotBlank()) {
-                Source("What your teacher said in the lesson", teacher = true)
-                Text(
-                    "“${card.herWords}”",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
-                    maxLines = 4, overflow = TextOverflow.Ellipsis,
-                )
+                TeacherBox { onBox ->
+                    TeacherLabel("What your teacher said in the lesson")
+                    TeacherQuote(card.herWords, onBox)
+                }
             }
             if (old != null) {
                 // Wrong, so folded away by default: one quiet line, open only if they want it.
@@ -637,11 +640,8 @@ private fun TeacherNote(note: String?, clipPath: String?, player: ClipPlayer, vo
     var local by remember(clipPath) { mutableStateOf<String?>(null) }
     var fetching by remember(clipPath) { mutableStateOf(false) }
     var failed by remember(clipPath) { mutableStateOf(false) }
-    Column(
-        Modifier.fillMaxWidth().background(m.secondaryContainer, RoundedCornerShape(10.dp)).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text("What your teacher meant", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = m.onSecondaryContainer)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        TeacherLabel("What your teacher meant")
         if (!note.isNullOrBlank()) {
             Text(
                 note, style = MaterialTheme.typography.bodyMedium, color = m.onSecondaryContainer,
@@ -724,6 +724,50 @@ private fun TalkCard(card: CardEntity, clip: String?, player: ClipPlayer) {
 }
 
 /** A label, filled and borderless, so it doesn't look like something to tap. */
+/** The plum box that holds anything in the teacher's own words, so it reads apart from the app's. */
+@Composable
+private fun TeacherBox(content: @Composable (androidx.compose.ui.graphics.Color) -> Unit) {
+    val m = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().background(m.secondaryContainer, RoundedCornerShape(10.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) { content(m.onSecondaryContainer) }
+}
+
+@Composable
+private fun TeacherLabel(text: String) = Text(
+    text, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+    color = MaterialTheme.colorScheme.onSecondaryContainer,
+)
+
+/** The thin plum rule between the note and the lesson quote, with equal room on both sides. */
+@Composable
+private fun TeacherRule() = HorizontalDivider(
+    Modifier.padding(vertical = 10.dp), thickness = 1.dp,
+    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
+)
+
+/**
+ * The teacher's words from the recording, in italics, with a large plum opening quote mark
+ * hung in the box's padding so the words line up with the label above.
+ */
+@Composable
+private fun TeacherQuote(words: String, color: androidx.compose.ui.graphics.Color) {
+    Box {
+        Text(
+            "“", color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = com.cuenote.ui.Fraunces, fontSize = 28.sp, lineHeight = 28.sp, fontStyle = FontStyle.Normal,
+            ),
+            modifier = Modifier.offset(x = (-12).dp, y = (-6).dp),
+        )
+        Text(
+            words, style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic), color = color,
+            maxLines = 4, overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 /** Who a block of words comes from. The teacher's label is bold and coloured; the app's is muted. */
 @Composable
 private fun Source(label: String, teacher: Boolean) {
