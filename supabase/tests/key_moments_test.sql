@@ -114,7 +114,13 @@ select public.end_full_lesson((select v from ids where k = 'p1'));
 select pg_temp.sees_default();
 
 -- ---------------------------------------------------------------- Tia asks, Sam says not this time
-insert into ids values ('p2', public.ask_full_lesson('10000000-0000-0000-0000-000000000001'));
+do $$ begin
+  begin
+    perform public.ask_full_lesson('10000000-0000-0000-0000-000000000001', null, '  ');
+    raise exception 'FAIL: a teacher asked without saying why';
+  exception when raise_exception then if sqlerrm like 'FAIL%' then raise; end if; end;
+end $$;
+insert into ids values ('p2', public.ask_full_lesson('10000000-0000-0000-0000-000000000001', null, 'Verse two isn''t clicking'));
 do $$ begin
   begin
     perform public.answer_full_lesson((select v from ids where k = 'p2'), true);
@@ -137,7 +143,7 @@ reset role;
 -- She asks again; Sam inviting her for the same lesson is his yes.
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 set role authenticated;
-insert into ids values ('p3', public.ask_full_lesson('10000000-0000-0000-0000-000000000001'));
+insert into ids values ('p3', public.ask_full_lesson('10000000-0000-0000-0000-000000000001', null, 'Recital run-through'));
 select pg_temp.sees_default();
 reset role;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
@@ -165,7 +171,7 @@ set role authenticated;
 do $$ begin
   assert (select count(*) from public.full_lesson_pass) = 0, 'FAIL: Uma sees Sam''s passes';
   begin
-    perform public.ask_full_lesson('10000000-0000-0000-0000-000000000001');
+    perform public.ask_full_lesson('10000000-0000-0000-0000-000000000001', null, 'please');
     raise exception 'FAIL: Uma asked for a stranger''s lesson';
   exception when raise_exception then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;

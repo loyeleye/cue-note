@@ -102,7 +102,7 @@ create policy storage_key_moments on storage.objects as restrictive for all to a
 
 -- ---------------------------------------------------------------- Asking and answering
 -- The student invites one of their teachers (teacher = that teacher), or a
--- teacher asks for themselves (teacher left out). If the other person has
+-- teacher asks for themselves (teacher left out), saying why. If the other person has
 -- already asked for the same lesson, this is their yes and the pass starts.
 create function public.ask_full_lesson(lesson uuid, teacher uuid default null, note text default null)
 returns uuid
@@ -132,6 +132,10 @@ begin
     who := 'teacher'; t := auth.uid();
     if not private.is_teacher_of(stu) or not private.lesson_open(lesson) then
       raise exception 'lesson not found';
+    end if;
+    -- A student shouldn't have to guess why their teacher wants all of it.
+    if nullif(btrim(coalesce(note, '')), '') is null then
+      raise exception 'say why you''d like to hear the whole lesson';
     end if;
   end if;
 

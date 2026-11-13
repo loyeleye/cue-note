@@ -101,14 +101,16 @@ export const demoApi: Api = {
   async me() { return { ...meIn(load()) }; },
 
   async listStudents() {
-    const s = load();
+    const s = withAgenda();
     return mine(s).filter((sh) => sh.status === 'active').map((share) => {
       const lessons = s.lessons.filter((l) => l.student_id === share.student_id);
       return {
         share,
         student: s.profiles.find((p) => p.id === share.student_id)!,
         lessonCount: lessons.length,
-        lastLessonAt: lessons.map((l) => l.recorded_at).sort().at(-1) ?? null
+        lastLessonAt: lessons.map((l) => l.recorded_at).sort().at(-1) ?? null,
+        waitingTakes: (s.sharedTakes ?? []).filter((t) => t.student_id === share.student_id && !t.heard_at).length,
+        openQuestions: (s.questions ?? []).filter((q) => q.student_id === share.student_id && q.status === 'open').length
       };
     }).sort((a, b) => (b.lastLessonAt ?? '').localeCompare(a.lastLessonAt ?? ''));
   },
@@ -539,6 +541,7 @@ export const demoApi: Api = {
 
   async askFullLesson(lessonId, note) {
     await wait();
+    if (!note?.trim()) throw new Error("Say why you'd like to hear the whole lesson.");
     const s = load();
     const open = passes(s).find((p) => p.lesson_id === lessonId && p.teacher_id === DEMO_TEACHER.id && (p.status === 'pending' || passState(p) === 'active'));
     if (open) return;

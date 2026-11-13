@@ -77,19 +77,26 @@ export const supabaseApi: Api = {
       .eq('teacher_id', me).eq('status', 'active')) as Share[];
     if (!shares.length) return [];
     const ids = shares.map((s) => s.student_id);
-    const [profiles, lessons] = await Promise.all([
+    const [profiles, lessons, takes, questions] = await Promise.all([
       supabase.from('profile').select('id, role, display_name').in('id', ids),
-      supabase.from('lesson').select('student_id, recorded_at').in('student_id', ids)
+      supabase.from('lesson').select('student_id, recorded_at').in('student_id', ids),
+      supabase.from('practice_take').select('student_id').in('student_id', ids).is('heard_at', null),
+      supabase.from('student_question').select('student_id').in('student_id', ids).eq('status', 'open')
     ]);
     const people = check(profiles) as Profile[];
     const rows = check(lessons) as { student_id: string; recorded_at: string }[];
+    // Counts are a nicety: a failure here shouldn't hide the students.
+    const waiting = (takes.data ?? []) as { student_id: string }[];
+    const open = (questions.data ?? []) as { student_id: string }[];
     const list: StudentSummary[] = shares.map((share) => {
       const mine = rows.filter((l) => l.student_id === share.student_id);
       return {
         share,
         student: people.find((p) => p.id === share.student_id) ?? { id: share.student_id, role: 'student', display_name: '' },
         lessonCount: mine.length,
-        lastLessonAt: mine.map((l) => l.recorded_at).sort().at(-1) ?? null
+        lastLessonAt: mine.map((l) => l.recorded_at).sort().at(-1) ?? null,
+        waitingTakes: waiting.filter((t) => t.student_id === share.student_id).length,
+        openQuestions: open.filter((q) => q.student_id === share.student_id).length
       };
     });
     return list.sort((a, b) => (b.lastLessonAt ?? '').localeCompare(a.lastLessonAt ?? ''));

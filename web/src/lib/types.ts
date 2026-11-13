@@ -104,6 +104,9 @@ export interface StudentSummary {
   student: Profile;
   lessonCount: number;
   lastLessonAt: string | null;
+  /** Shared takes not heard yet and open questions, for the next lesson. */
+  waitingTakes?: number;
+  openQuestions?: number;
 }
 
 export interface Lesson {

@@ -55,13 +55,13 @@
       <p>You asked {first} for the whole lesson. It opens when they say yes.</p>
       <button class="link" disabled={busy} onclick={() => run(() => api().endFullLesson(current.id))}>Take back</button>
     {:else}
-      <p>You're hearing the <span class="chip accent">Practice this</span> moments and anything {first} sends. The rest of the lesson is {first}'s.</p>
+      <p>You're hearing the <span class="chip practice">Practice this</span> moments and anything {first} sends. The rest of the lesson is {first}'s.</p>
       {#if lastNo}<p class="muted small">{first} said “not this time” on {date(lastNo.decided_at!, { month: 'short', day: 'numeric' })}.</p>{/if}
       {#if asking}
-        <label class="small" for="pass-note">Tell {first} why (optional)</label>
+        <label class="small" for="pass-note">Tell {first} why</label>
         <input id="pass-note" maxlength="500" bind:value={note} placeholder="e.g. Recital in two weeks. I'd like to hear the run-through." />
         <div class="row">
-          <button class="primary" disabled={busy} onclick={() => run(async () => { await api().askFullLesson(lessonId, note); asking = false; note = ''; })}>Ask {first}</button>
+          <button class="primary" disabled={busy || !note.trim()} onclick={() => run(async () => { await api().askFullLesson(lessonId, note); asking = false; note = ''; })}>Ask {first}</button>
           <button class="ghost" disabled={busy} onclick={() => (asking = false)}>Cancel</button>
         </div>
         <p class="muted small">If {first} says yes, you can hear every take for 14 days.</p>

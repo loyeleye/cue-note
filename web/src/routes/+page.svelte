@@ -194,6 +194,12 @@
                 {s.lessonCount} lesson{s.lessonCount === 1 ? '' : 's'}{s.lastLessonAt ? ` · last ${ago(s.lastLessonAt)}` : ''}
               </span>
             </span>
+            {#if s.waitingTakes || s.openQuestions}
+              <span class="chip practice" title="Shared takes you haven't heard, and open questions">
+                {[s.waitingTakes ? `${s.waitingTakes} take${s.waitingTakes === 1 ? '' : 's'}` : '',
+                  s.openQuestions ? `${s.openQuestions} question${s.openQuestions === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ')} waiting
+              </span>
+            {/if}
             {#if s.share.next_lesson_at}<span class="chip">Next: {date(s.share.next_lesson_at)}</span>{/if}
           </a>
         </li>

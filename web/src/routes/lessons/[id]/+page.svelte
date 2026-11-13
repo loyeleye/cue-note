@@ -306,7 +306,7 @@
       <div class="chips">
         <span class="chip">{clock(c.span_start_ms)}</span>
         {#if c.category}<span class="chip">{c.category}</span>{/if}
-        {#if c.practice_flag}<span class="chip accent">{FLAG_LABEL[c.practice_flag]}</span>{/if}
+        {#if c.practice_flag}<span class="chip {c.practice_flag === 'practice_this' ? 'practice' : 'accent'}">{FLAG_LABEL[c.practice_flag]}</span>{/if}
         {#if c.bar_start != null}<span class="chip">{bars(c.bar_start, c.bar_end)}{songTitle(c.song_id) ? ` · ${songTitle(c.song_id)}` : ''}</span>{/if}
       </div>
       {#if c.clip_path}
@@ -413,7 +413,7 @@
               {#if cs.length}
                 <ul class="takeaways">
                   {#each cs.slice(0, 3) as c (c.id)}
-                    <li><a href="#card-{c.id}">{c.cue || c.her_words}</a>{#if c.practice_flag === 'practice_this'} <span class="chip accent">Practice this</span>{/if}</li>
+                    <li><a href="#card-{c.id}">{c.cue || c.her_words}</a>{#if c.practice_flag === 'practice_this'} <span class="chip practice">Practice this</span>{/if}</li>
                   {/each}
                   {#if cs.length > 3}<li class="muted small">and {cs.length - 3} more</li>{/if}
                 </ul>

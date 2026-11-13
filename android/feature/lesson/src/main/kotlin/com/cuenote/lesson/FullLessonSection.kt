@@ -46,12 +46,14 @@ fun FullLessonSection(lessonId: String, repo: FullLessonRepository, teachers: Li
     var reload by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var inviting by remember { mutableStateOf<LessonViewer?>(null) }
+    var busy by remember { mutableStateOf(false) }
     LaunchedEffect(lessonId, reload) {
         passes = runCatching { repo.forLesson(lessonId) }.onFailure { error = "Couldn't check who can hear this lesson. You may be offline." }.getOrNull()
     }
     fun run(f: suspend () -> Unit) = scope.launch {
-        error = null
-        runCatching { f() }.onFailure { error = it.message ?: "That didn't go through." }
+        error = null; busy = true
+        runCatching { f() }.onFailure { error = "That didn't go through. Check you're online and try again." }
+        busy = false
         reload++
     }
     val m = MaterialTheme.colorScheme
@@ -59,12 +61,13 @@ fun FullLessonSection(lessonId: String, repo: FullLessonRepository, teachers: Li
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Who hears this lesson", style = MaterialTheme.typography.titleMedium)
+            if (busy) Text("Sending…", style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
             for (t in teachers) {
                 val p = passes?.firstOrNull { it.teacherId == t.id && it.current() }
                 when {
                     p?.state() == "active" -> {
                         Text("${t.name} can hear all of this lesson until ${day(p.endsAtMs!!)}.", style = MaterialTheme.typography.bodyMedium)
-                        TextButton(onClick = { run { repo.end(p.id) } }) { Text("End it now") }
+                        TextButton(onClick = { run { repo.end(p.id) } }, enabled = !busy) { Text("End it now") }
                     }
                     p != null && p.askedBy == "teacher" -> {
                         Text("${t.name} asked to hear this whole lesson.", style = MaterialTheme.typography.bodyMedium)
@@ -72,20 +75,20 @@ fun FullLessonSection(lessonId: String, repo: FullLessonRepository, teachers: Li
                         Text("If you say yes, they can hear every take for 14 days. You can end it sooner.",
                             style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { run { repo.answer(p.id, true) } }) { Text("Allow for 14 days") }
-                            OutlinedButton(onClick = { run { repo.answer(p.id, false) } }) { Text("Not this time") }
+                            Button(onClick = { run { repo.answer(p.id, true) } }, enabled = !busy) { Text("Allow for 14 days") }
+                            OutlinedButton(onClick = { run { repo.answer(p.id, false) } }, enabled = !busy) { Text("Not this time") }
                         }
                     }
                     p != null -> {
                         Text("Waiting for ${t.name} to accept your invite.", style = MaterialTheme.typography.bodyMedium)
-                        TextButton(onClick = { run { repo.end(p.id) } }) { Text("Take back") }
+                        TextButton(onClick = { run { repo.end(p.id) } }, enabled = !busy) { Text("Take back") }
                     }
                     else -> {
                         Text(
                             "${t.name} hears the notes you're practising and the takes you send. The rest of this lesson is yours.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
-                        TextButton(onClick = { inviting = t }, enabled = passes != null) { Text("Let ${t.name} hear the whole lesson") }
+                        TextButton(onClick = { inviting = t }, enabled = passes != null && !busy) { Text("Let ${t.name} hear the whole lesson") }
                     }
                 }
             }

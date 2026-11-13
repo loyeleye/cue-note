@@ -88,6 +88,8 @@ fun NextLessonScreen(
             .mapNotNull { byId[it.id] }
     }
     var unticked by remember { mutableStateOf(emptySet<String>()) }
+    // What just happened to the offer, until the screen is left.
+    var offerNote by remember { mutableStateOf<String?>(null) }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Next lesson") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
@@ -141,12 +143,16 @@ fun NextLessonScreen(
                                 send.forEach { repo.share(it, true) }
                                 repo.agenda.skip(offer.filter { it.id in unticked }.map { it.id })
                                 unticked = emptySet()
+                                offerNote = (if (send.size == 1) "Sent 1 take." else "Sent ${send.size} takes.") +
+                                    " $whoCap can listen before your lesson. If you're offline, they go when you're back."
                             }
                         }) { Text(if (send.size == 1) "Send 1 take" else "Send ${send.size} takes") }
-                        OutlinedButton(onClick = { repo.agenda.skip(offer.map { it.id }); unticked = emptySet() }) { Text("Not this time") }
+                        OutlinedButton(onClick = { repo.agenda.skip(offer.map { it.id }); unticked = emptySet(); offerNote = "Kept to yourself. Your next takes will be offered before the next lesson." }) { Text("Not this time") }
                     }
                 }
             }
+
+            offerNote?.let { n -> item(key = "offern") { Text(n, color = m.primary, style = MaterialTheme.typography.bodyMedium) } }
 
             item(key = "takesh") { Text("Takes for $who to hear", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
             if (waiting.isEmpty()) {

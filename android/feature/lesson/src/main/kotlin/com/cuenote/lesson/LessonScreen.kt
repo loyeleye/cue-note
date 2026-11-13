@@ -306,7 +306,7 @@ private fun CueCard(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 card.category?.let { TopicChip(Topic.of(it), Topic.of(it)?.label ?: it.replaceFirstChar { c -> c.uppercase() }, Modifier.align(Alignment.CenterVertically)) }
                 when (card.practiceFlag) {
-                    "practice_this" -> Tag("Practice this")
+                    "practice_this" -> PracticeTag()
                     "just_listen" -> Tag("Just listen")
                 }
                 bars(card.barStart, card.barEnd)?.let { Tag(it) }
@@ -353,6 +353,18 @@ private fun TalkCard(card: CardEntity, clip: String?, player: ClipPlayer) {
 @Composable
 private fun Tag(text: String) {
     AssistChip(onClick = {}, label = { Text(text) })
+}
+
+/** "Practice this" in brass, the colour that means "what to work on" on the phone and the dashboard. */
+@Composable
+private fun PracticeTag() {
+    val m = MaterialTheme.colorScheme
+    AssistChip(
+        onClick = {},
+        label = { Text("Practice this", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
+        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(containerColor = m.tertiaryContainer, labelColor = m.onTertiaryContainer),
+        border = androidx.compose.foundation.BorderStroke(1.dp, m.tertiary),
+    )
 }
 
 /** Before cards: a take with the feedback the pipeline linked to it. */
