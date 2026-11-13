@@ -1,0 +1,12 @@
+// Cloudflare runs `npx wrangler deploy` after `npm run build`. The dashboard is
+// static files only: serve build/, and send any other path to index.html so the
+// app's own router handles it.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cue-note",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./build",
+    "not_found_handling": "single-page-application"
+  }
+}
