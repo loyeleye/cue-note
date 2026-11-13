@@ -96,6 +96,23 @@ export interface Take {
   song_id: string | null;
   bar_start: number | null;
   bar_end: number | null;
+  /** The warmup or song section this take is one try of. */
+  exercise_id?: string | null;
+}
+
+/**
+ * One warmup, or one section of a song: the student's tries and her feedback
+ * in between, from setting it up to moving on. Found by the phone.
+ */
+export interface Exercise {
+  id: string;
+  lesson_id: string;
+  start_ms: number;
+  end_ms: number;
+  kind: 'warmup' | 'song';
+  title: string | null;
+  /** Why the phone started a new exercise here. */
+  reason: string;
 }
 
 export interface Feedback {
@@ -118,6 +135,8 @@ export interface Feedback {
   transcript?: string;
   /** Set once a teacher removed the card's audio; the note stays. */
   audio_removed_at?: string | null;
+  /** The exercise it is part of, when the phone grouped the lesson. */
+  exercise_id?: string | null;
 }
 
 /** The fields a teacher may change on a card; also what a version stores. */

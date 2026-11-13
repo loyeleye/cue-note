@@ -1,5 +1,6 @@
 package com.cuenote.data.pipeline
 
+import com.cuenote.data.ExerciseEntity
 import com.cuenote.data.FeedbackEntity
 import com.cuenote.data.PipelineDao
 import com.cuenote.data.PipelineStageEntity
@@ -29,15 +30,16 @@ object ResultImporter {
             segments = out.segments.map { SegmentEntity(lessonId, it.startMs, it.endMs, it.label.short) },
             takes = out.takes.map {
                 TakeEntity(it.id, lessonId, it.startMs, it.endMs, pitchContourJson(it.pitchHz),
-                    json.encodeToString(floats, it.pitchConfidence), it.withPiano)
+                    json.encodeToString(floats, it.pitchConfidence), it.withPiano, it.exerciseId)
             },
             feedback = out.feedback.map { fb ->
                 val words = out.transcript.filter { it.speaker == Speaker.TEACHER && it.startMs < fb.endMs && it.endMs > fb.startMs }
                     .joinToString(" ") { it.text }
                 FeedbackEntity(fb.id, lessonId, fb.takeId, fb.startMs, fb.endMs, fb.linkConfidence, fb.linkReason,
-                    json.encodeToString(ListSerializer(Demo.serializer()), fb.demos), words)
+                    json.encodeToString(ListSerializer(Demo.serializer()), fb.demos), words, fb.exerciseId)
             },
             lines = out.transcript.map { TranscriptLineEntity(lessonId, it.startMs, it.endMs, it.speaker.name.lowercase(), it.text) },
+            exercises = out.exercises.map { ExerciseEntity(it.id, lessonId, it.startMs, it.endMs, it.kind, it.reason) },
         )
         importStages(dao, lessonId, state)
     }

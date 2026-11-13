@@ -34,7 +34,32 @@ data class Take(
     val pitchConfidence: List<Float> = emptyList(),
     /** True when the piano was playing during the take (accompanied). */
     val withPiano: Boolean = false,
+    /** The warmup or song section this take is one try of. */
+    val exerciseId: String? = null,
 )
+
+/**
+ * One warmup, or one section of a song: the student's tries at it and all
+ * her feedback in between, from her setting it up to moving on. Feedback
+ * often runs across several tries while they work something out, so a card
+ * belongs to the exercise as a whole and, when it clearly is, to one try.
+ */
+@Serializable
+data class Exercise(
+    val id: String,
+    val startMs: Long,
+    val endMs: Long,
+    /** "warmup" or "song"; a first guess from how long the tries run. */
+    val kind: String,
+    val takeIds: List<String>,
+    /** Why a new exercise starts here (a long break, or what she said). */
+    val reason: String = "",
+) {
+    companion object {
+        const val WARMUP = "warmup"
+        const val SONG = "song"
+    }
+}
 
 /** The teacher singing a phrase for the student to copy, inside a feedback block. */
 @Serializable
@@ -61,6 +86,8 @@ data class FeedbackBlock(
     val linkConfidence: Float = 0f,
     val linkReason: String = "",
     val demos: List<Demo> = emptyList(),
+    /** The exercise this feedback is part of, or null between exercises (the opening chat). */
+    val exerciseId: String? = null,
 )
 
 @Serializable

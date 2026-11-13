@@ -2,6 +2,7 @@ package com.cuenote.data.sync
 
 import com.cuenote.data.AuthRepository
 import com.cuenote.data.CardEntity
+import com.cuenote.data.ExerciseEntity
 import com.cuenote.data.LessonEntity
 import com.cuenote.data.LessonTeacher
 import com.cuenote.data.TakeEntity
@@ -114,7 +115,33 @@ class CloudSync(private val auth: AuthRepository) {
         @SerialName("clip_path") val clipPath: String?,
         @SerialName("pitch_contour") val pitchContour: JsonElement?,
         @SerialName("pitch_confidence") val pitchConfidence: JsonElement?,
+        @SerialName("exercise_id") val exerciseId: String? = null,
     )
+
+    @Serializable
+    private data class ExerciseRow(
+        val id: String,
+        @SerialName("lesson_id") val lessonId: String,
+        @SerialName("start_ms") val startMs: Long,
+        @SerialName("end_ms") val endMs: Long,
+        val kind: String,
+        val reason: String,
+    )
+
+    /**
+     * Creates or updates the lesson's exercises and removes ones the phone no
+     * longer finds. A title given on the dashboard stays, since it isn't sent.
+     */
+    suspend fun putExercises(lessonId: String, exercises: List<ExerciseEntity>) {
+        val rows = exercises.filter { it.endMs > it.startMs }.map {
+            ExerciseRow(CloudIds.exercise(it.id), lessonId, it.startMs, it.endMs, it.kind, it.reason)
+        }
+        if (rows.isNotEmpty()) client.from("exercise").upsert(rows) { onConflict = "id" }
+        val keep = rows.map { it.id }.toSet()
+        val stale = client.from("exercise").select(Columns.list("id")) { filter { eq("lesson_id", lessonId) } }
+            .decodeList<IdRow>().map { it.id }.filter { it !in keep }
+        if (stale.isNotEmpty()) client.from("exercise").delete { filter { isIn("id", stale) } }
+    }
 
     @Serializable
     private data class IdRow(val id: String)
@@ -131,6 +158,7 @@ class CloudSync(private val auth: AuthRepository) {
                 clipPath = clipPath(it.id),
                 pitchContour = runCatching { json.parseToJsonElement(it.pitchContour) }.getOrNull(),
                 pitchConfidence = runCatching { json.parseToJsonElement(it.pitchConfidence) }.getOrNull(),
+                exerciseId = it.exerciseId?.let(CloudIds::exercise),
             )
         }
         if (rows.isNotEmpty()) client.from("take").upsert(rows) { onConflict = "id" }

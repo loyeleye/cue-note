@@ -6,7 +6,7 @@ import { EditConflict, scoreFormatOf } from './api';
 import type { CardFields, CardVersion, DiagramSuggestion, Feedback, Profile, StorageRow, Teacher } from './types';
 import { CARD_FIELDS } from './types';
 import {
-  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, initialDemoState, type DemoState
+  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, demoExercises, initialDemoState, type DemoState
 } from './demo-data';
 import { wavFor } from './tone';
 
@@ -176,6 +176,10 @@ export const demoApi: Api = {
   },
   async getLesson(lessonId) { return load().lessons.find((l) => l.id === lessonId) ?? null; },
   async listTakes(lessonId) { return load().takes.filter((t) => t.lesson_id === lessonId).sort((a, b) => a.start_ms - b.start_ms); },
+  async listExercises(lessonId) {
+    const s = load();
+    return (s.exercises ??= demoExercises()).filter((e) => e.lesson_id === lessonId).sort((a, b) => a.start_ms - b.start_ms);
+  },
   async listFeedback(lessonId) { return load().feedback.filter((f) => f.lesson_id === lessonId).sort((a, b) => a.span_start_ms - b.span_start_ms); },
   async listDiagramSuggestions(lessonId) {
     const s = load();

@@ -2,7 +2,7 @@
 // their AI originals, notes, practice and a song with a score. Nothing here
 // touches the real database. Dates are relative to today so it looks fresh.
 import type {
-  Annotation, CardVersion, Checkpoint, Comment, DiagramSuggestion, Feedback, Lesson, PhotoMark, PracticeItem,
+  Annotation, CardVersion, Checkpoint, Comment, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark, PracticeItem,
   PracticeSession, Profile, Score, Share, SharedTake, Song, StudentQuestion, Take
 } from './types';
 import { contourFor, type Note } from './tone';
@@ -81,6 +81,8 @@ export interface DemoState {
   photos: PhotoMark[];
   /** Missing from demo states saved before suggested diagrams. */
   suggestions?: DiagramSuggestion[];
+  /** Missing from demo states saved before exercises. */
+  exercises?: Exercise[];
   comments: Comment[];
   practice: PracticeItem[];
   /** The next lesson's agenda; missing from demo states saved before it. */
@@ -367,4 +369,17 @@ export function demoAgenda(): Pick<DemoState, 'practiceSessions' | 'sharedTakes'
         answered_at: at(2, 9), created_at: at(3, 8, 20) }
     ]
   };
+}
+
+/** The demo lessons as the phone groups them: a warmup, then the song. */
+export function demoExercises(): Exercise[] {
+  const ex = (id: string, lesson_id: string, start: number, end: number, kind: Exercise['kind'], title: string | null): Exercise =>
+    ({ id, lesson_id, start_ms: start, end_ms: end, kind, title, reason: '' });
+  return [
+    ex('demo-ex-1', L1, min(1, 40), min(5, 30), 'warmup', 'Hum into "ah", five-note scale'),
+    ex('demo-ex-2', L1, min(6, 20), min(23, 0), 'song', null),
+    ex('demo-ex-3', L2, min(2, 30), min(9, 0), 'warmup', null),
+    ex('demo-ex-4', L2, min(11, 0), min(22, 0), 'song', null),
+    ex('demo-ex-5', L3, min(4, 0), min(8, 0), 'warmup', null)
+  ];
 }
