@@ -107,6 +107,9 @@ interface PipelineDao {
     @Query("select * from feedback where lessonId = :lessonId order by spanStartMs")
     fun observeFeedback(lessonId: String): Flow<List<FeedbackEntity>>
 
+    @Query("select * from feedback where lessonId = :lessonId order by spanStartMs")
+    suspend fun feedback(lessonId: String): List<FeedbackEntity>
+
     @Query("select * from take where lessonId = :lessonId order by startMs")
     suspend fun takes(lessonId: String): List<TakeEntity>
 

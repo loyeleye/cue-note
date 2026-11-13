@@ -119,6 +119,8 @@ fun HomeScreen(
     /** What's ready for the next lesson; null hides the row (no teacher yet). */
     nextLesson: NextLessonPeek? = null,
     onNextLesson: () -> Unit = {},
+    /** Today's suggested practice (the check-in), shown above the setlist when there are notes. */
+    today: (@Composable () -> Unit)? = null,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val player = rememberClipPlayer()
@@ -163,8 +165,9 @@ fun HomeScreen(
                     onPractice = onPractice,
                     nextLesson = nextLesson,
                     onNextLesson = onNextLesson,
+                    today = today,
                 )
-                1 -> setlistTab(setlist, teacherName, player, onPractice)
+                1 -> setlistTab(setlist, teacherName, player, onPractice, today)
                 else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen)
             }
         }
@@ -192,6 +195,7 @@ private fun LazyListScope.homeTab(
     onPractice: (String) -> Unit,
     nextLesson: NextLessonPeek?,
     onNextLesson: () -> Unit,
+    today: (@Composable () -> Unit)?,
 ) {
     val firstRun = lessons.isEmpty()
     val last = lessons.firstOrNull()
@@ -225,6 +229,7 @@ private fun LazyListScope.homeTab(
     item(key = "sech") {
         SectionHead("This week's setlist", if (setlist.size > HOME_NOTES) "All ${setlist.size} notes" else null, onAllNotes)
     }
+    if (setlist.isNotEmpty() && !recordingInProgress) today?.let { t -> item(key = "today") { t() } }
     if (setlist.isEmpty()) {
         item(key = "empty") {
             EmptySetlist(firstRun, last?.takeIf { it.pipelineState == "processing" || it.pipelineState == "recorded" } != null, last?.let { teacherName(it.id) })
@@ -254,12 +259,14 @@ private fun LazyListScope.setlistTab(
     teacherName: (String) -> String?,
     player: ClipPlayer,
     onPractice: (String) -> Unit,
+    today: (@Composable () -> Unit)?,
 ) {
     item(key = "mast") { Masthead("Your ", "setlist") }
     if (setlist.isEmpty()) {
         item(key = "empty") { EmptySetlist(firstRun = false, notesOnTheWay = false, teacher = null) }
         return
     }
+    today?.let { t -> item(key = "today") { t() } }
     item(key = "hint") {
         Text(
             "What your teacher asked you to practice, newest first. Switch a note off in its lesson once you've got it.",

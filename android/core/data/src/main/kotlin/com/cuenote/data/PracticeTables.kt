@@ -16,6 +16,36 @@ import kotlinx.coroutines.flow.Flow
  * teacher, and their questions (PracticeSyncWorker).
  */
 
+/**
+ * One sitting of suggested practice: how the voice felt, the plan the phone
+ * made from the teacher's notes, and how far the student got. Kept on the
+ * phone; [synced] marks whether the teacher's log has it yet.
+ */
+@Entity(tableName = "practice_plan", primaryKeys = ["id"])
+data class PracticePlanEntity(
+    val id: String,
+    /** The student's local day, yyyy-MM-dd, for "Done today" and picking up where they left off. */
+    val day: String,
+    val startedAt: Long,
+    val updatedAt: Long,
+    /** Set once the sitting ended, finished or not. */
+    val endedAt: Long?,
+    /** "FINE", "TIRED" or "HOARSE". */
+    val voice: String,
+    /** The length picked. */
+    val minutes: Int,
+    /** The plan's steps, as JSON (List<PlanStep>). */
+    val steps: String,
+    /** The step the student is on. */
+    val stepIndex: Int,
+    /** Steps done (Next), and the indexes skipped, as a JSON array. */
+    val done: Int,
+    val skipped: String,
+    /** "Still feel easy?" has been asked. */
+    val easyChecked: Boolean,
+    val synced: Boolean = false,
+)
+
 /** One sitting of practice. A new take within [PracticeRepository.SESSION_GAP_MS] of the last joins it. */
 @Entity(tableName = "practice_session", primaryKeys = ["id"])
 data class PracticeSessionEntity(
@@ -135,6 +165,27 @@ interface PracticeDao {
 
     @Query("delete from practice_take where lessonId = :lessonId") suspend fun deleteLessonTakes(lessonId: String)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlan(p: PracticePlanEntity)
+
+    @Query("select * from practice_plan where id = :id") suspend fun plan(id: String): PracticePlanEntity?
+
+    /** Today's latest sitting of suggested practice, if any. */
+    @Query("select * from practice_plan where day = :day order by startedAt desc limit 1")
+    fun observeLatestPlan(day: String): Flow<PracticePlanEntity?>
+
+    @Query("select * from practice_plan where startedAt >= :since order by startedAt")
+    suspend fun plansSince(since: Long): List<PracticePlanEntity>
+
+    @Query("select * from practice_plan where synced = 0 and endedAt is not null")
+    suspend fun plansToSync(): List<PracticePlanEntity>
+
+    @Query("update practice_plan set synced = 1 where id = :id and updatedAt = :updatedAt")
+    suspend fun markPlanSynced(id: String, updatedAt: Long)
+
+    /** When each card last had a practice take, for spacing the plan. */
+    @Query("select cardId, max(recordedAt) as at from practice_take where deleted = 0 group by cardId")
+    suspend fun lastTakes(): List<LastTake>
+
     @Query("select * from practice_session order by endedAt desc limit 1")
     suspend fun lastSession(): PracticeSessionEntity?
 
@@ -157,3 +208,6 @@ interface PracticeDao {
 
     @Query("delete from practice_question where lessonId = :lessonId") suspend fun deleteLessonQuestions(lessonId: String)
 }
+
+/** The latest practice take of a card. */
+data class LastTake(val cardId: String, val at: Long)

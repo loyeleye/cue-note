@@ -42,6 +42,7 @@ class CueNoteApp : Application() {
     lateinit var posture: PostureLink private set
     lateinit var practicePosture: PracticePosture private set
     lateinit var practice: PracticeRepository private set
+    lateinit var plans: com.cuenote.data.PracticePlans private set
     lateinit var deviceTokens: DeviceTokens private set
 
     /** A lesson to open, from a tapped "card updated" notification; the nav clears it once shown. */
@@ -57,6 +58,7 @@ class CueNoteApp : Application() {
         val db = LessonDatabase.get(this)
         lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.cards(), db.photos(), db.practice())
         practice = PracticeRepository(this, db.practice(), db.cards())
+        plans = com.cuenote.data.PracticePlans(db.practice(), db.cards(), db.pipeline())
         sketches = SketchRepository(this, db.photos())
         diagrams = DiagramRepository(AuthRepository.get())
         consent = ConsentStore(this)

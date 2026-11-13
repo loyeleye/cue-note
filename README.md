@@ -450,6 +450,29 @@ the shared takes to hear (with how it felt and one line on pitch, no
 numbers), and the questions to answer in words or mark as covered in the
 lesson.
 
+**Suggested practice.** At the top of the setlist (and on Home), **Today's
+practice** asks how the voice feels (Fine / A bit tired / Hoarse or sore,
+nothing picked for the student) and how long they have (10 or 20 minutes; 30
+once a teacher allows it). The phone then puts the teacher's own "practice
+this" notes in an order for today (`PracticePlan` in `:core:pipeline`, tested
+on the JVM): a gentle start, her latest warmup, one to three notes, the song
+section they belong to, and a cool-down. The gentle start and cool-down are
+never cut. Notes are ranked by her pin first, then how worth drilling the card
+writer judged them (only once she said Yes or Close, or wrote the summary;
+an unchecked weight counts zero), how often she made the point, and spacing
+(a note not sung for a few days rises, one sung today drops). The app never
+adds a note. Its reason shows small, as "App's pick: not sung since
+Tuesday". A tired voice gets about 12 minutes in the middle of the range: the
+warmup's lower half, no song, and notes about high or loud singing turned into
+listening. A hoarse or sore voice gets listening only, with a "don't whisper
+along" and when to see a doctor. Each step runs on the practice screen with a
+step bar, Skip and Next, and the screen stays on. "Still feel easy?" comes
+once, between steps about halfway; "A bit tired" goes to the cool-down, never
+to the song. The end says what was done, never what was missed. Each sitting
+is kept in `practice_plan` (Room 12 to 13), so it can be picked up within the
+hour. The concept, mockups and panel reviews are in the project files under
+`suggested-practice/`.
+
 **Posture during practice.** **Watch my posture** on the practice screen
 uses the lesson's posture tracking (`PostureService`, MediaPipe on the
 phone). Switching it on runs the framing check from the student's singing

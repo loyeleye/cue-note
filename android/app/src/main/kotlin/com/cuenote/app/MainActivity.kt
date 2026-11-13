@@ -40,7 +40,10 @@ import com.cuenote.lesson.SketchScreen
 import com.cuenote.lesson.TimelineScreen
 import com.cuenote.posture.PostureSetup
 import com.cuenote.practice.NextLessonScreen
+import com.cuenote.practice.PlanRunScreen
+import com.cuenote.practice.PlanScreen
 import com.cuenote.practice.PracticeScreen
+import com.cuenote.practice.TodayCard
 import com.cuenote.practice.TimingCheckScreen
 import com.cuenote.record.AgeBlockedScreen
 import com.cuenote.record.AgeGateScreen
@@ -231,6 +234,19 @@ private fun AppNav(app: CueNoteApp) {
                 onPractice = { cardId -> withPermission { nav.navigate("practice/$cardId") } },
                 nextLesson = if (!sharing) null else NextLessonPeek(nextLessonAt, waiting.size, questions.count { it.open }),
                 onNextLesson = { nav.navigate("next") },
+                today = {
+                    TodayCard(
+                        plans = app.plans,
+                        teacher = onlyTeacher,
+                        onStart = { voice, minutes ->
+                            scope.launch {
+                                val id = app.plans.start(setlist, voice, minutes, nextLessonAt)
+                                nav.navigate("plan/$id")
+                            }
+                        },
+                        onResume = { id -> withPermission { nav.navigate("plan/$id/run") } },
+                    )
+                },
                 modelStatus = modelStatus(app.lessons.modelsReady(), download),
                 onDownloadModels = if (app.lessons.modelsReady() || download?.first == WorkInfo.State.RUNNING ||
                     download?.first == WorkInfo.State.ENQUEUED
@@ -319,6 +335,35 @@ private fun AppNav(app: CueNoteApp) {
                 },
                 onTimingCheck = { nav.navigate("timing") },
                 onBack = { nav.popBackStack() },
+            )
+        }
+        composable("plan/{id}") { entry ->
+            val id = entry.arguments?.getString("id")!!
+            PlanScreen(
+                planId = id,
+                plans = app.plans,
+                repo = app.practice,
+                teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId, teacherVersion) },
+                onStart = { withPermission { nav.navigate("plan/$id/run") { popUpTo("plan/$id") { inclusive = true } } } },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable("plan/{id}/run") { entry ->
+            PlanRunScreen(
+                planId = entry.arguments?.getString("id")!!,
+                plans = app.plans,
+                repo = app.practice,
+                teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId, teacherVersion) },
+                lessonRecording = recState is RecordingState.Recording,
+                sharing = sharing,
+                posture = app.practicePosture,
+                onFraming = {
+                    afterCamera.value = { granted -> if (granted) nav.navigate("framing-practice") }
+                    cameraPermission.launch(Manifest.permission.CAMERA)
+                },
+                onTimingCheck = { nav.navigate("timing") },
+                onShare = { cardId -> nav.navigate("practice/$cardId") { popUpTo("home") } },
+                onDone = { nav.popBackStack("home", false) },
             )
         }
         composable("next") {
