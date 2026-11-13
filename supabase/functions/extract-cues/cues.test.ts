@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  ANSWER_SCHEMA, tidySummary, batches, batchesByExercise, CATEGORIES, exerciseTitles, labelExercises, check, costUsd, examplesText, invalidRequest, labelBlocks, lessonText,
+  ANSWER_SCHEMA, tidySummary, sungDuring, batches, batchesByExercise, CATEGORIES, exerciseTitles, labelExercises, check, costUsd, examplesText, invalidRequest, labelBlocks, lessonText,
   samePayload, supportsFallback, verbatim, diagramPick, DIAGRAM_MIN_CONFIDENCE, SYSTEM_PROMPT,
   type ModelCard, type Request, type TakeRow,
 } from './cues.ts';
@@ -235,4 +235,27 @@ test('summaries are tidied, weights clamped, and chat gets neither', () => {
 
 test('summaries use American spelling', () => {
   assert.equal(tidySummary('Practise this daily; keep practising what you practised.'), 'Practice this daily; keep practicing what you practiced.');
+});
+
+test('the lesson text shows what the student sang on each take, once', () => {
+  const labels = labelBlocks(sample.request.blocks);
+  const t1 = sample.takes[0];
+  const lines = [
+    ...sample.request.transcript,
+    { speaker: 'teacher' as const, start_ms: 5_000, end_ms: 9_000, text: 'Mary, Did You Know is a song I love.' },
+    { speaker: 'student' as const, start_ms: t1.start_ms + 1_000, end_ms: t1.start_ms + 6_000, text: 'Oh the weather outside is frightful' },
+  ];
+  const text = lessonText(labels, sample.takes, lines);
+  assert.match(text, /T1, the student sings: “Oh the weather outside is frightful”\nB2 /);
+  assert.equal(text.match(/T1, the student sings/g)!.length, 1);
+  // the mention stays a teacher line, not a sung one
+  assert.doesNotMatch(text, /sings: “Mary/);
+});
+
+test('sung lines are trimmed to a short line', () => {
+  const long = Array.from({ length: 80 }, () => ({ speaker: 'student' as const, start_ms: 1, end_ms: 2, text: 'let it snow' }));
+  const out = sungDuring({ id: 't', start_ms: 0, end_ms: 10 }, long);
+  assert.ok(out.length <= 200);
+  assert.match(out, /…$/);
+  assert.equal(sungDuring({ id: 't', start_ms: 100, end_ms: 200 }, long), '');
 });

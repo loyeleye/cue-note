@@ -209,7 +209,7 @@ For each block, write:
 
 Write exactly one card for every block, in order, and use the block labels exactly as given. The student's lines are context only; never take a cue from them.
 
-The lesson is split into exercises under headings such as "== E2: a warmup ==". For every exercise heading you see, also give the exercise a title of 2 to 6 words that a singer would recognise: what was sung and how, such as "Lip trill on a 5-note scale", "Ng hum, sliding up" or "Morning Light, first verse". Use the song's name when she or the student says it. Never invent details you can't hear in the lesson; "Warmup on oo" is better than a guess.
+The lesson is split into exercises under headings such as "== E2: a warmup ==". For every exercise heading you see, also give the exercise a title of 2 to 6 words that a singer would recognise: what was sung and how, such as "Lip trill on a 5-note scale", "Ng hum, sliding up" or "Morning Light, first verse". Name the song from what the student actually sings: the "Student sings" lines under each take are the lyrics as heard. Use a song's name only when those lyrics are from it, or when she or the student says that's the song they are about to sing or just sang. A title she only mentions (a song she likes, one to listen to, one for another week) is not the song sung, so never name an exercise after it. If the lyrics don't tell you the song, describe it instead ("Song, first verse"). Never invent details you can't hear in the lesson; "Warmup on oo" is better than a guess.
 
 The diagram library (id: what it shows):
 ${DIAGRAMS.map((d) => `${d.id}: ${d.title}. ${d.shows}.`).join('\n')}`;
@@ -236,6 +236,7 @@ export function lessonText(labels: Map<string, Block>, takes: TakeRow[], lines: 
   const exNo = new Map([...exercises].sort((a, b) => a.start_ms - b.start_ms).map((e, i) => [e.id, i + 1]));
   const out: string[] = [];
   let lastEx: string | null | undefined;
+  const sungShown = new Set<string>();
   for (const [label, b] of labels) {
     if (only && !only.has(label)) continue;
     const ex = b.exercise_id && exNo.has(b.exercise_id) ? b.exercise_id : null;
@@ -248,6 +249,12 @@ export function lessonText(labels: Map<string, Block>, takes: TakeRow[], lines: 
     const about = take
       ? `after take T${takeNo.get(take.id)} (the student sang ${clock(take.start_ms)}–${clock(take.end_ms)})`
       : 'not after a take (opening or closing talk)';
+    // What the student sang on this take, once: the lyrics name the song better than any title she mentions.
+    if (take && !sungShown.has(take.id)) {
+      sungShown.add(take.id);
+      const sung = sungDuring(take, lines);
+      if (sung) out.push(`T${takeNo.get(take.id)}, the student sings: “${sung}”`);
+    }
     out.push(`${label} at ${clock(b.span_start_ms)}, ${about}${b.demos > 0 ? `, she sings ${b.demos} demo${b.demos > 1 ? 's' : ''}` : ''}:`);
     const said = lines.filter((l) => l.start_ms < b.span_end_ms && l.end_ms > b.span_start_ms && l.text.trim());
     if (said.length === 0) out.push(b.transcript.trim() ? `  Teacher: ${b.transcript.trim()}` : '  (nothing transcribed)');
@@ -255,6 +262,14 @@ export function lessonText(labels: Map<string, Block>, takes: TakeRow[], lines: 
     out.push('');
   }
   return out.join('\n').trim();
+}
+
+/** The words heard while the student sang a take (the lyrics), trimmed to a short line. */
+export function sungDuring(take: TakeRow, lines: Line[], max = 200): string {
+  const words = lines
+    .filter((l) => l.start_ms < take.end_ms && l.end_ms > take.start_ms && l.text.trim())
+    .map((l) => l.text.trim()).join(' ').replace(/\s+/g, ' ');
+  return words.length > max ? words.slice(0, max - 1).trimEnd() + '…' : words;
 }
 
 /** Past corrections as worked examples, newest first, kept short. */
