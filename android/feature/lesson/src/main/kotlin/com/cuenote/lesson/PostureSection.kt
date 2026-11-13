@@ -42,7 +42,7 @@ internal fun LazyListScope.postureSection(lessonDir: File) {
             )
             if (summary.rebaselines.isNotEmpty()) {
                 val why = summary.rebaselines.groupingBy {
-                    when (it.why) { "manual" -> "recalibrated"; "moved" -> "phone moved"; "photo" -> "after a photo"; else -> it.why }
+                    when (it.why) { "manual" -> "posture reset"; "moved" -> "phone moved"; "photo" -> "after a photo"; else -> it.why }
                 }.eachCount()
                 Text(
                     "New baseline: " + why.entries.joinToString { (w, n) -> if (n == 1) w else "$w ($n times)" },

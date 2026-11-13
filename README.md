@@ -139,7 +139,7 @@ adds a camera step after "Who's on which mic?":
    fresh baseline from the student's first three seconds back in view. It
    does the same after an in-app photo. Which way up the phone is comes from
    gravity, so a sideways mount works even with auto-rotate off.
-   **Recalibrate posture** on the recording screen is for a lesson that's
+   **Reset posture** on the recording screen is for a lesson that's
    about posture: a spoken framing check like the first one, whose result
    becomes the new baseline.
 5. **Audio always wins.** Posture pauses when the phone gets warm (Android's

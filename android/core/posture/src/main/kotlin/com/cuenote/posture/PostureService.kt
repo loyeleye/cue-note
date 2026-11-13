@@ -74,7 +74,7 @@ class PostureService : LifecycleService() {
     private var baseline: PostureMetrics? = null
     /** Quietly taking a new baseline after the phone moved or a photo, with why. */
     private var settler: Pair<BaselineSettler, String>? = null
-    /** The spoken "Recalibrate posture" check, and when its countdown ends. */
+    /** The spoken "Reset posture" check, and when its countdown ends. */
     private var calibration: Pair<FramingCheck, Long>? = null
     private val motion = MotionWatch()
     /** Which way up the phone is now, from gravity; null until known. */
@@ -204,7 +204,7 @@ class PostureService : LifecycleService() {
         broadcast(
             when {
                 reason != null -> "paused: $reason"
-                calibrating -> "recalibrating"
+                calibrating -> "resetting"
                 cameraOn && settler != null -> "finding the student again"
                 cameraOn -> "watching"
                 else -> "waiting for singing"
