@@ -41,12 +41,12 @@
   <section class="pass card" class:open={current && current.status === 'active'} aria-label="Who hears this lesson">
     {#if current?.status === 'active'}
       <p><strong>You can hear all of this lesson until {date(current.ends_at!, { weekday: 'long', month: 'long', day: 'numeric' })}.</strong>
-        {first} said yes{current.note ? `: “${current.note}”` : '.'}</p>
+        {current.asked_by === 'student' ? `You accepted ${first}'s invite.` : `${first} said yes.`}</p>
       <button class="link" disabled={busy} onclick={() => run(() => api().endFullLesson(current.id), true)}>End it now</button>
     {:else if current?.asked_by === 'student'}
       <p><strong>{first} invited you to hear this whole lesson.</strong>
         {#if current.note}<span class="quote">“{current.note}”</span>{/if}
-        It stays open for 14 days.</p>
+        If you accept, you can hear every take until {date(new Date(Date.now() + 14 * 86_400_000).toISOString(), { weekday: 'short', month: 'short', day: 'numeric' })}.</p>
       <div class="row">
         <button class="primary" disabled={busy} onclick={() => run(() => api().answerFullLesson(current.id, true), true)}>Accept</button>
         <button class="ghost" disabled={busy} onclick={() => run(() => api().answerFullLesson(current.id, false))}>Not this time</button>
@@ -58,8 +58,8 @@
       <p>You're hearing the <span class="chip accent">Practice this</span> moments and anything {first} sends. The rest of the lesson is {first}'s.</p>
       {#if lastNo}<p class="muted small">{first} said “not this time” on {date(lastNo.decided_at!, { month: 'short', day: 'numeric' })}.</p>{/if}
       {#if asking}
-        <label class="small" for="pass-note">Why, so {first} knows (optional)</label>
-        <input id="pass-note" maxlength="500" bind:value={note} placeholder="Recital in two weeks. I'd like to hear the run-through." />
+        <label class="small" for="pass-note">Tell {first} why (optional)</label>
+        <input id="pass-note" maxlength="500" bind:value={note} placeholder="e.g. Recital in two weeks. I'd like to hear the run-through." />
         <div class="row">
           <button class="primary" disabled={busy} onclick={() => run(async () => { await api().askFullLesson(lessonId, note); asking = false; note = ''; })}>Ask {first}</button>
           <button class="ghost" disabled={busy} onclick={() => (asking = false)}>Cancel</button>

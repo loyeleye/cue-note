@@ -152,12 +152,12 @@
       {#each passInvites as p (p.id)}
         <div class="card request pending">
           <span>
-            <strong>{nameOf(p.student_id)}</strong> invited you to hear their <a href="/lessons/{p.lesson_id}">whole lesson</a>, open for 14 days.
+            <strong>{nameOf(p.student_id)}</strong> invited you to hear their <a href="/lessons/{p.lesson_id}">whole lesson</a>. If you accept, you can hear every take for 14 days.
             {#if p.note}<span class="muted">“{p.note}”</span>{/if}
           </span>
           <span class="actions">
             <button class="primary small" onclick={() => answerPass(p, true)}>Accept</button>
-            <button class="small" onclick={() => answerPass(p, false)}>Not this time</button>
+            <button class="ghost small" onclick={() => answerPass(p, false)}>Not this time</button>
           </span>
         </div>
       {/each}

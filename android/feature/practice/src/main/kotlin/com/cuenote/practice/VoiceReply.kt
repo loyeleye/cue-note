@@ -38,12 +38,12 @@ fun TeacherReply(
     var fetching by remember(clipPath) { mutableStateOf(false) }
     var failed by remember(clipPath) { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (words != null) Text("$teacher: $words", color = m.primary, style = MaterialTheme.typography.bodyMedium)
+        if (words != null) Text("$teacher: $words", style = MaterialTheme.typography.bodyMedium)
         if (clipPath != null) {
             PlayPill(
                 if (fetching) "Getting $teacher's reply…" else "$teacher's voice reply",
                 playing = local != null && player.playing == local,
-                filled = true,
+                filled = false,
                 onClick = {
                     local?.let { player.toggle(it); return@PlayPill }
                     if (fetching) return@PlayPill

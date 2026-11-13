@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -113,7 +114,7 @@ fun NextLessonScreen(
             }
 
             if (sharing && offer.isNotEmpty()) {
-                item(key = "offerh") { Text("Send $who your homework takes?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
+                item(key = "offerh") { Text("Send $who your practice takes?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
                 item(key = "offer0") {
                     Text(
                         "Your latest go at each note $who asked you to practise. Untick any you'd rather keep to yourself.",
@@ -122,13 +123,14 @@ fun NextLessonScreen(
                 }
                 items(offer, key = { "o-" + it.id }) { t ->
                     val on = t.id !in unticked
-                    TicketRow {
-                        Checkbox(checked = on, onCheckedChange = { unticked = if (it) unticked - t.id else unticked + t.id })
-                        PlayPill("Play", player.playing == t.file, filled = false, onClick = { player.toggle(t.file) })
+                    // The whole row ticks; Play sits at the far end so it isn't hit by mistake.
+                    TicketRow(onClick = { unticked = if (on) unticked + t.id else unticked - t.id }) {
+                        Checkbox(checked = on, onCheckedChange = null)
                         Column(Modifier.weight(1f)) {
                             Text(about(t.cardId) ?: "A practice take", style = MaterialTheme.typography.titleSmall, maxLines = 2)
                             Text("${dayAndTime(t.recordedAt)} · ${clock(t.durationMs)}", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                         }
+                        PlayPill("Play", player.playing == t.file, filled = false, onClick = { player.toggle(t.file) })
                     }
                 }
                 item(key = "offerb") {
@@ -141,7 +143,7 @@ fun NextLessonScreen(
                                 unticked = emptySet()
                             }
                         }) { Text(if (send.size == 1) "Send 1 take" else "Send ${send.size} takes") }
-                        TextButton(onClick = { repo.agenda.skip(offer.map { it.id }); unticked = emptySet() }) { Text("Not this time") }
+                        OutlinedButton(onClick = { repo.agenda.skip(offer.map { it.id }); unticked = emptySet() }) { Text("Not this time") }
                     }
                 }
             }

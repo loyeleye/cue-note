@@ -103,13 +103,13 @@ fun FullLessonSection(lessonId: String, repo: FullLessonRepository, teachers: Li
                     Text("Once they accept, they can hear every take for 14 days. Either of you can end it sooner.")
                     OutlinedTextField(
                         value = note, onValueChange = { note = it.take(500) },
-                        label = { Text("Why (optional)") },
-                        placeholder = { Text("Recital on the 30th") },
+                        label = { Text("Tell ${t.name} why (optional)") },
+                        placeholder = { Text("e.g. Recital on the 30th") },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
             },
-            confirmButton = { TextButton(onClick = { inviting = null; run { repo.invite(lessonId, t.id, note) } }) { Text("Send invite") } },
+            confirmButton = { Button(onClick = { inviting = null; run { repo.invite(lessonId, t.id, note) } }) { Text("Send invite") } },
             dismissButton = { TextButton(onClick = { inviting = null }) { Text("Cancel") } },
         )
     }

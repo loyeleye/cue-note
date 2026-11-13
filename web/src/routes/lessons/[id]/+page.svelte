@@ -46,6 +46,7 @@
   let watch: LessonWatch | null = null;
 
   const me = $derived(app.me?.id ?? null);
+  const n = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
   const others = $derived(present.filter((p) => p.id !== me));
 
   $effect(() => {
@@ -372,7 +373,7 @@
       </div>
     {/if}
   </div>
-  <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${exercises.length} exercises` : ''} · {takes.length} takes · {cards.length} cards. Every save keeps the earlier version.</p>
+  <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${n(exercises.length, 'exercise')}` : ''} · {n(takes.length, 'take')} · {n(cards.length, 'card')}. Every save keeps the earlier version.</p>
   {#if teachers.length > 1 || (!lesson.taught_by && lesson.teacher_name)}
     <p class="taught">
       {#if lesson.taught_by}
@@ -412,7 +413,7 @@
               {#if cs.length}
                 <ul class="takeaways">
                   {#each cs.slice(0, 3) as c (c.id)}
-                    <li><a href="#card-{c.id}">{c.cue || c.her_words}</a>{#if c.practice_flag === 'practice_this'} <span class="chip accent">Practise</span>{/if}</li>
+                    <li><a href="#card-{c.id}">{c.cue || c.her_words}</a>{#if c.practice_flag === 'practice_this'} <span class="chip accent">Practice this</span>{/if}</li>
                   {/each}
                   {#if cs.length > 3}<li class="muted small">and {cs.length - 3} more</li>{/if}
                 </ul>
