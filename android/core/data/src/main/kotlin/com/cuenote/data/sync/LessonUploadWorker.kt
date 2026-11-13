@@ -198,13 +198,13 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         }
 
         /** [error] is why the last try failed, when it did. */
-        data class Progress(val state: WorkInfo.State, val stage: String?, val percent: Int, val error: String? = null)
+        data class Progress(val state: WorkInfo.State, val stage: String?, val percent: Int, val error: String? = null, val attempts: Int = 0)
 
         /** The upload worker's state; other workers appended to the chain are ignored. */
         fun progress(context: Context, lessonId: String): Flow<Progress?> =
             WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(workName(lessonId)).map { infos ->
                 infos.lastOrNull { "upload" in it.tags }?.let {
-                    Progress(it.state, it.progress.getString(KEY_STAGE), it.progress.getInt(KEY_PROGRESS, 0), it.outputData.getString(KEY_ERROR))
+                    Progress(it.state, it.progress.getString(KEY_STAGE), it.progress.getInt(KEY_PROGRESS, 0), it.outputData.getString(KEY_ERROR), it.runAttemptCount)
                 }
             }
     }
