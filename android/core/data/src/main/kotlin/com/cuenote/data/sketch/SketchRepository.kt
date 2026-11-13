@@ -34,6 +34,44 @@ class SketchRepository(private val context: Context, val dao: PhotoDao) {
         PhotoUploadWorker.enqueue(context, photo.lessonId)
     }
 
+    /**
+     * Sketch or photo of me. A photo of me starts private, so changing a
+     * sketch into one takes it back off the cloud (the upload worker does
+     * that); changing it to a sketch cleans it up and sends it like any sketch.
+     */
+    suspend fun setKind(lessonDir: File, photo: PhotoEntity, kind: String) {
+        dao.setKind(photo.id, kind)
+        if (kind == PhotoEntity.KIND_SKETCH && photo.cleanFileName == null) process(photo.lessonId)
+        else PhotoUploadWorker.enqueue(context, photo.lessonId)
+    }
+
+    /** Shares a photo of me with the teacher, or takes it back off the cloud. */
+    suspend fun setShared(photo: PhotoEntity, shared: Boolean) {
+        dao.setShared(photo.id, shared)
+        PhotoUploadWorker.enqueue(context, photo.lessonId)
+    }
+
+    /** The student's line on what to notice in a photo of me. */
+    suspend fun setNote(photo: PhotoEntity, note: String) {
+        dao.setNote(photo.id, note.trim().ifBlank { null })
+        if (photo.shared) PhotoUploadWorker.enqueue(context, photo.lessonId)
+    }
+
+    /**
+     * Deletes a photo. It disappears at once; the upload worker removes any
+     * cloud copy and then the file and the row. A photo the cloud never had
+     * goes straight away.
+     */
+    suspend fun delete(lessonDir: File, photo: PhotoEntity) {
+        // a private photo of me with nothing waiting to send: the cloud has no copy
+        if (photo.isMe && !photo.shared && !photo.needsUpload) {
+            removeLocal(dao, lessonDir, photo)
+        } else {
+            dao.markDeleted(photo.id)
+            PhotoUploadWorker.enqueue(context, photo.lessonId)
+        }
+    }
+
     /** Cleans the photo again with corners the student placed by hand. */
     suspend fun reclean(lessonDir: File, photo: PhotoEntity, corners: Quad, width: Int, height: Int) {
         clean(lessonDir, photo, corners.normalized(width, height))
@@ -49,7 +87,7 @@ class SketchRepository(private val context: Context, val dao: PhotoDao) {
      */
     suspend fun refresh(lessonId: String, lessonDir: File) {
         register(dao, lessonId, lessonDir)
-        if (dao.forLesson(lessonId).any { it.cleanFileName == null }) process(lessonId)
+        if (dao.forLesson(lessonId).any { it.cleanFileName == null && !it.isMe && !it.deleted }) process(lessonId)
         val client = com.cuenote.data.AuthRepository.get().client ?: return
         runCatching { PhotoUploadWorker.pull(client, dao, lessonId) }
     }
@@ -64,8 +102,25 @@ class SketchRepository(private val context: Context, val dao: PhotoDao) {
             val events = File(lessonDir, "events.tsv").takeIf { it.isFile }?.readLines()
                 ?.mapNotNull(LessonEvent::parse)?.filterIsInstance<LessonEvent.Photo>().orEmpty()
             dao.insertNew(events.filter { File(lessonDir, "photos/${it.fileName}").isFile }.map {
-                PhotoEntity(PhotoEntity.idFor(lessonId, it.fileName), lessonId, it.fileName, it.atMs)
+                PhotoEntity(PhotoEntity.idFor(lessonId, it.fileName), lessonId, it.fileName, it.atMs, kind = it.kind,
+                    // a new photo of me is private: the cloud already has all it should (nothing)
+                    needsUpload = it.kind != PhotoEntity.KIND_ME)
             })
+        }
+
+        /** The photo's files and row, once no cloud copy is left. */
+        suspend fun removeLocal(dao: PhotoDao, lessonDir: File, photo: PhotoEntity) {
+            File(lessonDir, "photos/${photo.fileName}").delete()
+            photo.cleanFileName?.let { File(lessonDir, "photos/clean/$it").delete() }
+            dropFromEvents(lessonDir, photo.fileName)
+            dao.remove(photo.id)
+        }
+
+        /** Takes a deleted photo's line out of events.tsv, so nothing brings it back. */
+        private fun dropFromEvents(lessonDir: File, fileName: String) {
+            val f = File(lessonDir, "events.tsv").takeIf { it.isFile } ?: return
+            val kept = f.readLines().filterNot { (LessonEvent.parse(it) as? LessonEvent.Photo)?.fileName == fileName }
+            f.writeText(kept.joinToString("") { it + "\n" })
         }
 
         /** The pipeline's guesses (photo → nearest feedback by time). Photos moved by hand stay where they are. */

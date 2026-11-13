@@ -364,7 +364,7 @@
 {/snippet}
 
 {#snippet photoView(p: PhotoMark)}
-  <SketchFigure photo={p} {cards} onmove={movedPhoto} />
+  <SketchFigure photo={p} {cards} onmove={movedPhoto} studentName={student?.display_name ?? ''} />
 {/snippet}
 
 {#snippet itemRow(item: Item)}
@@ -440,7 +440,7 @@
   {/if}
 
   {#if photos.length}
-    <p class="muted small">Sketches sit on the card they were taken during. Drag one onto another card, or use its "Move to" list.</p>
+    <p class="muted small">Sketches and the photos a student shares sit on the card they were taken during. Drag one onto another card, or use its "Move to" list.</p>
   {/if}
   {#if moveError}<p class="error small" role="alert">{moveError}</p>{/if}
   {#if exercises.length}

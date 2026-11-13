@@ -214,7 +214,10 @@ export function initialDemoState(): DemoState {
       { id: 'demo-photo-1', lesson_id: L1, taken_at_ms: min(14, 40), feedback_id: 'demo-fb-4',
         caption: 'Jaw drops, tongue tip stays behind the bottom teeth', confidence: 0.9,
         image_path: 'demo-sketch:jaw:photo', cleaned_path: 'demo-sketch:jaw',
-        auto_feedback_id: 'demo-fb-4', link_source: 'auto' }
+        auto_feedback_id: 'demo-fb-4', link_source: 'auto', kind: 'sketch' },
+      { id: 'demo-photo-2', lesson_id: L1, taken_at_ms: min(14, 52), feedback_id: 'demo-fb-4',
+        caption: null, confidence: null, image_path: 'demo-sketch:me', cleaned_path: null,
+        auto_feedback_id: 'demo-fb-4', link_source: 'auto', kind: 'me', note: 'Jaw dropped, lips not spread' }
     ],
     suggestions: demoSuggestions(),
     comments: [
@@ -312,6 +315,18 @@ export function demoSketchPhotoSvg(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
   <rect width="400" height="300" fill="#4a3f36"/>
   <g transform="matrix(0.78 -0.06 0.04 0.74 52 58)">${inner}</g>
+</svg>`;
+}
+
+/** An illustrated face with an open "ah", standing in for a photo a student took of themself. */
+export function demoMePhotoSvg(): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400">
+  <rect width="300" height="400" fill="#cdbfb1"/>
+  <ellipse cx="150" cy="215" rx="100" ry="140" fill="#a87a5c"/>
+  <ellipse cx="150" cy="95" rx="115" ry="70" fill="#2b2026"/>
+  <ellipse cx="108" cy="185" rx="11" ry="6" fill="#2b2026"/><ellipse cx="192" cy="185" rx="11" ry="6" fill="#2b2026"/>
+  <path d="M144 200 Q150 228 156 200" stroke="#7b5440" stroke-width="4" fill="none"/>
+  <ellipse cx="150" cy="280" rx="28" ry="38" fill="#5a2a2e"/><ellipse cx="150" cy="303" rx="17" ry="10" fill="#b55a5f"/>
 </svg>`;
 }
 
