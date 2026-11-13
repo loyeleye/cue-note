@@ -49,20 +49,20 @@
         It stays open for 14 days.</p>
       <div class="row">
         <button class="primary" disabled={busy} onclick={() => run(() => api().answerFullLesson(current.id, true), true)}>Accept</button>
-        <button disabled={busy} onclick={() => run(() => api().answerFullLesson(current.id, false))}>Not this time</button>
+        <button class="ghost" disabled={busy} onclick={() => run(() => api().answerFullLesson(current.id, false))}>Not this time</button>
       </div>
     {:else if current}
       <p>You asked {first} for the whole lesson. It opens when they say yes.</p>
       <button class="link" disabled={busy} onclick={() => run(() => api().endFullLesson(current.id))}>Take back</button>
     {:else}
-      <p>You're hearing the <span class="chip accent">Practise</span> moments and anything {first} sends. The rest of the lesson is {first}'s.</p>
+      <p>You're hearing the <span class="chip accent">Practice this</span> moments and anything {first} sends. The rest of the lesson is {first}'s.</p>
       {#if lastNo}<p class="muted small">{first} said “not this time” on {date(lastNo.decided_at!, { month: 'short', day: 'numeric' })}.</p>{/if}
       {#if asking}
         <label class="small" for="pass-note">Why, so {first} knows (optional)</label>
         <input id="pass-note" maxlength="500" bind:value={note} placeholder="Recital in two weeks. I'd like to hear the run-through." />
         <div class="row">
           <button class="primary" disabled={busy} onclick={() => run(async () => { await api().askFullLesson(lessonId, note); asking = false; note = ''; })}>Ask {first}</button>
-          <button disabled={busy} onclick={() => (asking = false)}>Cancel</button>
+          <button class="ghost" disabled={busy} onclick={() => (asking = false)}>Cancel</button>
         </div>
         <p class="muted small">If {first} says yes, you can hear every take for 14 days.</p>
       {:else}
@@ -77,6 +77,7 @@
   .pass { display: grid; gap: 0.5rem; padding: 0.75rem 1rem; margin: 0.75rem 0; }
   .pass.open { border-color: var(--accent, currentColor); }
   .pass p { margin: 0; }
+  .pass > button { justify-self: start; }
   .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .quote { display: block; font-style: italic; margin: 0.25rem 0; }
   input { width: 100%; box-sizing: border-box; }
