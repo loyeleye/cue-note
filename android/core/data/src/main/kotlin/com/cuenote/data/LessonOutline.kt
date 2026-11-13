@@ -40,10 +40,13 @@ object LessonOutline {
         val weight get() = all.mapNotNull { it.weight }.maxOrNull()
         /** The writer's summary, else her own line. */
         val text get() = card.summary.ifBlank { card.herWords }
+        /** She explained what she meant, in words or a voice note. */
+        val explained get() = !card.summaryNote.isNullOrBlank() || card.summaryNoteClip != null
         /** Where the summary stands with the teacher. */
         val check get() = when {
             card.summaryRejected != null && card.summary.isNotBlank() -> SummaryCheck.CORRECTED
-            card.summaryRejected != null -> SummaryCheck.FLAGGED
+            card.summaryRejected != null || card.summaryCheck == "not_said" -> SummaryCheck.FLAGGED
+            card.summaryCheck == "close" && card.summary.isNotBlank() -> SummaryCheck.CLOSE
             card.summaryCheck == "said" && card.summary.isNotBlank() -> SummaryCheck.CONFIRMED
             else -> SummaryCheck.UNCHECKED
         }
@@ -51,10 +54,12 @@ object LessonOutline {
 
     /**
      * The teacher's answer to "Did you say this?" about a point's summary.
-     * FLAGGED: she said no and wrote nothing, so the summary is off the card.
-     * CORRECTED: she said no and wrote her own line, which is now the summary.
+     * CLOSE: near enough; the summary stays, marked close.
+     * FLAGGED: she said it was wrong, so the summary is off the card.
+     * CORRECTED: she rewrote the summary herself after the app's was wrong.
+     * Close and flagged points may carry her own explanation and voice note.
      */
-    enum class SummaryCheck { UNCHECKED, CONFIRMED, FLAGGED, CORRECTED }
+    enum class SummaryCheck { UNCHECKED, CONFIRMED, CLOSE, FLAGGED, CORRECTED }
 
     /** Before cards: something she said at length about a try, as her own words cut short. */
     data class Guess(val feedback: FeedbackEntity, val excerpt: String)

@@ -117,6 +117,8 @@ fun LessonScreen(
     onSendToTeacher: (() -> Unit)? = null,
     /** Adds a point to the questions for the next lesson; null hides "Add to my questions". */
     onAsk: (suspend (CardEntity) -> Unit)? = null,
+    /** Fetches a teacher's voice note to the phone; null when signed out. */
+    voiceNote: (suspend (String) -> File?)? = null,
 ) {
     val dao = repo.pipelineDao!!
     val cardDao = repo.cardDao!!
@@ -235,7 +237,10 @@ fun LessonScreen(
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                val corrected = groups.count { it.check == LessonOutline.SummaryCheck.FLAGGED || it.check == LessonOutline.SummaryCheck.CORRECTED }
+                val corrected = groups.count {
+                    it.check == LessonOutline.SummaryCheck.FLAGGED || it.check == LessonOutline.SummaryCheck.CORRECTED ||
+                        (it.check == LessonOutline.SummaryCheck.CLOSE && it.explained)
+                }
                 if (corrected > 0) item(key = "corrected") {
                     Text(
                         "Your teacher corrected the app's summary on ${plural(corrected, "point")}. Each is marked below, with her clip.",
@@ -261,6 +266,7 @@ fun LessonScreen(
                             sketchesBy[c.id].orEmpty(), lessonDir, onOpenSketch,
                             suggestionsBy[c.id].orEmpty(), onDecide,
                             SetlistStore.isOn(c, overrides),
+                            voiceNote = voiceNote,
                             nudge = Nudge(
                                 open = c.id !in nudged, asked = c.id in asked,
                                 ask = onAsk?.let { ask -> { scope.launch { runCatching { ask(c) }.onSuccess { doneNudge(c.id, true) } } } },
@@ -453,6 +459,7 @@ private fun CueCard(
     suggestions: List<DiagramSuggestion>,
     onDecide: suspend (DiagramSuggestion, String) -> Unit,
     onSetlist: Boolean,
+    voiceNote: (suspend (String) -> File?)?,
     nudge: Nudge,
     onSetlistChange: (Boolean) -> Unit,
 ) {
@@ -482,6 +489,7 @@ private fun CueCard(
                     when (check) {
                         LessonOutline.SummaryCheck.CORRECTED -> "Your teacher's own words. She corrected the app's summary."
                         LessonOutline.SummaryCheck.CONFIRMED -> "✓ Your teacher checked this summary."
+                        LessonOutline.SummaryCheck.CLOSE -> "Your teacher says this summary is close, not quite it."
                         else -> "Summary of what she said. Her words are the real thing."
                     },
                     style = MaterialTheme.typography.labelSmall, color = muted,
@@ -505,7 +513,8 @@ private fun CueCard(
                     )
                 }
             }
-            if (check == LessonOutline.SummaryCheck.FLAGGED && (nudge.open || nudge.asked)) {
+            if (group.explained) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
+            if (check == LessonOutline.SummaryCheck.FLAGGED && !group.explained && (nudge.open || nudge.asked)) {
                 if (nudge.asked) {
                     Text("On your questions for the next lesson.", style = MaterialTheme.typography.bodySmall, color = muted)
                 } else Row(verticalAlignment = Alignment.CenterVertically) {
@@ -540,6 +549,50 @@ private fun CueCard(
             }
             SketchRow(sketches, lessonDir, onOpenSketch)
             for (sg in suggestions) DiagramSuggestionCard(sg) { d -> onDecide(sg, d) }
+        }
+    }
+}
+
+/**
+ * What she meant, when she marked the summary close or wrong: her words, as
+ * long as she wrote them (folded after a few lines), and her voice note,
+ * fetched the first time it's played.
+ */
+@Composable
+private fun TeacherNote(note: String?, clipPath: String?, player: ClipPlayer, voiceNote: (suspend (String) -> File?)?) {
+    val m = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var open by rememberSaveable(note) { mutableStateOf(false) }
+    var local by remember(clipPath) { mutableStateOf<String?>(null) }
+    var fetching by remember(clipPath) { mutableStateOf(false) }
+    var failed by remember(clipPath) { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().background(m.secondaryContainer.copy(alpha = 0.5f), RoundedCornerShape(10.dp)).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text("What she meant", style = MaterialTheme.typography.labelMedium, color = m.onSecondaryContainer)
+        if (!note.isNullOrBlank()) {
+            Text(
+                note, style = MaterialTheme.typography.bodyMedium, color = m.onSecondaryContainer,
+                maxLines = if (open) Int.MAX_VALUE else 5, overflow = TextOverflow.Ellipsis,
+            )
+            if (note.length > 260 || note.count { it == '\n' } >= 4) {
+                TextButton(onClick = { open = !open }, contentPadding = PaddingValues(0.dp)) { Text(if (open) "Less" else "Read all of it") }
+            }
+        }
+        if (clipPath != null && voiceNote != null) {
+            val on = local != null && player.playing == local
+            OutlinedButton(onClick = {
+                local?.let { player.toggle(it); return@OutlinedButton }
+                if (fetching) return@OutlinedButton
+                fetching = true; failed = false
+                scope.launch {
+                    val f = voiceNote(clipPath)
+                    fetching = false
+                    if (f == null) failed = true else { local = f.absolutePath; player.toggle(f.absolutePath) }
+                }
+            }) { Text(if (fetching) "Getting her voice note…" else (if (on) "■ " else "▶ ") + "Her voice note") }
+            if (failed) Text("Couldn't get the voice note. Check the internet and try again.", style = MaterialTheme.typography.bodySmall, color = m.error)
         }
     }
 }

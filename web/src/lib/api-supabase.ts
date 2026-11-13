@@ -257,10 +257,17 @@ export const supabaseApi: Api = {
     return check(await supabase.rpc('check_summary', { fb: feedbackId, said })) as Feedback;
   },
 
+  async answerSummary(card, studentId, verdict, explain = {}) {
+    const note_clip = explain.voice ? await uploadVoiceNote(studentId, explain.voice) : explain.clip ?? null;
+    return check(await supabase.rpc('answer_summary', {
+      fb: card.id, verdict, note: explain.note?.trim() || null, note_clip
+    })) as Feedback;
+  },
+
   async summaryTally() {
     const rows = check(await supabase.rpc('summary_check_tally')) as Record<string, number | string>[];
     const r = rows?.[0] ?? {};
-    return { said: Number(r.said ?? 0), not_said: Number(r.not_said ?? 0), unchecked: Number(r.unchecked ?? 0), lessons: Number(r.lessons ?? 0) };
+    return { said: Number(r.said ?? 0), close: Number(r.close ?? 0), not_said: Number(r.not_said ?? 0), unchecked: Number(r.unchecked ?? 0), lessons: Number(r.lessons ?? 0) };
   },
 
   async listCheckpoints(lessonId) {
