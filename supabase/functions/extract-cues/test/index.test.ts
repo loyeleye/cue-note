@@ -204,3 +204,13 @@ test('each exercise gets a name from the model, unless someone already named it'
   assert.match(calls[0].content, /== E1: a warmup ==/);
   assert.match(calls[0].system, /at most 8 words/);
 });
+
+test('each point keeps its summary and weight on the feedback row', async () => {
+  await post(sample.request);
+  assert.match(feedback(B(2)).summary, /yawn/);
+  assert.equal(feedback(B(2)).weight, 0.9);
+  assert.equal(feedback(B(1)).summary, '');
+  assert.equal(feedback(B(3)).weight, 1);
+  // not part of the card's history
+  assert.ok(tables.card_version.every((v) => !('summary' in v.payload)));
+});

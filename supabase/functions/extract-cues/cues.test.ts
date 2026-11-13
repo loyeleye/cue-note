@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  ANSWER_SCHEMA, batches, batchesByExercise, CATEGORIES, exerciseTitles, labelExercises, check, costUsd, examplesText, invalidRequest, labelBlocks, lessonText,
+  ANSWER_SCHEMA, tidySummary, batches, batchesByExercise, CATEGORIES, exerciseTitles, labelExercises, check, costUsd, examplesText, invalidRequest, labelBlocks, lessonText,
   samePayload, supportsFallback, verbatim, diagramPick, DIAGRAM_MIN_CONFIDENCE, SYSTEM_PROMPT,
   type ModelCard, type Request, type TakeRow,
 } from './cues.ts';
@@ -215,4 +215,20 @@ test('exercise titles come back by id, tidied, first answer kept', () => {
   assert.deepEqual([...t], [['x1', 'Lip trill on a 5-note scale']]);
   const long = exerciseTitles(labels, [{ exercise: 'E2', title: 'word '.repeat(20) }]);
   assert.ok(long.get('x2')!.length <= 61 && long.get('x2')!.endsWith('…'));
+});
+
+test('summaries are tidied, weights clamped, and chat gets neither', () => {
+  const labels = labelBlocks(sample.request.blocks);
+  const out = check(labels, sample.answer.cards);
+  assert.equal(out[0].summary, '');            // B1 is chat
+  assert.equal(out[0].weight, 0);
+  assert.match(out[1].summary, /yawn/);
+  assert.equal(out[1].weight, 0.9);
+  assert.equal(out[2].weight, 1);              // 1.7 clamped
+  assert.equal(check(labels, [{ ...sample.answer.cards[1], weight: 'lots' }])[1].weight, null);
+  const long = 'First point here, said at length. '.repeat(12);
+  const t = tidySummary(`  ${long}  `);
+  assert.ok(t.length <= 300 && t.endsWith('.'));
+  assert.equal(tidySummary('a\n b'), 'a b');
+  assert.match(SYSTEM_PROMPT, /not by its length/);
 });

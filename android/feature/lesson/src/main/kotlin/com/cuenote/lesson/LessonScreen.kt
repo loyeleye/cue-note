@@ -1,5 +1,18 @@
 package com.cuenote.lesson
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import com.cuenote.ui.ClipPlayer
 import com.cuenote.ui.rememberClipPlayer
 import com.cuenote.data.SetlistStore
@@ -128,8 +141,17 @@ fun LessonScreen(
     }
 
     val overrides by repo.setlistStore.overrides.collectAsStateWithLifecycle()
-    val clipFile: Map<String, String> = clips.associate { it.id to it.file }
+    // Checked once per change, not on every frame: only clips that are on the phone.
+    val clipFile: Map<String, String> = remember(clips) { clips.filter { File(it.file).isFile }.associate { it.id to it.file } }
+    val clipMs: Map<String, Long> = remember(clips) { clips.associate { it.file to (it.endMs - it.startMs) } }
     val outline = remember(exercises, takes, feedback, cards) { LessonOutline.build(exercises, takes, feedback, cards) }
+    val takeByCloud = remember(takes) { takes.associateBy { CloudIds.take(it.id) } }
+    // Per card, once: her sketches and the diagrams suggested, across a point and its repeats.
+    val groups = remember(outline) { outline.flatMap { it.cues + it.more } }
+    val sketchesBy = remember(groups, photos) { groups.associate { g -> g.card.id to g.all.flatMap { onCard(it.localId) } } }
+    val suggestionsBy = remember(groups, suggestions) {
+        groups.associate { g -> g.card.id to suggestions.filter { s -> g.all.any { it.id == s.feedbackId } } }
+    }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Lesson") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
@@ -183,23 +205,42 @@ fun LessonScreen(
             if (outline.isNotEmpty()) {
                 if (cards.isEmpty()) item {
                     Text(
-                        "Your teacher's notes will appear under each exercise once they're made.",
+                        "Until your notes are made, each exercise shows the app's best guess at what she said about your tries.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 for (sec in outline) {
                     val key = sec.exercise?.id ?: "loose"
-                    item(key = "ex-$key") { ExerciseHeader(sec, clipFile, player) }
-                    val card: @Composable (LessonOutline.CueGroup) -> Unit = { g ->
+                    item(key = "ex-$key") { ExerciseHeader(sec, clipFile, player, first = sec === outline.first()) }
+                    // The try she said was right, to compare against the one each point is about.
+                    val liked = sec.takes.firstOrNull { it.id in sec.starred }
+                    val likedTry = liked?.let { Clip(clipFile[CloudIds.take(it.id)], "Try ${sec.tryNo(it.id)} ★, she liked it", null) }
+                    val card: @Composable (LessonOutline.CueGroup, Modifier) -> Unit = { g, mod ->
                         val c = g.card
+                        val take = c.takeId?.let(takeByCloud::get)
+                        val her = clipFile[c.id]
                         CueCard(
-                            g, clipFile[c.id], c.takeId?.let(clipFile::get), player,
-                            g.all.flatMap { onCard(it.localId) }, lessonDir, onOpenSketch,
-                            suggestions.filter { s -> g.all.any { it.id == s.feedbackId } }, onDecide,
+                            g, mod,
+                            Clip(her, "Her words", her?.let(clipMs::get)),
+                            Clip(c.takeId?.let(clipFile::get), tryLabel(sec.tryNo(take?.id), take?.id in sec.starred), null),
+                            likedTry?.takeIf { liked.id != take?.id },
+                            player,
+                            sketchesBy[c.id].orEmpty(), lessonDir, onOpenSketch,
+                            suggestionsBy[c.id].orEmpty(), onDecide,
                             SetlistStore.isOn(c, overrides),
                         ) { on -> repo.setlistStore.set(c.id, on) }
                     }
-                    items(sec.cues, key = { it.card.id }) { card(it) }
+                    items(sec.cues, key = { it.card.id }) { card(it, Modifier.animateItem()) }
+                    items(sec.guesses, key = { "guess-" + it.feedback.id }) { g ->
+                        val take = g.feedback.takeId
+                        val her = clipFile[CloudIds.feedback(g.feedback.id)]
+                        GuessCard(
+                            g, Modifier.animateItem(),
+                            Clip(her, "Her words", her?.let(clipMs::get)),
+                            Clip(take?.let { clipFile[CloudIds.take(it)] }, tryLabel(sec.tryNo(take), take in sec.starred), null),
+                            player,
+                        )
+                    }
                     if (sec.more.isNotEmpty()) {
                         val open = key in openMore
                         item(key = "more-$key") {
@@ -207,7 +248,7 @@ fun LessonScreen(
                                 Text(if (open) "Fewer notes" else "${sec.more.size} more ${if (sec.more.size == 1) "note" else "notes"}")
                             }
                         }
-                        if (open) items(sec.more, key = { it.card.id }) { card(it) }
+                        if (open) items(sec.more, key = { it.card.id }) { card(it, Modifier.animateItem()) }
                     }
                 }
                 val talk = cards.filter { it.category == "chat" }
@@ -287,18 +328,37 @@ private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
 }
 
+/** A clip to play: the file (null when it isn't on the phone), its label, and how long it is. */
+private data class Clip(val file: String?, val label: String, val ms: Long?)
+
+/**
+ * The label stays put while it plays, so the row doesn't jump and you can see
+ * what's playing: the button fills, ▶ turns to ■, and a thin bar runs under it.
+ */
 @Composable
-private fun PlayButton(file: String?, player: ClipPlayer, label: String) {
-    if (file == null || !File(file).isFile) return
+private fun PlayButton(clip: Clip?, player: ClipPlayer) {
+    val file = clip?.file ?: return
     val on = player.playing == file
-    OutlinedButton(onClick = { player.toggle(file) }) { Text(if (on) "Stop" else label) }
+    val text = (if (on) "■ " else "▶ ") + clip.label + (clip.ms?.let { " " + clock(it) } ?: "")
+    Column(Modifier.width(IntrinsicSize.Max)) {
+        if (on) FilledTonalButton(onClick = { player.toggle(file) }) { Text(text) }
+        else OutlinedButton(
+            onClick = { player.toggle(file) },
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        ) { Text(text) }
+        if (on) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(2.dp))
+    }
 }
 
-/** An exercise's name, what kind it is, and a button for each try. */
 @Composable
-private fun ExerciseHeader(sec: LessonOutline.Section, clipFile: Map<String, String>, player: ClipPlayer) {
-    Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(sec.name, style = MaterialTheme.typography.titleLarge)
+private fun PlayButton(file: String?, player: ClipPlayer, label: String) = PlayButton(Clip(file, label, null), player)
+
+/** An exercise's name, what kind it is, and a button for each try (★ the one she said was right). */
+@Composable
+private fun ExerciseHeader(sec: LessonOutline.Section, clipFile: Map<String, String>, player: ClipPlayer, first: Boolean) {
+    Column(Modifier.fillMaxWidth().padding(top = if (first) 8.dp else 18.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (!first) HorizontalDivider(Modifier.padding(bottom = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        Text(sec.name, style = MaterialTheme.typography.headlineSmall)
         val kind = when (sec.kind) { "song" -> "Song"; "warmup" -> "Warmup"; else -> null }
         val bits = listOfNotNull(
             kind?.takeIf { sec.exercise?.title != null },
@@ -306,26 +366,45 @@ private fun ExerciseHeader(sec: LessonOutline.Section, clipFile: Map<String, Str
             clock(sec.startMs),
         )
         Text(bits.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        val playable = sec.takes.withIndex().mapNotNull { (i, t) -> clipFile[CloudIds.take(t.id)]?.takeIf { File(it).isFile }?.let { i + 1 to it } }
-        if (playable.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Hear a try", style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.CenterVertically).padding(end = 2.dp))
-            for ((n, file) in playable) {
+        val playable = sec.takes.withIndex().mapNotNull { (i, t) -> clipFile[CloudIds.take(t.id)]?.let { Triple(i + 1, it, t.id in sec.starred) } }
+        if (playable.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+            Text("Hear a try", style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.CenterVertically).padding(end = 2.dp))
+            for ((n, file, star) in playable) {
                 val on = player.playing == file
-                AssistChip(onClick = { player.toggle(file) }, label = { Text(if (on) "■ $n" else "▶ $n") })
+                val m = MaterialTheme.colorScheme
+                AssistChip(
+                    onClick = { player.toggle(file) },
+                    // a fixed width, so "■ 10 ★" doesn't push the row around
+                    modifier = Modifier.widthIn(min = if (star) 68.dp else 52.dp),
+                    label = { Text((if (on) "■ " else "▶ ") + n + if (star) " ★" else "", maxLines = 1) },
+                    colors = when {
+                        on -> AssistChipDefaults.assistChipColors(containerColor = m.secondaryContainer, labelColor = m.onSecondaryContainer)
+                        star -> AssistChipDefaults.assistChipColors(containerColor = m.tertiaryContainer, labelColor = m.onTertiaryContainer)
+                        else -> AssistChipDefaults.assistChipColors()
+                    },
+                    border = BorderStroke(1.dp, if (star) m.tertiary else m.outline),
+                )
             }
         }
+        if (sec.starred.isNotEmpty()) Text(
+            "★ Your teacher said this try was right.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary,
+        )
     }
 }
 
 /**
- * One cue: the instruction, one sentence of hers, and the try it was about.
- * Everything else she said is a tap away, never on the card.
+ * One point: a short cue, her meaning in a sentence or two, and one row of
+ * actions (her clip, the try it was about, the try she liked, everything she
+ * said, the setlist). Her exact words are a tap away, never on the card.
  */
 @Composable
 private fun CueCard(
     group: LessonOutline.CueGroup,
-    clip: String?,
-    takeClip: String?,
+    modifier: Modifier,
+    her: Clip,
+    take: Clip,
+    liked: Clip?,
     player: ClipPlayer,
     sketches: List<PhotoEntity>,
     lessonDir: File,
@@ -337,54 +416,93 @@ private fun CueCard(
 ) {
     val card = group.card
     var showAll by rememberSaveable(card.id) { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+    val transcript = group.all.joinToString("\n\n") { it.transcript.trim() }.trim()
+    Card(
+        modifier.fillMaxWidth().animateContentSize(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleLarge)
-            if (card.herWords.isNotBlank()) {
+            Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleMedium)
+            if (card.summary.isNotBlank()) {
+                Text(card.summary, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                // Say whose words these are: the summary is the app's reading, her clip is the truth.
+                Text(
+                    "Summary of what she said. Her words are the real thing.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (card.herWords.isNotBlank()) {
                 Text(
                     "“${card.herWords}”",
                     style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    maxLines = 4, overflow = TextOverflow.Ellipsis,
                 )
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                card.category?.let { TopicChip(Topic.of(it), Topic.of(it)?.label ?: it.replaceFirstChar { c -> c.uppercase() }, Modifier.align(Alignment.CenterVertically)) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                card.category?.let { TopicChip(Topic.of(it), Topic.of(it)?.label ?: it.replaceFirstChar { c -> c.uppercase() }) }
                 if (group.practice) PracticeTag() else if (card.practiceFlag == "just_listen") Tag("Just listen")
                 bars(card.barStart, card.barEnd)?.let { Tag(it) }
                 if (group.repeats.isNotEmpty()) Tag("She said this ${group.all.size} times")
                 if (group.all.any { it.editedByTeacher }) Tag("✓ Checked by your teacher")
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PlayButton(clip, player, "Her words")
-                PlayButton(takeClip, player, "The try")
-                val transcript = group.all.joinToString("\n\n") { it.transcript.trim() }.trim()
-                if (transcript.isNotBlank() && transcript != card.herWords.trim()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                PlayButton(her, player)
+                PlayButton(take, player)
+                PlayButton(liked, player)
+                FilterChip(
+                    selected = onSetlist,
+                    onClick = { onSetlistChange(!onSetlist) },
+                    label = { Text(if (onSetlist) "✓ On my setlist" else "+ Setlist") },
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                )
+                if (transcript.isNotBlank() && transcript != card.summary.trim() && transcript != card.herWords.trim()) {
                     TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything she said") }
                 }
             }
-            if (showAll) Text(
-                group.all.joinToString("\n\n") { it.transcript.trim() }.trim(),
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            // The student's own switch: on for "practice this" cards to start with.
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                    .toggleable(onSetlist, role = Role.Switch, onValueChange = onSetlistChange)
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("On my setlist", Modifier.weight(1f), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelLarge)
-                Switch(checked = onSetlist, onCheckedChange = null)
+            AnimatedVisibility(showAll, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Text(transcript, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             SketchRow(sketches, lessonDir, onOpenSketch)
             for (sg in suggestions) DiagramSuggestionCard(sg) { d -> onDecide(sg, d) }
         }
     }
 }
+
+/**
+ * Before the notes are made: a stretch where she talked at length about a
+ * try, as her own words cut to a sentence or two, marked as the app's guess.
+ */
+@Composable
+private fun GuessCard(guess: LessonOutline.Guess, modifier: Modifier, her: Clip, take: Clip, player: ClipPlayer) {
+    var showAll by rememberSaveable(guess.feedback.id) { mutableStateOf(false) }
+    Card(
+        modifier.fillMaxWidth().animateContentSize(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "Best guess from what she said, until your notes are made",
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "“${guess.excerpt}”",
+                style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
+                maxLines = 5, overflow = TextOverflow.Ellipsis,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                PlayButton(her, player)
+                PlayButton(take, player)
+                if (guess.feedback.words.trim().length > guess.excerpt.length + 10) {
+                    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Less" else "Everything she said") }
+                }
+            }
+            AnimatedVisibility(showAll, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Text(guess.feedback.words.trim(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+private fun tryLabel(n: Int?, starred: Boolean) = (if (n != null) "Hear try $n" else "Hear the try") + if (starred) " ★" else ""
 
 @Composable
 private fun TalkCard(card: CardEntity, clip: String?, player: ClipPlayer) {
@@ -397,21 +515,24 @@ private fun TalkCard(card: CardEntity, clip: String?, player: ClipPlayer) {
     }
 }
 
+/** A label, filled and borderless, so it doesn't look like something to tap. */
 @Composable
-private fun Tag(text: String) {
-    AssistChip(onClick = {}, label = { Text(text) })
+private fun Tag(text: String, container: androidx.compose.ui.graphics.Color? = null, content: androidx.compose.ui.graphics.Color? = null, bold: Boolean = false) {
+    val m = MaterialTheme.colorScheme
+    Text(
+        text,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(container ?: m.surfaceContainerHighest).padding(horizontal = 10.dp, vertical = 4.dp),
+        color = content ?: m.onSurfaceVariant,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = if (bold) androidx.compose.ui.text.font.FontWeight.SemiBold else null,
+    )
 }
 
 /** "Practice this" in brass, the colour that means "what to work on" on the phone and the dashboard. */
 @Composable
 private fun PracticeTag() {
     val m = MaterialTheme.colorScheme
-    AssistChip(
-        onClick = {},
-        label = { Text("Practice this", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
-        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(containerColor = m.tertiaryContainer, labelColor = m.onTertiaryContainer),
-        border = androidx.compose.foundation.BorderStroke(1.dp, m.tertiary),
-    )
+    Tag("Practice this", m.tertiaryContainer, m.onTertiaryContainer, bold = true)
 }
 
 private fun bars(a: Int?, b: Int?): String? = when {

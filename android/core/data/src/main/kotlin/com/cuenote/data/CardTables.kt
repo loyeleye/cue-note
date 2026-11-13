@@ -1,5 +1,6 @@
 package com.cuenote.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Embedded
 import androidx.room.Entity
@@ -61,6 +62,10 @@ data class CardEntity(
     val editedByTeacher: Boolean,
     /** feedback.updated_at, as the server wrote it. */
     val updatedAt: String,
+    /** Her point in one or two plain sentences, from the card writer; empty until it has run. */
+    @ColumnInfo(defaultValue = "") val summary: String = "",
+    /** 0..1: how much the point is worth drilling, from the card writer; null when unknown. */
+    val weight: Float? = null,
 )
 
 /** How many cards a lesson has, and how many she marked to practice. */

@@ -111,6 +111,10 @@ export interface ModelCard {
   cue: string;
   category: Category;
   her_words: string;
+  /** One or two plain sentences on her main point, in the student's terms, keeping her images. */
+  summary: string;
+  /** 0..1: how much this is a technique to drill, rather than a story, theory, chat or a quick "yes". */
+  weight: number;
   practice_flag: PracticeFlag | null;
   bar_start: number | null;
   bar_end: number | null;
@@ -153,13 +157,15 @@ export const ANSWER_SCHEMA = {
           cue: { type: 'string', description: 'Her instruction as a short imperative, at most 8 words. Empty for chat.' },
           category: { type: 'string', enum: [...CATEGORIES] },
           her_words: { type: 'string', description: 'Her exact words that carry the cue, copied from the block, one sentence.' },
+          summary: { type: 'string', description: 'Her main point in one or two plain sentences, at most 40 words, keeping her images. Empty for chat.' },
+          weight: { type: 'number', description: '0 to 1: how much this is a technique for the student to drill. 0 for chat.' },
           practice_flag: nullable({ type: 'string', enum: ['practice_this', 'just_listen'] }),
           bar_start: nullable({ type: 'integer' }),
           bar_end: nullable({ type: 'integer' }),
           diagram: nullable({ type: 'string', enum: DIAGRAMS.map((d) => d.id) }),
           diagram_confidence: { type: 'number', description: '0 to 1. Use 0 when diagram is null.' },
         },
-        required: ['block', 'cue', 'category', 'her_words', 'practice_flag', 'bar_start', 'bar_end', 'diagram', 'diagram_confidence'],
+        required: ['block', 'cue', 'category', 'her_words', 'summary', 'weight', 'practice_flag', 'bar_start', 'bar_end', 'diagram', 'diagram_confidence'],
         additionalProperties: false,
       },
     },
@@ -192,6 +198,8 @@ For each block, write:
 - cue: the teacher's main instruction as a short imperative in plain English, at most 8 words, such as "Land high notes from above, don't reach", "Oo lips, ee inside" or "Breathe low before the phrase". Name one action in the student's body or sound. Use her idea and her images; never add advice she didn't give. If she gives several instructions, keep the one she spends the most time on. If the block has no instruction (greetings, scheduling, small talk, thinking aloud such as "Okay, so now what?", or only praise with nothing to change), leave cue empty and set category to "chat", unless it is clear praise of the singing, which is "encouragement" with a cue like "Keep that open sound".
 - When she comes back to an instruction she already gave in the same exercise, reuse that earlier card's cue word for word, so the student sees one cue, not several versions of it.
 - her_words: the one sentence of hers that best carries the cue, copied verbatim from the block's teacher lines. Fix nothing, not even recognition errors. Never paraphrase here.
+- summary: what she meant, in one or two plain sentences of at most 40 words, written to the student ("you"). This is where you paraphrase: see past the recognition errors and the false starts to her point, and say what to do and why. Keep her images and comparisons in her own words ("land on the high notes from above, like from the sky, instead of reaching up for them"); never swap them for jargon, and use no technical term she didn't use herself (if she never said "mix" or "register", neither do you). Never add an instruction she didn't give, never turn a "not only" into a "not", and never reverse what she said: when unsure what she meant, stay closer to her words. Say nothing about the student's ability beyond what she said. Empty for chat.
+- weight: from 0 to 1, how much this block is a technique for the student to drill at home. Near 1 when she explains a point at length, demonstrates it or keeps coming back to it. In the middle for a quick correction ("drop the jaw"). Near 0 for stories and anecdotes, music theory (octaves, keys, how the piano is laid out), choosing a song or key, scheduling, and a quick "yes, that was it", however long the block is. 0 for chat. Long blocks are often the deep ones, but judge by what she says, not by its length.
 - category: the one that fits best.
 - practice_flag: "practice_this" when she asks the student to work on it at home or keeps returning to it; "just_listen" when it is something to hear or notice rather than drill; null when neither is clear.
 - bar_start and bar_end: only when she names bar or measure numbers ("from bar 17", "measures 9 to 12"); otherwise null. A single bar has the same start and end.
@@ -363,6 +371,10 @@ export function diagramPick(c: Pick<ModelCard, 'diagram' | 'diagram_confidence'>
 export interface Checked {
   block: Block;
   payload: CardPayload;
+  /** Her point in a sentence or two; '' when there is none. Not part of the payload: it is the writer's reading. */
+  summary: string;
+  /** 0..1, or null when the model skipped the block. */
+  weight: number | null;
   diagram: DiagramPick | null;
   repaired: boolean;   // her_words was replaced with her real words
   missing: boolean;    // the model skipped this block
@@ -381,7 +393,7 @@ export function check(labels: Map<string, Block>, cards: ModelCard[]): Checked[]
     const c = byLabel.get(label);
     if (!c) {
       out.push({
-        block, repaired: false, missing: true, diagram: null,
+        block, repaired: false, missing: true, diagram: null, summary: '', weight: null,
         payload: { cue: '', category: null, her_words: block.transcript.trim().slice(0, 400), practice_flag: null,
                    take_id: block.take_id, song_id: null, bar_start: null, bar_end: null },
       });
@@ -394,8 +406,11 @@ export function check(labels: Map<string, Block>, cards: ModelCard[]): Checked[]
     if (bs != null && be == null) be = bs;
     if (bs != null && be != null && be < bs) [bs, be] = [be, bs];
     const category = (CATEGORIES as readonly string[]).includes(c.category) ? c.category : null;
+    const w = Number(c.weight);
     out.push({
       block, repaired: words.repaired, missing: false, diagram: diagramPick(c, category),
+      summary: category === 'chat' ? '' : tidySummary(c.summary),
+      weight: category === 'chat' ? 0 : Number.isFinite(w) ? Math.min(1, Math.max(0, w)) : null,
       payload: {
         cue: category === 'chat' ? '' : (c.cue ?? '').trim().slice(0, 200),
         category,
@@ -409,6 +424,15 @@ export function check(labels: Map<string, Block>, cards: ModelCard[]): Checked[]
     });
   }
   return out;
+}
+
+/** One or two sentences, on one line, cut at a sentence end near 300 characters. */
+export function tidySummary(text: unknown): string {
+  const s = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (s.length <= 300) return s;
+  const cut = s.slice(0, 300);
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  return end > 80 ? cut.slice(0, end + 1) : cut.replace(/\s+\S*$/, '') + '…';
 }
 
 /** True when two card payloads say the same thing (so a rerun adds no new version). */

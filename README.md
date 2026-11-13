@@ -278,12 +278,21 @@ cards by itself (or from **Make cards** on the lesson's screen):
    word. It also names each exercise ("Lip trill on a 5-note scale"), which is
    written to `exercise.title` unless someone already named it.
 
+It also writes a one- or two-sentence `summary` of each point, in plain
+words that keep her images and add nothing she didn't say, and a `weight`
+(0–1) for how much it is worth drilling: technique she explains at length
+high, stories, music theory, key choice and a quick "yes" low.
+
 The lesson screen then reads exercise by exercise (`LessonOutline` in
-`:core:data`): each warmup or song section by name, with a button per try,
-then at most three cues, "Practice this" first, and the rest behind "More
-notes". Cards with the same cue show once, with "She said this 3 times". A
-card is the cue, one sentence of hers, **Her words** and **The try**; the
-full transcript is behind "Everything she said". Talk that isn't about the
+`:core:data`): each warmup or song section by name, with a button per try
+(★ on a try she praised), then the three highest-weighted points in lesson
+order, and the rest behind "More notes". Cards with the same cue show once,
+with "She said this 3 times". A point is the cue, the summary, and one row of
+actions: **Her words** (with its length), **Hear try N**, the try she liked
+when it's another one, the setlist, and "Everything she said". Before the
+notes are made, each exercise shows the phone's own best guess: the longest
+blocks clearly about a try that sound like technique rather than theory or a
+story, cut to the sentences of hers that carry it. Talk that isn't about the
 singing is folded away under "Chat between songs". Before the notes are made
 the screen shows the exercises and their tries only; how each block was
 linked to a take is under Details. Opening a lesson fetches her latest edits
