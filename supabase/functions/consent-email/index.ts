@@ -13,7 +13,10 @@
 // Secrets (supabase secrets set ...):
 //   RESEND_API_KEY     Resend API key; without it nothing is sent
 //   CONSENT_EMAIL_FROM sender, "Cue Note <notifications@cuenote.cc>" (sign-in links come from login@)
-//   DASHBOARD_URL      the teacher dashboard, e.g. https://cue-note.pages.dev
+//   DASHBOARD_URL      the teacher dashboard, https://dashboard.cuenote.cc
+//   ALERT_EMAIL        optional: who hears about emails Resend refused. If the
+//                      sender is what's wrong, the alert comes from Resend's
+//                      test sender, which only reaches the Resend account's own address.
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -30,16 +33,36 @@ Deno.serve(async () => {
     return Response.json({ sent: 0, note: 'RESEND_API_KEY, CONSENT_EMAIL_FROM or DASHBOARD_URL is not set' });
   }
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const send = (to: string, subject: string, html: string) =>
+  const send = (to: string, subject: string, html: string, sender = from) =>
     fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from, to, subject, html }),
+      body: JSON.stringify({ from: sender, to, subject, html }),
     });
 
   // Resend's refusals, returned so a manual wake shows why nothing went out.
+  // Anyone can call this URL, so the reply leaves out who each email was for;
+  // the alert email (to ALERT_EMAIL only) includes it.
   const failed: string[] = [];
-  const note = async (res: Response) => failed.push(`${res.status} ${(await res.text()).slice(0, 300)}`);
+  const failedFor: string[] = [];
+  const note = async (what: string, res: Response) => {
+    const why = `${res.status} ${(await res.text()).slice(0, 300)}`;
+    failed.push(why);
+    failedFor.push(`${what}: ${why}`);
+  };
+  const finish = async (body: Record<string, unknown>) => {
+    const alertTo = Deno.env.get('ALERT_EMAIL');
+    if (failed.length && alertTo) {
+      const subject = `Cue Note: ${failed.length} email${failed.length === 1 ? '' : 's'} didn't send`;
+      const html = `<p>Resend refused these. They'll be tried again on the next wake ` +
+        `(a new invite, or opening the consent-email function's URL).</p><ul>` +
+        failedFor.map((f) => `<li>${escape(f)}</li>`).join('') + '</ul>';
+      const res = await send(alertTo, subject, html);
+      // A bad sender would sink the alert too, so fall back to Resend's own test sender.
+      if (!res.ok) await send(alertTo, subject, html, 'Cue Note <onboarding@resend.dev>');
+    }
+    return Response.json({ ...body, failed });
+  };
 
   // ---------------------------------------------------------------- invites
   let invited = 0;
@@ -62,7 +85,7 @@ Deno.serve(async () => {
         `There's no password: you'll get a sign-in link by email.</p>` +
         `<p><a href="${dashboard}/">Open the Cue Note dashboard</a></p>`,
     );
-    if (!res.ok) { await note(res); continue; } // stays unemailed; the next wake tries again
+    if (!res.ok) { await note(`Invite to ${inv.invite_email}`, res); continue; } // the next wake tries again
     await db.from('teacher_student_share').update({ invite_emailed_at: new Date().toISOString() }).eq('id', inv.id);
     invited++;
   }
@@ -76,7 +99,7 @@ Deno.serve(async () => {
     .order('created_at')
     .limit(50);
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  if (!pending?.length) return Response.json({ sent: 0, invited, waiting: invites?.length ?? 0, failed });
+  if (!pending?.length) return finish({ sent: 0, invited, waiting: invites?.length ?? 0 });
 
   let sent = 0;
   for (const r of pending as Request[]) {
@@ -100,9 +123,9 @@ Deno.serve(async () => {
         `You can change your answer at any time.</p>` +
         `<p><a href="${link}">Answer on your dashboard</a></p>`,
     );
-    if (!res.ok) { await note(res); continue; } // stays unemailed; the next wake tries again
+    if (!res.ok) { await note(`Consent request to ${to}`, res); continue; } // the next wake tries again
     await db.from('lesson_view_consent').update({ emailed_at: new Date().toISOString() }).eq('id', r.id);
     sent++;
   }
-  return Response.json({ sent, invited, waiting: invites?.length ?? 0, failed });
+  return finish({ sent, invited, waiting: invites?.length ?? 0 });
 });

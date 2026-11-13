@@ -38,7 +38,7 @@ teacher set, or only a typed name, need no one's agreement.
 
 **Email for those requests.** Set three secrets, or the requests only show on
 the dashboard: `supabase secrets set RESEND_API_KEY=… CONSENT_EMAIL_FROM="Cue Note <notifications@cuenote.cc>"
-DASHBOARD_URL=https://dashboard.cuenote.cc --project-ref tgytbytwofiymsvajdkd`.
+DASHBOARD_URL=https://dashboard.cuenote.cc --project-ref tgytbytwofiymsvajdkd`. Optionally set `ALERT_EMAIL` to your own address to get an email whenever Resend refuses one.
 
 **Hosting the dashboard.** It's a static site on Cloudflare (Workers, set up by `web/wrangler.jsonc`), connected to
 this repo: root directory `web`, build command `npm run build`, deploy command `npx wrangler deploy`,
