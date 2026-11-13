@@ -10,6 +10,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -79,6 +81,8 @@ import com.cuenote.data.CardEntity
 import com.cuenote.data.FeedbackEntity
 import com.cuenote.data.LessonEntity
 import com.cuenote.data.LessonOutline
+import com.cuenote.data.LessonOutline.SummaryCheck as S
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.cuenote.data.LessonRepository
 import com.cuenote.data.TakeEntity
@@ -505,56 +509,74 @@ private fun CueCard(
                     else -> {}
                 }
             }
-            if (check == LessonOutline.SummaryCheck.FLAGGED) {
-                // The app got this one wrong: the teacher's own words lead, the old summary is a tap away.
-                Text(
-                    "Your teacher flagged the app's summary of this. Their clip and your try are the real thing.",
+            // Two sources, never mixed: the teacher's words first, then the app's, smaller and labeled.
+            val old = card.summaryRejected?.takeIf { it.isNotBlank() }
+            when (check) {
+                S.FLAGGED -> Text(
+                    "The app got this one wrong. Go by your teacher.",
                     style = MaterialTheme.typography.labelMedium, color = muted,
                 )
-            }
-            if (check == LessonOutline.SummaryCheck.CLOSE) {
-                // Above the summary, so it isn't read as the instruction first.
-                Text(
-                    if (group.explained) "Close, but not quite. Read what your teacher meant first." else "Close, but not quite. Listen to your teacher's clip too.",
+                S.CLOSE -> Text(
+                    "The app's summary is close, but not quite. Go by your teacher.",
                     style = MaterialTheme.typography.labelMedium, color = m.tertiary,
                 )
+                else -> {}
             }
-            if (check == LessonOutline.SummaryCheck.CLOSE && group.explained) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
-            if (card.summary.isNotBlank()) {
-                Text(card.summary, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                // Say whose words these are: the summary is the app's reading unless she wrote or checked it.
-                Text(
-                    when (check) {
-                        LessonOutline.SummaryCheck.CORRECTED -> "Your teacher's own words. She corrected the app's summary."
-                        LessonOutline.SummaryCheck.CONFIRMED -> "✓ Your teacher checked this summary."
-                        LessonOutline.SummaryCheck.CLOSE -> "The app's summary, which your teacher marked close."
-                        else -> "Summary of what she said. Her words are the real thing."
-                    },
-                    style = MaterialTheme.typography.labelSmall, color = muted,
-                )
-            } else if (card.herWords.isNotBlank()) {
-                if (check == LessonOutline.SummaryCheck.FLAGGED) {
-                    Text("Your teacher's words in the lesson", style = MaterialTheme.typography.labelSmall, color = muted)
-                }
+            // 1. Your teacher.
+            if (group.explained) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
+            if (check == S.CORRECTED) {
+                Source("Your teacher's summary", teacher = true)
+                Text(card.summary, style = MaterialTheme.typography.bodyLarge)
+            } else if (check == S.FLAGGED && card.herWords.isNotBlank()) {
+                Source("Your teacher's words in the lesson", teacher = true)
                 Text(
                     "“${card.herWords}”",
                     style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
                     maxLines = 4, overflow = TextOverflow.Ellipsis,
                 )
             }
-            val old = card.summaryRejected?.takeIf { it.isNotBlank() }
-            if (old != null) {
-                TextButton(onClick = { showOld = !showOld }, contentPadding = PaddingValues(0.dp)) {
-                    Text(if (showOld) "Hide the app's summary" else "See the app's summary your teacher flagged", style = MaterialTheme.typography.labelMedium)
-                }
-                AnimatedVisibility(showOld) {
+            // 2. The app.
+            if (card.summary.isNotBlank() && check != S.CORRECTED) {
+                if (check == S.CLOSE && group.explained) {
+                    // The teacher's note says it better; the near miss folds away until asked for.
+                    Disclosure("From the app: its summary, marked close", showOld, { showOld = it }) {
+                        Text(card.summary, style = MaterialTheme.typography.bodyMedium, color = muted)
+                    }
+                } else {
+                    Source(
+                        when (check) {
+                            S.CONFIRMED -> "From the app · ✓ checked by your teacher"
+                            S.CLOSE -> "From the app · your teacher marked it close"
+                            else -> "From the app · a summary of what your teacher said"
+                        },
+                        teacher = false,
+                    )
                     Text(
-                        "The app had: “$old” If you practiced from this, go by your teacher's clip instead.",
+                        card.summary,
+                        style = if (check == S.CLOSE) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                        maxLines = 4, overflow = TextOverflow.Ellipsis,
+                    )
+                    if (check != S.CONFIRMED) {
+                        Text("Your teacher's clip is the real thing.", style = MaterialTheme.typography.labelSmall, color = muted)
+                    }
+                }
+            } else if (card.summary.isBlank() && check != S.FLAGGED && card.herWords.isNotBlank()) {
+                Source("Your teacher's words in the lesson", teacher = true)
+                Text(
+                    "“${card.herWords}”",
+                    style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
+                    maxLines = 4, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (old != null) {
+                // Wrong, so folded away by default: one quiet line, open only if they want it.
+                Disclosure("From the app: its wrong summary", showOld, { showOld = it }) {
+                    Text(
+                        "“$old” If you practiced from this, go by your teacher instead.",
                         style = MaterialTheme.typography.bodySmall, color = muted,
                     )
                 }
             }
-            if (group.explained && check != LessonOutline.SummaryCheck.CLOSE) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
             if (check == LessonOutline.SummaryCheck.FLAGGED && !group.explained) {
                 if (nudge.asked) {
                     Text("On your questions for the next lesson.", style = MaterialTheme.typography.bodySmall, color = muted)
@@ -619,7 +641,7 @@ private fun TeacherNote(note: String?, clipPath: String?, player: ClipPlayer, vo
         Modifier.fillMaxWidth().background(m.secondaryContainer, RoundedCornerShape(10.dp)).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text("What your teacher meant", style = MaterialTheme.typography.labelMedium, color = m.onSecondaryContainer)
+        Text("Your teacher · what they meant", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = m.onSecondaryContainer)
         if (!note.isNullOrBlank()) {
             Text(
                 note, style = MaterialTheme.typography.bodyMedium, color = m.onSecondaryContainer,
@@ -702,6 +724,38 @@ private fun TalkCard(card: CardEntity, clip: String?, player: ClipPlayer) {
 }
 
 /** A label, filled and borderless, so it doesn't look like something to tap. */
+/** Who a block of words comes from. The teacher's label is bold and coloured; the app's is muted. */
+@Composable
+private fun Source(label: String, teacher: Boolean) {
+    val m = MaterialTheme.colorScheme
+    Text(
+        label,
+        style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (teacher) FontWeight.SemiBold else FontWeight.Normal),
+        color = if (teacher) m.secondary else m.onSurfaceVariant,
+        modifier = Modifier.padding(top = 2.dp),
+    )
+}
+
+/** A one-line chevron fold: a muted label that opens to show [content] beneath it. Closed by default. */
+@Composable
+private fun Disclosure(label: String, open: Boolean, onOpen: (Boolean) -> Unit, content: @Composable () -> Unit) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 90f else 0f, label = "chevron")
+    Column {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(8.dp))
+                .clickable(role = Role.Button, onClickLabel = if (open) "Hide" else "Show") { onOpen(!open) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("›", style = MaterialTheme.typography.titleMedium, color = muted,
+                modifier = Modifier.width(12.dp).graphicsLayer { rotationZ = turn })
+            Text(label, style = MaterialTheme.typography.labelMedium, color = muted)
+        }
+        AnimatedVisibility(open) { Box(Modifier.padding(start = 18.dp, bottom = 4.dp)) { content() } }
+    }
+}
+
 @Composable
 private fun Tag(text: String, container: androidx.compose.ui.graphics.Color? = null, content: androidx.compose.ui.graphics.Color? = null, bold: Boolean = false) {
     val m = MaterialTheme.colorScheme

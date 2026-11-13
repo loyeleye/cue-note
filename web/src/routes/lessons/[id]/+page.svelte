@@ -332,7 +332,7 @@
       {#if c.summary || c.summary_check === 'not_said'}
         <div class="summary" class:said={c.summary_check === 'said'} class:close={c.summary_check === 'close'} class:not-said={c.summary_check === 'not_said'}>
           {#if c.summary}
-            <span class="muted small">Summary the student sees</span>
+            <span class="muted small">{c.summary_check === 'not_said' ? 'Your summary, shown to the student' : "The app's summary, shown to the student"}</span>
             <p>{c.summary}</p>
           {/if}
           <SummaryCheck card={c} studentId={lesson?.student_id ?? ''} onanswered={answered} />
