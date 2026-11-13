@@ -541,7 +541,6 @@ export const demoApi: Api = {
 
   async askFullLesson(lessonId, note) {
     await wait();
-    if (!note?.trim()) throw new Error("Say why you'd like to hear the whole lesson.");
     const s = load();
     const open = passes(s).find((p) => p.lesson_id === lessonId && p.teacher_id === DEMO_TEACHER.id && (p.status === 'pending' || passState(p) === 'active'));
     if (open) return;

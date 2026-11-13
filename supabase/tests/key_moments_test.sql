@@ -114,11 +114,11 @@ select public.end_full_lesson((select v from ids where k = 'p1'));
 select pg_temp.sees_default();
 
 -- ---------------------------------------------------------------- Tia asks, Sam says not this time
-do $$ begin
-  begin
-    perform public.ask_full_lesson('10000000-0000-0000-0000-000000000001', null, '  ');
-    raise exception 'FAIL: a teacher asked without saying why';
-  exception when raise_exception then if sqlerrm like 'FAIL%' then raise; end if; end;
+-- A reason is optional: a blank one is stored as no note.
+do $$ declare pid uuid; begin
+  pid := public.ask_full_lesson('10000000-0000-0000-0000-000000000001', null, '  ');
+  assert (select note from public.full_lesson_pass where full_lesson_pass.id = pid) is null, 'FAIL: a blank reason should be no note';
+  perform public.end_full_lesson(pid);
 end $$;
 insert into ids values ('p2', public.ask_full_lesson('10000000-0000-0000-0000-000000000001', null, 'Verse two isn''t clicking'));
 do $$ begin
