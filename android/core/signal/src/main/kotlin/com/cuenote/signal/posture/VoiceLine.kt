@@ -49,7 +49,7 @@ enum class Voice(val key: String, val label: String) {
     ;
 
     companion object {
-        val DEFAULT = MALE
+        val DEFAULT = FEMALE
         fun fromKey(key: String?) = entries.firstOrNull { it.key == key } ?: DEFAULT
     }
 }
