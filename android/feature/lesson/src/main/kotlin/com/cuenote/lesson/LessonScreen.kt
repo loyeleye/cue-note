@@ -587,7 +587,7 @@ private fun CueCard(
             }
             if (old != null) {
                 // Wrong, so folded away by default: one quiet line, open only if they want it.
-                Disclosure("App summary (wrong)", showOld, { showOld = it }) {
+                Disclosure("App summary (misheard)", showOld, { showOld = it }) {
                     Text(
                         "“$old” If you've been practicing from this, switch to what your teacher said.",
                         style = MaterialTheme.typography.bodySmall, color = muted,
