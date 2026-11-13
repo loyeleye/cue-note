@@ -864,7 +864,9 @@ private fun NextStepBar(onSetlist: Int, practice: (() -> Unit)?, send: (() -> Un
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (send != null) OutlinedButton(onClick = send, modifier = Modifier.weight(1f)) { Text("Send to teacher") }
+                // Opens the next-lesson page (takes to share, questions to ask). Nothing is sent from here,
+                // so the label names the page, not an action it doesn't take.
+                if (send != null) OutlinedButton(onClick = send, modifier = Modifier.weight(1f)) { Text("Before next lesson", maxLines = 1) }
                 Button(onClick = { practice?.invoke() }, enabled = practice != null, modifier = Modifier.weight(1f)) {
                     Text("Start practicing")
                 }
