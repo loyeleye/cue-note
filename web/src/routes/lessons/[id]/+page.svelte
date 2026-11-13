@@ -372,13 +372,17 @@
     {/if}
   </div>
   <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${exercises.length} exercises` : ''} · {takes.length} takes · {cards.length} cards. Every save keeps the earlier version.</p>
-  {#if teachers.length > 1}
+  {#if teachers.length > 1 || (!lesson.taught_by && lesson.teacher_name)}
     <p class="taught">
       {#if lesson.taught_by}
         <span class="muted">Taught by</span> <Who teacher={findTeacher(teachers, lesson.taught_by)} {me} />
         {#if lesson.taught_by === me}<button class="link" onclick={() => claim(false)}>Not my lesson</button>{/if}
       {:else}
-        <span class="muted">Teacher not set.</span>
+        {#if lesson.teacher_name}
+          <span class="muted">Taught by</span> {lesson.teacher_name} <span class="muted small">(not on Cue Note)</span>
+        {:else}
+          <span class="muted">Teacher not set.</span>
+        {/if}
         <button class="link" onclick={() => claim(true)}>This was my lesson</button>
       {/if}
       {#if claimError}<span class="error small" role="alert">{claimError}</span>{/if}

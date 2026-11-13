@@ -141,6 +141,7 @@ export const demoApi: Api = {
     if (isMine) {
       if (l.taught_by && l.taught_by !== DEMO_TEACHER.id) throw new Error('another teacher is already marked on this lesson');
       l.taught_by = DEMO_TEACHER.id;
+      l.teacher_name = null;
     } else if (l.taught_by === DEMO_TEACHER.id) {
       l.taught_by = null;
     }

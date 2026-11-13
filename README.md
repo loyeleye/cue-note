@@ -21,12 +21,22 @@ other's saves live; if two change the same field, the second is asked which
 to keep. The local seed invites `teacher2@example.com` too, so two dashboards
 can try this side by side.
 
-Before recording, the phone asks "Who's teaching today?" when the student has
-more than one teacher. A teacher can switch on "Only my lessons" for a student
-on the dashboard to hide the others' lessons, notes and practice, and can mark
-an older lesson as theirs. The student can go further from "Your teachers" on
-the phone: "Only lessons they teach" limits that teacher, and the database
-enforces it. The phone sends who taught each lesson when it uploads it.
+Before recording, the phone asks "Who's teaching today?": one of the
+student's teachers on Cue Note, or "Someone else" with a typed name for a
+teacher who isn't on Cue Note (a guest, say; it's only a label and grants no
+access). With one teacher they're picked to start with; with none, the name
+from the first lesson is. The student can change who taught an older lesson
+from the lesson itself ("Taught by … Change"), and a teacher can mark an older
+lesson as theirs from the dashboard. A teacher can switch on "Only my lessons" for a student
+on the dashboard to hide the others' lessons, notes and practice. A teacher sees only the lessons marked as
+theirs unless the student turns on "Can see all my lessons" for them under
+"Your teachers" on the phone; the database enforces it. The phone sends who taught each lesson when it uploads it.
+
+A soundcheck ends by showing which mic it heard as the student's and which as
+the teacher's, with how sure it is (from how far apart the two voices were).
+A lesson started within two hours uses that answer instead of asking "Who's on
+which mic?" again; the consent screen shows it with a "Change" button. When the
+soundcheck wasn't sure, the question still follows, already filled in.
 
 ## Layout
 

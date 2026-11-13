@@ -102,7 +102,9 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         val clips = cardsDao.clips(lessonId).filter { c -> plan.any { it.cloudId == c.id } }
         val pathOf = clips.associate { it.localId to cloud.clipPath(student, lessonId, File(it.file).name) }
         try {
-            cloud.putLesson(student, lesson, LessonTeacherStore(applicationContext).get(lessonId))
+            val teachers = LessonTeacherStore(applicationContext)
+            cloud.putLesson(student, lesson, teachers.get(lessonId))
+            teachers.markPending(lessonId, false) // the upload carried the latest pick
             // Clips a teacher deleted, or whose audio they removed, stay off the cloud.
             val removed = cloud.removedClipIds(lessonId)
             clips.forEachIndexed { i, c ->

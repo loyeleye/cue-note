@@ -8,8 +8,9 @@
 insert into auth.users (id, email, raw_user_meta_data) values
   ('5a000000-0000-4000-8000-000000000001', 'sam@example.com', '{"display_name":"Sam Rivera"}');
 
-insert into public.teacher_student_share (student_id, invite_email)
-values ('5a000000-0000-4000-8000-000000000001', 'teacher@example.com');
+-- Sam lets both sample teachers see all his lessons (teachers otherwise see only the ones they taught).
+insert into public.teacher_student_share (student_id, invite_email, restricted_to_taught)
+values ('5a000000-0000-4000-8000-000000000001', 'teacher@example.com', false);
 
 insert into public.lesson (id, student_id, recorded_at, duration_ms, pipeline_state, consent_at) values
   ('5a000000-0000-4000-8000-0000000000a1', '5a000000-0000-4000-8000-000000000001',
@@ -39,5 +40,5 @@ select id, 'ai', jsonb_build_object('cue', cue, 'category', category, 'her_words
   from public.feedback where lesson_id = '5a000000-0000-4000-8000-0000000000a1';
 
 -- A second teacher, so two dashboards can review the same lesson side by side.
-insert into public.teacher_student_share (student_id, invite_email)
-values ('5a000000-0000-4000-8000-000000000001', 'teacher2@example.com');
+insert into public.teacher_student_share (student_id, invite_email, restricted_to_taught)
+values ('5a000000-0000-4000-8000-000000000001', 'teacher2@example.com', false);

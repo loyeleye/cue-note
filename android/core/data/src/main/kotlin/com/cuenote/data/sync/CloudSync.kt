@@ -4,6 +4,7 @@ import com.cuenote.data.AuthRepository
 import com.cuenote.data.CardEntity
 import com.cuenote.data.ExerciseEntity
 import com.cuenote.data.LessonEntity
+import com.cuenote.data.LessonTeacher
 import com.cuenote.data.TakeEntity
 import com.cuenote.pipeline.cards.ClipPlan
 import com.cuenote.pipeline.cards.CloudIds
@@ -58,26 +59,43 @@ class CloudSync(private val auth: AuthRepository) {
         @SerialName("pipeline_state") val pipelineState: String,
         @SerialName("consent_at") val consentAt: String,
         @SerialName("taught_by") val taughtBy: String? = null,
+        @SerialName("teacher_name") val teacherName: String? = null,
     )
 
     /**
-     * Creates or updates the cloud lesson. [taughtBy] is the teacher picked
-     * before recording; if they are no longer one of the student's teachers
-     * the lesson goes up without one, and a teacher can claim it later.
+     * Creates or updates the cloud lesson. [teacher] is who was picked before
+     * recording (or since); if a picked teacher is no longer one of the
+     * student's teachers the lesson goes up without one, and a teacher can
+     * claim it later.
      */
-    suspend fun putLesson(studentId: String, lesson: LessonEntity, taughtBy: String?) {
-        fun row(t: String?) = LessonRow(
+    suspend fun putLesson(studentId: String, lesson: LessonEntity, teacher: LessonTeacher) {
+        fun row(t: LessonTeacher) = LessonRow(
             id = lesson.id, studentId = studentId,
             recordedAt = Instant.ofEpochMilli(lesson.recordedAt).toString(),
             durationMs = lesson.durationMs, pipelineState = "uploading",
-            consentAt = Instant.ofEpochMilli(lesson.consentAt).toString(), taughtBy = t,
+            consentAt = Instant.ofEpochMilli(lesson.consentAt).toString(),
+            taughtBy = t.teacherId, teacherName = t.name,
         )
         try {
-            client.from("lesson").upsert(row(taughtBy)) { onConflict = "id" }
+            client.from("lesson").upsert(row(teacher)) { onConflict = "id" }
         } catch (e: Exception) {
-            if (taughtBy == null || !(e.message ?: "").contains("teachers")) throw e
-            client.from("lesson").upsert(row(null)) { onConflict = "id" }
+            if (teacher.teacherId == null || !(e.message ?: "").contains("teachers")) throw e
+            client.from("lesson").upsert(row(LessonTeacher.NONE)) { onConflict = "id" }
         }
+    }
+
+    @Serializable
+    private data class TeacherChange(
+        @SerialName("taught_by") val taughtBy: String?,
+        @SerialName("teacher_name") val teacherName: String?,
+    )
+
+    /**
+     * Changes who taught a lesson that's already up. A lesson not uploaded
+     * yet matches nothing here, and takes the phone's pick when it goes up.
+     */
+    suspend fun setLessonTeacher(lessonId: String, teacher: LessonTeacher) {
+        client.from("lesson").update(TeacherChange(teacher.teacherId, teacher.name)) { filter { eq("id", lessonId) } }
     }
 
     /** Uploads one clip, replacing any earlier copy. */

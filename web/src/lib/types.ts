@@ -71,6 +71,8 @@ export interface Lesson {
   pipeline_state: string;
   /** The teacher who taught it, picked on the phone or claimed later. */
   taught_by?: string | null;
+  /** A teacher not on Cue Note, named by the student instead (a guest, say). Set only without taught_by. */
+  teacher_name?: string | null;
 }
 
 /**

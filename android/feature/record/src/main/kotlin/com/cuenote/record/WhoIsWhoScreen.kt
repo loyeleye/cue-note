@@ -55,7 +55,9 @@ import kotlinx.coroutines.launch
  * A short step before every lesson: which input is the student's transmitter
  * on? The two transmitters look the same and get handed out at random, so
  * this is decided fresh each time. The teacher taps the student's mic, or
- * lets the app listen for the student and pick it for them.
+ * lets the app listen for the student and pick it for them. A soundcheck run
+ * just before already decided it: then its answer is filled in here, and
+ * this screen only shows when the check wasn't sure or someone asks to change it.
  */
 data class WhoIsWhoState(
     /** null until someone picks; true when the student is on the right input. */
@@ -66,6 +68,8 @@ data class WhoIsWhoState(
     val problem: String? = null,
     val done: Boolean = false,
     val error: String? = null,
+    /** Set while the pick is the one a recent soundcheck made. */
+    val fromSoundcheck: ChannelSwap.Checked? = null,
 )
 
 class WhoIsWhoViewModel(private val app: Application) : AndroidViewModel(app) {
@@ -77,6 +81,9 @@ class WhoIsWhoViewModel(private val app: Application) : AndroidViewModel(app) {
     val liveLevels = recorder.levels
 
     init {
+        ChannelSwap.recentSoundcheck(app)?.let { c ->
+            _state.update { it.copy(studentOnRight = c.verdict.studentOnRight, fromSoundcheck = c) }
+        }
         try {
             recorder.start()
         } catch (e: Exception) {
@@ -87,7 +94,7 @@ class WhoIsWhoViewModel(private val app: Application) : AndroidViewModel(app) {
     /** The teacher tapped a mic: that one is the student's. */
     fun pick(studentOnRight: Boolean) {
         job?.cancel()
-        _state.update { it.copy(studentOnRight = studentOnRight, heard = false, secondsLeft = null, problem = null) }
+        _state.update { it.copy(studentOnRight = studentOnRight, heard = false, secondsLeft = null, problem = null, fromSoundcheck = null) }
     }
 
     /** Listen to the student for a few seconds and pick their mic. */
@@ -103,7 +110,7 @@ class WhoIsWhoViewModel(private val app: Application) : AndroidViewModel(app) {
             val outcome = rules.studentStep(recorder.windowLevels())
             val fail = outcome.result as? StepResult.Fail
             _state.update {
-                if (fail == null) it.copy(secondsLeft = null, studentOnRight = outcome.switchChannels, heard = true)
+                if (fail == null) it.copy(secondsLeft = null, studentOnRight = outcome.switchChannels, heard = true, fromSoundcheck = null)
                 else it.copy(secondsLeft = null, problem = fail.detail)
             }
         }
@@ -114,6 +121,8 @@ class WhoIsWhoViewModel(private val app: Application) : AndroidViewModel(app) {
         job?.cancel()
         recorder.stop() // free the mic for the recording service
         ChannelSwap.set(app, right)
+        // Picked by hand or by listening: that's newer than the soundcheck, so a lesson right after asks again.
+        if (_state.value.fromSoundcheck == null) ChannelSwap.clearSoundcheck(app)
         _state.update { it.copy(secondsLeft = null, done = true) }
     }
 
@@ -160,6 +169,10 @@ fun WhoIsWhoScreen(onReady: () -> Unit, onCancel: () -> Unit, vm: WhoIsWhoViewMo
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            s.fromSoundcheck?.let { c ->
+                Spacer(Modifier.height(16.dp))
+                SoundcheckNote(c)
+            }
             Spacer(Modifier.height(20.dp))
 
             // Raw inputs here: nothing is switched until the teacher continues.
@@ -223,6 +236,28 @@ private fun RadioDot(on: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         if (on) Box(Modifier.size(12.dp).background(c.primary, CircleShape))
+    }
+}
+
+/** The pick a recent soundcheck made, and how sure it was. */
+@Composable
+private fun SoundcheckNote(c: ChannelSwap.Checked) {
+    val colors = MaterialTheme.colorScheme
+    Surface(shape = RoundedCornerShape(16.dp), color = colors.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            val ago = if (c.minutesAgo < 1) "just now" else "${c.minutesAgo} min ago"
+            Text(
+                "From your soundcheck $ago: student on the ${if (c.verdict.studentOnRight) "right" else "left"} mic",
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.onSecondaryContainer,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                confidenceLine(c.verdict) + " Tap the other mic if that's wrong.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSecondaryContainer,
+            )
+        }
     }
 }
 

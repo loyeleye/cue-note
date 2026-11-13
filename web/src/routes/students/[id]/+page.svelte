@@ -108,7 +108,7 @@
   </div>
 
   {#if student.share.restricted_to_taught}
-    <p class="limit">{student.student.display_name || 'This student'} shares only the lessons you teach with you.</p>
+    <p class="limit">You see the lessons marked as yours. {student.student.display_name || 'The student'} can let you see all their lessons from the app.</p>
   {:else if coTeachers}
     <label class="only-mine">
       <input type="checkbox" checked={onlyMine} onchange={toggleOnlyMine} />
@@ -139,7 +139,7 @@
               </span>
               <span class="muted small meta">
                 {#if coTeachers}
-                  {#if l.taught_by}<Who teacher={findTeacher(teachers, l.taught_by)} {me} />{:else}<span>Teacher not set</span>{/if}
+                  {#if l.taught_by}<Who teacher={findTeacher(teachers, l.taught_by)} {me} />{:else if l.teacher_name}<span>{l.teacher_name}</span>{:else}<span>Teacher not set</span>{/if}
                   <span>·</span>
                 {/if}
                 {cardCounts[l.id]?.total ?? 0} cards · {STATE_LABEL[l.pipeline_state] ?? l.pipeline_state}
