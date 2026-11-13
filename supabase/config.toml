@@ -47,6 +47,10 @@ otp_expiry = 3600
 [functions.notify]
 verify_jwt = false
 
+# Woken by the database when another teacher's lessons need a yes; no data in the call.
+[functions.consent-email]
+verify_jwt = false
+
 # The phone calls caption-sketch with the student's session; it reads the photo as them.
 [functions.caption-sketch]
 verify_jwt = true

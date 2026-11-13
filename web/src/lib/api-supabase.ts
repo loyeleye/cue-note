@@ -6,7 +6,7 @@ import { EditConflict, scoreFormatOf } from './api';
 import type {
   PracticeSession, SharedTake, StudentQuestion,
   Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark,
-  PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
+  LessonViewRequest, PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
 
 const ME_COLUMNS = 'id, role, display_name, alias, color, name_public';
@@ -30,19 +30,42 @@ function safeName(name: string): string {
 
 const SUGGESTION_COLUMNS = 'id, feedback_id, diagram_id, confidence, source, teacher_status, student_status, created_at';
 const PHOTO_COLUMNS = 'id, lesson_id, taken_at_ms, feedback_id, caption, confidence, image_path, cleaned_path, auto_feedback_id, link_source';
+/**
+ * The debug view: one stand-in share per student who has a lesson or a
+ * teacher, so the dashboard shows them as a teacher with full access would
+ * see them. Read-only: saving anything is refused by the database.
+ */
+async function debugShares(): Promise<Share[]> {
+  const [lessons, shares] = await Promise.all([
+    supabase.from('lesson').select('student_id'),
+    supabase.from('teacher_student_share').select('student_id').eq('status', 'active')
+  ]);
+  const ids = [...new Set([...(check(lessons) as { student_id: string }[]), ...(check(shares) as { student_id: string }[])]
+    .map((r) => r.student_id))];
+  return ids.map((id) => ({
+    id: `debug-${id}`, student_id: id, invite_email: '', teacher_id: null, status: 'active',
+    next_lesson_at: null, created_at: new Date(0).toISOString(), show_only_taught: false, restricted_to_taught: false
+  }));
+}
+
 export const supabaseApi: Api = {
   demo: false,
 
   async me() {
     const { data } = await supabase.auth.getSession();
     if (!data.session) return null;
-    const res = await supabase.from('profile').select(ME_COLUMNS).eq('id', data.session.user.id).single();
-    return res.data as Profile | null;
+    const [res, debug] = await Promise.all([
+      supabase.from('profile').select(ME_COLUMNS).eq('id', data.session.user.id).single(),
+      supabase.rpc('am_debug')
+    ]);
+    const me = res.data as Profile | null;
+    return me && debug.data === true ? { ...me, debug: true } : me;
   },
 
   async listStudents() {
     const me = await uid();
-    const shares = check(await supabase.from('teacher_student_share').select('*')
+    const debug = (await supabase.rpc('am_debug')).data === true;
+    const shares = debug ? await debugShares() : check(await supabase.from('teacher_student_share').select('*')
       .eq('teacher_id', me).eq('status', 'active')) as Share[];
     if (!shares.length) return [];
     const ids = shares.map((s) => s.student_id);
@@ -76,10 +99,20 @@ export const supabaseApi: Api = {
     check(await supabase.rpc('accept_share', { share: shareId }));
   },
 
+  async listLessonViewRequests() {
+    return check(await supabase.rpc('my_lesson_view_requests')) as LessonViewRequest[];
+  },
+
+  async decideLessonView(requestId, allow) {
+    check(await supabase.rpc('decide_lesson_view', { request: requestId, allow }));
+  },
+
   async getStudent(studentId) {
     const me = await uid();
-    const share = (await supabase.from('teacher_student_share').select('*')
-      .eq('student_id', studentId).eq('teacher_id', me).eq('status', 'active').maybeSingle()).data as Share | null;
+    const debug = (await supabase.rpc('am_debug')).data === true;
+    const share = debug ? (await debugShares()).find((s) => s.student_id === studentId) ?? null
+      : (await supabase.from('teacher_student_share').select('*')
+        .eq('student_id', studentId).eq('teacher_id', me).eq('status', 'active').maybeSingle()).data as Share | null;
     const student = (await supabase.from('profile').select('id, role, display_name').eq('id', studentId).maybeSingle()).data as Profile | null;
     return share && student ? { share, student } : null;
   },

@@ -30,7 +30,29 @@ from the lesson itself ("Taught by … Change"), and a teacher can mark an older
 lesson as theirs from the dashboard. A teacher can switch on "Only my lessons" for a student
 on the dashboard to hide the others' lessons, notes and practice. A teacher sees only the lessons marked as
 theirs unless the student turns on "Can see all my lessons" for them under
-"Your teachers" on the phone; the database enforces it. The phone sends who taught each lesson when it uploads it.
+"Your teachers" on the phone; the database enforces it. Even then, a lesson
+another teacher on Cue Note taught shows only once that teacher agrees: they
+get an email (the `consent-email` function) and an Allow / Decline request at
+the top of their dashboard, and can take a yes back later. Lessons with no
+teacher set, or only a typed name, need no one's agreement.
+
+**Email for those requests.** Set three secrets, or the requests only show on
+the dashboard: `supabase secrets set RESEND_API_KEY=… CONSENT_EMAIL_FROM="Cue Note <hello@your-domain>"
+DASHBOARD_URL=https://your-dashboard --project-ref tgytbytwofiymsvajdkd`.
+
+**Debug role (remove before release).** A debug account sees every student and
+lesson in the normal teacher dashboard, read-only. Make one by running this in
+the hosted project's SQL editor (sign in to the dashboard once first, so the
+account exists):
+
+```sql
+insert into private.debug_user (user_id)
+select id from auth.users where email = 'you@example.com';
+```
+
+`delete from private.debug_user;` turns it off. Dropping the role for good is a
+migration that drops `private.debug_user`, `private.is_debug()`, `public.am_debug()`
+and the `*_debug_read` policies. The phone sends who taught each lesson when it uploads it.
 
 A soundcheck ends by showing which mic it heard as the student's and which as
 the teacher's, with how sure it is (from how far apart the two voices were).

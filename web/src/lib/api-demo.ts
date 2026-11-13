@@ -115,6 +115,12 @@ export const demoApi: Api = {
     save();
   },
 
+  async listLessonViewRequests() {
+    return [];
+  },
+
+  async decideLessonView() {},
+
   async getStudent(studentId) {
     const s = load();
     const share = mine(s).find((x) => x.student_id === studentId && x.status === 'active');
