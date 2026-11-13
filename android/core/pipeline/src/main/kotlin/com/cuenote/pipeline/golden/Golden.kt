@@ -27,7 +27,10 @@ data class GoldenLabels(
     /** Warmups and song sections, each from her setting it up to moving on. */
     val exercises: List<ExerciseLabel> = emptyList(),
     val notes: String = "",
+    /** The labeller's own notes, each pinned to a moment of the lesson. Not scored. */
+    val comments: List<Comment> = emptyList(),
 ) {
+    @Serializable data class Comment(val atMs: Long, val text: String)
     @Serializable data class ExerciseLabel(val startMs: Long, val endMs: Long, val kind: String? = null)
     /** A span; for a demo, [take] is the take whose phrase she was modelling, when known. */
     @Serializable data class Span(val startMs: Long, val endMs: Long, val take: Int? = null)

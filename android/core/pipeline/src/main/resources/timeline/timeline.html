@@ -28,6 +28,11 @@
   .help { font-size:13px; color:var(--muted); }
   .t-student { color:var(--ss); } .t-teacher { color:var(--ts); }
   a.time { cursor:pointer; text-decoration:underline dotted; }
+  #noteBar { display:flex; gap:8px; align-items:center; padding:8px 16px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  #noteText { flex:1; min-width:200px; font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+  #noteList .note-row { display:grid; grid-template-columns:56px 1fr auto; gap:8px; align-items:start; padding:4px 0; border-bottom:1px solid var(--line); }
+  #noteList textarea { font:inherit; width:100%; box-sizing:border-box; min-height:2.2em; resize:vertical; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--fg); }
+  #noteList .note-row.hot textarea { outline:2px solid var(--warm); }
   tr.ex td { background:var(--panel); border-top:2px solid var(--line); }
   .kind { display:inline-block; white-space:nowrap; padding:1px 6px; border-radius:4px; color:#fff; font-size:12px; }
 </style>
@@ -53,9 +58,18 @@
   <button id="labelMode">Label right answers</button>
   <span id="labelTools" hidden>
     <button id="copyFound" title="Start the right answers from what the pipeline found, then fix them">Start from found</button>
+    <button id="splitEx" title="Cut the exercise under the playhead in two, at the playhead (X)">✂ Split exercise at playhead</button>
+    <button id="mergeEx" title="Join the selected exercise with the next one (M)">Merge with next</button>
+    <button id="undo" title="Undo the last change (Ctrl+Z)">Undo</button>
     <button id="save">Save labels.json</button>
     <label class="btn">Open labels.json<input id="load" type="file" accept=".json" hidden></label>
   </span>
+</div>
+<div id="noteBar">
+  <span class="muted">Note at <b id="noteAt">0:00</b></span>
+  <input id="noteText" placeholder="Type a thought about this moment, then press Enter (click the timeline to pick the moment)">
+  <button id="addNote">Add note</button>
+  <button id="saveNotes" title="Saves your notes together with any labels">Save labels.json</button>
 </div>
 <div id="wrap"><canvas id="cv"></canvas></div>
 <main>
@@ -63,9 +77,12 @@
     Labelling: drag across the <b>Right answers</b> row to mark a span, then press <b>T</b> (take), <b>F</b> (feedback) or <b>D</b> (her demo).
     Click a feedback span, then a take span, to say which take it is about; click a feedback span and press <b>N</b> for "no take".
     Click a span and press <b>Delete</b> to remove it. Drag a span's edge to move it. Click anywhere else to play from there.<br>
-    Exercises: drag across the <b>Right exercises</b> row to mark one warmup or song section, from where she sets it up to where she moves on.
-    Click it and press <b>W</b> (warmup) or <b>S</b> (song) to say which.
+    <b>Exercises</b> start as what the pipeline found, so you only fix what's wrong. To split one (say a warmup the song swallowed):
+    click on the timeline where the new part starts, then press <b>✂ Split</b> (or <b>X</b>). Drag the edge between two exercises to move it; both sides move together.
+    Click an exercise and press <b>W</b> (warmup) or <b>S</b> (song), <b>M</b> to merge it with the next, <b>Delete</b> to remove it.
+    Drag across an empty part of the row to add one. <b>Ctrl+Z</b> undoes.
   </p>
+  <section id="notesBox"><h2 style="font-size:15px">Your notes</h2><div id="noteList"></div></section>
   <section id="scoreBox"></section>
   <h2 style="font-size:15px">Stages</h2>
   <table id="stages"></table>
@@ -90,15 +107,16 @@ const exName = (e, i) => (e.kind === 'song' ? 'Song ' : 'Warmup ') + (i + 1);
 // ---------------- right answers (labels) ----------------
 let labels = D.labels || { lessonId: D.lessonId, takes: [], feedback: [], demos: [], exercises: [], notes: '' };
 labels.exercises ||= [];
+labels.comments ||= [];
 let labelMode = false, selected = null, dragging = null, pendingSpan = null, pendingEx = null;
 
 // ---------------- layout ----------------
 const LANES = [
-  ['ruler', 18], ['labels', 22], ['exercises', 22], ['takes', 22], ['feedback', 22], ['truthEx', 22], ['truth', 30],
+  ['ruler', 18], ['labels', 22], ['exercises', 22], ['takes', 22], ['feedback', 22], ['truthEx', 30], ['truth', 30], ['notes', 22],
   ['student', 70], ['teacher', 70], ['transcript', 44], ['events', 18],
 ];
 const NAMES = { labels: 'What it heard', exercises: 'Exercises found', takes: 'Takes found', feedback: 'Feedback found',
-  truthEx: 'Right exercises', truth: 'Right answers',
+  truthEx: 'Right exercises', truth: 'Right answers', notes: 'Your notes',
   student: 'Student mic', teacher: 'Teacher mic', transcript: 'Words', events: 'Marks, photos' };
 const GUTTER = 108;
 let pxPerSec = 12;
@@ -160,6 +178,13 @@ function draw() {
   labels.feedback.forEach((f, i) => span('truth', f.startMs, f.endMs, css('--ts'), f.take == null ? '—' : '→ ' + (f.take + 1), selected && selected.kind === 'feedback' && selected.i === i));
   labels.demos.forEach((d, i) => span('truth', d.startMs, d.endMs, css('--tsing'), 'demo', selected && selected.kind === 'demo' && selected.i === i));
   if (pendingSpan) span('truth', pendingSpan[0], pendingSpan[1], 'rgba(120,120,120,.5)', 'T / F / D ?');
+  ctx.font = '11px system-ui';
+  labels.comments.forEach((c) => {
+    ctx.fillStyle = css('--warm'); ctx.fillRect(x(c.atMs) - 1, laneTop.notes + 2, 3, laneH.notes - 4);
+    ctx.fillStyle = css('--fg');
+    ctx.save(); ctx.beginPath(); ctx.rect(x(c.atMs) + 4, laneTop.notes, 220, laneH.notes); ctx.clip();
+    ctx.fillText(c.text || '(empty note)', x(c.atMs) + 5, laneTop.notes + 15); ctx.restore();
+  });
   // mics: loudness (grey fill), voice probability (thin), pitch (dots, faint when unclear)
   mic('student', F.sDb, F.sP, F.sC, F.sV, css('--ss'));
   mic('teacher', F.tDb, F.tP, F.tC, F.tV, css('--ts'));
@@ -200,7 +225,7 @@ function mic(lane, db, pitch, conf, vad, color) {
 let audio = null, playing = false, playMs = 0, chunkStarts = [];
 { let acc = 0; for (const ms of D.chunkMs) { chunkStarts.push(acc); acc += ms; } }
 function playFrom(ms) {
-  stop(); playMs = ms;
+  stop(); playMs = ms; showNoteAt();
   let k = chunkStarts.findLastIndex(s => s <= ms); if (k < 0) return;
   const startChunk = (k) => {
     audio = new Audio(D.chunks[k]);
@@ -208,11 +233,12 @@ function playFrom(ms) {
     audio.onerror = () => { if (audio.src.endsWith('.wav')) { const t = (playMs - chunkStarts[k]) / 1000; audio.src = audio.src.replace(/\.wav$/, '.m4a'); audio.currentTime = t; audio.play(); } };
     audio.currentTime = (playMs - chunkStarts[k]) / 1000;
     audio.onended = () => { if (k + 1 < D.chunks.length) { playMs = chunkStarts[k + 1]; startChunk(k + 1); } else stop(); };
-    audio.ontimeupdate = () => { playMs = chunkStarts[k] + audio.currentTime * 1000; $('now').textContent = clock(playMs); draw(); };
+    audio.ontimeupdate = () => { playMs = chunkStarts[k] + audio.currentTime * 1000; $('now').textContent = clock(playMs); showNoteAt(); draw(); };
     audio.play().catch(() => { $('now').textContent = 'audio files not found next to this page'; });
   };
   startChunk(k); playing = true; $('play').textContent = '❚❚ Pause';
 }
+function showNoteAt() { $('noteAt').textContent = clock(playMs); }
 function stop() { if (audio) { audio.pause(); audio.onended = null; audio = null; } playing = false; $('play').textContent = '▶ Play'; }
 $('play').onclick = () => playing ? stop() : playFrom(playMs);
 
@@ -221,7 +247,36 @@ $('zin').onclick = () => zoom(2); $('zout').onclick = () => zoom(0.5);
 function zoom(k) { const mid = msAt(wrap.scrollLeft + wrap.clientWidth / 2); pxPerSec = Math.min(400, Math.max(1, pxPerSec * k)); resize(); wrap.scrollLeft = x(mid) - wrap.clientWidth / 2; }
 wrap.addEventListener('scroll', draw);
 window.addEventListener('resize', resize);
-$('labelMode').onclick = () => { labelMode = !labelMode; $('labelMode').classList.toggle('on', labelMode); $('labelTools').hidden = !labelMode; $('labelHelp').hidden = !labelMode; };
+$('labelMode').onclick = () => {
+  if (!labelMode && !labels.exercises.length && D.exercises.length) {   // start from what was found
+    labels.exercises = D.exercises.map(e => ({ startMs: e.startMs, endMs: e.endMs, kind: e.kind }));
+  }
+  labelMode = !labelMode; $('labelMode').classList.toggle('on', labelMode); $('labelTools').hidden = !labelMode; $('labelHelp').hidden = !labelMode; draw(); };
+
+// ---------------- undo, split, merge ----------------
+const undoStack = [];
+function remember() { undoStack.push(JSON.stringify(labels)); if (undoStack.length > 100) undoStack.shift(); }
+function undo() { if (!undoStack.length) return; labels = JSON.parse(undoStack.pop()); selected = null; renderNotes(); draw(); }
+function splitExercise() {
+  const at = Math.round(playMs);
+  const i = labels.exercises.findIndex(x => at > x.startMs + 500 && at < x.endMs - 500);
+  if (i < 0) { $('now').textContent = 'click inside an exercise first, where the new part starts'; return; }
+  remember();
+  const e = labels.exercises[i];
+  labels.exercises.splice(i + 1, 0, { startMs: at, endMs: e.endMs, kind: e.kind });
+  e.endMs = at;
+  selected = { kind: 'exercise', i: i + 1 };
+  draw();
+}
+function mergeExercise() {
+  if (!selected || selected.kind !== 'exercise' || selected.i + 1 >= labels.exercises.length) return;
+  remember();
+  const a = labels.exercises[selected.i], b = labels.exercises[selected.i + 1];
+  a.endMs = Math.max(a.endMs, b.endMs); a.kind = a.kind || b.kind;
+  labels.exercises.splice(selected.i + 1, 1);
+  draw();
+}
+$('splitEx').onclick = splitExercise; $('mergeEx').onclick = mergeExercise; $('undo').onclick = undo;
 
 function hit(ms, lane) {
   if (lane === 'truthEx') {
@@ -240,21 +295,38 @@ cv.addEventListener('pointerdown', e => {
   const [px, py] = pos(e), ms = msAt(px);
   const inTruth = py >= laneTop.truth && py <= laneTop.truth + laneH.truth;
   const inEx = py >= laneTop.truthEx && py <= laneTop.truthEx + laneH.truthEx;
+  const inNotes = py >= laneTop.notes && py <= laneTop.notes + laneH.notes;
+  if (inNotes) {
+    const near = labels.comments.map((c, i) => [Math.abs(x(c.atMs) - px), i]).filter(([d]) => d < 12).sort((a, b) => a[0] - b[0])[0];
+    if (near) { playMs = labels.comments[near[1]].atMs; showNoteAt(); renderNotes(near[1]); draw(); return; }
+  }
   if (!labelMode || !(inTruth || inEx)) { if (px > GUTTER) playFrom(ms); return; }
   const h = hit(ms, inEx ? 'truthEx' : 'truth');
   if (h) {
-    const s = h.arr[h.i], edge = 6 / pxPerSec * 1000;
-    if (Math.abs(ms - s.startMs) < edge) { dragging = { h, side: 'startMs' }; }
-    else if (Math.abs(ms - s.endMs) < edge) { dragging = { h, side: 'endMs' }; }
+    const s = h.arr[h.i], edge = 10 / pxPerSec * 1000;
+    // an exercise's edge that touches its neighbour's moves both
+    const twin = (side) => h.kind !== 'exercise' ? null
+      : side === 'startMs' ? (h.i > 0 && Math.abs(h.arr[h.i - 1].endMs - s.startMs) < 1500 ? h.arr[h.i - 1] : null)
+      : (h.i + 1 < h.arr.length && Math.abs(h.arr[h.i + 1].startMs - s.endMs) < 1500 ? h.arr[h.i + 1] : null);
+    if (Math.abs(ms - s.startMs) < edge) { remember(); dragging = { h, side: 'startMs', twin: twin('startMs'), twinSide: 'endMs' }; }
+    else if (Math.abs(ms - s.endMs) < edge) { remember(); dragging = { h, side: 'endMs', twin: twin('endMs'), twinSide: 'startMs' }; }
     else if (selected && selected.kind === 'feedback' && h.kind === 'take') { labels.feedback[selected.i].take = h.i; selected = null; }
-    else selected = { kind: h.kind, i: h.i };
-  } else if (inEx) { pendingEx = [ms, ms]; dragging = { pendingEx: true }; selected = null; }
+    else { selected = { kind: h.kind, i: h.i }; if (h.kind === 'exercise') { playMs = ms; $('now').textContent = clock(ms); } }
+  } else if (inEx) { playMs = ms; pendingEx = [ms, ms]; dragging = { pendingEx: true }; selected = null; }
   else { pendingSpan = [ms, ms]; dragging = { pending: true }; selected = null; }
   cv.setPointerCapture(e.pointerId); draw();
 });
 cv.addEventListener('pointermove', e => {
-  if (!dragging) return; const ms = Math.round(msAt(pos(e)[0]));
-  if (dragging.pending) pendingSpan[1] = ms; else if (dragging.pendingEx) pendingEx[1] = ms; else dragging.h.arr[dragging.h.i][dragging.side] = ms;
+  if (!dragging) {   // show where an edge can be grabbed
+    const [px, py] = pos(e), ms = msAt(px);
+    const lane = py >= laneTop.truthEx && py <= laneTop.truthEx + laneH.truthEx ? 'truthEx' : py >= laneTop.truth && py <= laneTop.truth + laneH.truth ? 'truth' : null;
+    const h = labelMode && lane ? hit(ms, lane) : null, edge = 10 / pxPerSec * 1000;
+    cv.style.cursor = h && (Math.abs(ms - h.arr[h.i].startMs) < edge || Math.abs(ms - h.arr[h.i].endMs) < edge) ? 'ew-resize' : '';
+    return;
+  }
+  const ms = Math.round(msAt(pos(e)[0]));
+  if (dragging.pending) pendingSpan[1] = ms; else if (dragging.pendingEx) pendingEx[1] = ms;
+  else { dragging.h.arr[dragging.h.i][dragging.side] = ms; if (dragging.twin) dragging.twin[dragging.twinSide] = ms; }
   draw();
 });
 cv.addEventListener('pointerup', () => {
@@ -262,6 +334,7 @@ cv.addEventListener('pointerup', () => {
   if (dragging && dragging.pendingEx && pendingEx) {   // an exercise is made as soon as it is drawn
     pendingEx.sort((a, b) => a - b);
     if (pendingEx[1] - pendingEx[0] >= 1000) {
+      remember();
       labels.exercises.push({ startMs: Math.round(pendingEx[0]), endMs: Math.round(pendingEx[1]), kind: null });
       labels.exercises.sort((a, b) => a.startMs - b.startMs);
       selected = { kind: 'exercise', i: labels.exercises.findIndex(e => e.startMs === Math.round(pendingEx[0])) };
@@ -271,7 +344,13 @@ cv.addEventListener('pointerup', () => {
   dragging = null; draw();
 });
 window.addEventListener('keydown', e => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;   // typing a note
   if (!labelMode) return; const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { undo(); e.preventDefault(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (k === 'x') { splitExercise(); e.preventDefault(); return; }
+  if (k === 'm' && selected && selected.kind === 'exercise') { mergeExercise(); e.preventDefault(); return; }
+  if ((pendingSpan && 'tfd'.includes(k)) || (selected && 'wsn'.includes(k)) || (selected && (k === 'delete' || k === 'backspace'))) remember();
   if (pendingSpan && 'tfd'.includes(k)) {
     const s = { startMs: Math.round(pendingSpan[0]), endMs: Math.round(pendingSpan[1]) };
     if (k === 't') { labels.takes.push(s); labels.takes.sort((a, b) => a.startMs - b.startMs); }
@@ -292,7 +371,7 @@ window.addEventListener('keydown', e => {
 $('copyFound').onclick = () => {
   if ((labels.takes.length || labels.exercises.length) && !confirm('Replace your right answers with what the pipeline found?')) return;
   const idx = Object.fromEntries(D.takes.map((t, i) => [t.id, i]));
-  labels = { lessonId: D.lessonId, notes: labels.notes || '',
+  labels = { lessonId: D.lessonId, notes: labels.notes || '', comments: labels.comments || [],
     exercises: D.exercises.map(e => ({ startMs: e.startMs, endMs: e.endMs, kind: e.kind })),
     takes: D.takes.map(t => ({ startMs: t.startMs, endMs: t.endMs })),
     feedback: D.feedback.map(f => ({ startMs: f.startMs, endMs: f.endMs, take: f.takeId ? idx[f.takeId] : null })),
@@ -305,7 +384,36 @@ $('save').onclick = () => {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   a.download = 'labels.json'; a.click();
 };
-$('load').onchange = async e => { const f = e.target.files[0]; if (f) { labels = JSON.parse(await f.text()); labels.demos ||= []; labels.exercises ||= []; draw(); } };
+$('load').onchange = async e => { const f = e.target.files[0]; if (f) { labels = JSON.parse(await f.text()); labels.demos ||= []; labels.exercises ||= []; labels.comments ||= []; renderNotes(); draw(); } };
+
+// ---------------- your notes ----------------
+function addNote() {
+  const text = $('noteText').value.trim(); if (!text) return;
+  remember();
+  const note = { atMs: Math.round(playMs), text };
+  labels.comments.push(note);
+  labels.comments.sort((a, b) => a.atMs - b.atMs);
+  $('noteText').value = '';
+  renderNotes(labels.comments.indexOf(note)); draw();
+}
+function renderNotes(hot) {
+  const list = $('noteList');
+  if (!labels.comments.length) { list.innerHTML = '<p class="muted">No notes yet. Click the timeline where something happens, type in the box above it and press Enter. Notes are saved in labels.json with your labels.</p>'; return; }
+  list.innerHTML = '';
+  labels.comments.forEach((c, i) => {
+    const row = document.createElement('div'); row.className = 'note-row' + (i === hot ? ' hot' : '');
+    const t = document.createElement('a'); t.className = 'time'; t.textContent = clock(c.atMs); t.onclick = () => playFrom(c.atMs);
+    const box = document.createElement('textarea'); box.value = c.text;
+    box.oninput = () => { c.text = box.value; draw(); };
+    const del = document.createElement('button'); del.textContent = 'Delete';
+    del.onclick = () => { remember(); labels.comments.splice(i, 1); renderNotes(); draw(); };
+    row.append(t, box, del); list.append(row);
+    if (i === hot) row.scrollIntoView({ block: 'nearest' });
+  });
+}
+$('addNote').onclick = addNote;
+$('noteText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addNote(); } });
+$('saveNotes').onclick = () => $('save').onclick();
 
 // ---------------- tables ----------------
 function renderTables() {
@@ -346,6 +454,7 @@ function renderTables() {
   $('cards').innerHTML = '<tr><th></th><th>At</th><th></th></tr>' + rows.join('');
 }
 renderTables();
+renderNotes();
 resize();
 </script>
 </body>

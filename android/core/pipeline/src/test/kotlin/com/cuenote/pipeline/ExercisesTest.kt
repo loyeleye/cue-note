@@ -40,6 +40,16 @@ class ExercisesTest {
         assertTrue(r.exercises[1].reason.startsWith("no singing"))
     }
 
+    @Test fun `the first full song take starts the song, even with nothing said`() {
+        val ts = listOf(take(1, 10, 20), take(2, 30, 40), take(3, 50, 130), take(4, 140, 150))
+        val r = Exercises().group(ts, emptyList(), emptyList(), "L")
+        assertEquals(listOf(listOf("L-take-001", "L-take-002"), listOf("L-take-003", "L-take-004")), r.exercises.map { it.takeIds })
+        assertEquals(listOf(Exercise.WARMUP, Exercise.SONG), r.exercises.map { it.kind })
+        // a second long take inside the song does not split it again
+        val two = ts + take(5, 160, 240)
+        assertEquals(2, Exercises().group(two, emptyList(), emptyList(), "L").exercises.size)
+    }
+
     @Test fun `the block that sets up the next exercise is about no take`() {
         val g = Exercises().group(takes, feedback, words, "L")
         val linked = Linker().link(g.takes, g.feedback, emptyList()).feedback
