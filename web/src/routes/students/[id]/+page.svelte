@@ -8,6 +8,7 @@
   import type { Comment, Feedback, Lesson, PracticeItem, Profile, Share, Song, Teacher } from '$lib/types';
   import AgendaPanel from '$lib/components/AgendaPanel.svelte';
   import NotesPanel from '$lib/components/NotesPanel.svelte';
+  import PlanPanel from '$lib/components/PlanPanel.svelte';
   import PracticePanel from '$lib/components/PracticePanel.svelte';
   import Who from '$lib/components/Who.svelte';
 
@@ -150,6 +151,12 @@
       </ul>
     {/if}
   {:else if tab === 'agenda'}
+    <PlanPanel
+      studentId={id}
+      studentName={student.student.display_name || 'Your student'}
+      cards={shownCards}
+      onCardsChanged={() => api().listStudentFeedback(id).then((c) => (cards = c))}
+    />
     <AgendaPanel
       studentId={id}
       studentName={student.student.display_name || 'Your student'}

@@ -4,6 +4,7 @@ import com.cuenote.pipeline.practice.Plan
 import com.cuenote.pipeline.practice.PlanNote
 import com.cuenote.pipeline.practice.PlanStep
 import com.cuenote.pipeline.practice.PracticePlan
+import com.cuenote.pipeline.practice.StepKind
 import com.cuenote.pipeline.practice.Voice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,10 @@ class PracticePlans(
     private val dao: PracticeDao,
     private val cards: CardDao,
     private val pipeline: PipelineDao?,
+    /** What the teachers set; null leaves the plan to the phone alone. */
+    val settings: PlanSettingsStore? = null,
+    /** Called when a sitting ends, so the teacher's log can be brought up to date. */
+    private val onEnded: () -> Unit = {},
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val stepsSer = ListSerializer(PlanStep.serializer())
@@ -43,9 +48,22 @@ class PracticePlans(
     /** Builds today's plan from [setlist] and starts a sitting. Returns its id. */
     suspend fun start(setlist: List<SetlistRow>, voice: Voice, minutes: Int, nextLessonAt: Long?): String = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val (notes, warmup) = notes(setlist)
+        val set = settings?.settings?.value ?: PlanSettings()
+        val (found, warmup) = notes(setlist)
+        val notes = found.map { if (it.cardId in set.pinned) it.copy(pinned = true) else it }
         val tomorrow = nextLessonAt != null && nextLessonAt - now in 0..(36 * 3_600_000L)
-        val plan = PracticePlan.build(notes, voice, minutes, now, warmup, tomorrow, ::weekday)
+        // Rest set by a teacher means listening only; the cap is the strictest teacher's.
+        val v = if (set.resting(day(now))) Voice.HOARSE else voice
+        val m = set.maxMinutes?.let { minOf(it, minutes) } ?: minutes
+        val built = PracticePlan.build(notes, v, m, now, warmup?.let { w -> notes.firstOrNull { it.cardId == w.cardId } ?: w }, tomorrow, ::weekday)
+        // Her wording for the gentle start and cool-down, when she wrote one.
+        val plan = built.copy(steps = built.steps.map { st ->
+            when (st.kind) {
+                StepKind.GENTLE_START -> set.gentleStart?.let { st.copy(hint = it) } ?: st
+                StepKind.COOL_DOWN -> set.coolDown?.let { st.copy(hint = it) } ?: st
+                else -> st
+            }
+        })
         val id = UUID.randomUUID().toString()
         dao.upsertPlan(entity(id, plan, now))
         id
@@ -70,6 +88,7 @@ class PracticePlans(
             endedAt = if (next >= steps.size) now else null, synced = false,
         )
         dao.upsertPlan(updated)
+        if (updated.endedAt != null) onEnded()
         return updated
     }
 
@@ -86,7 +105,7 @@ class PracticePlans(
     suspend fun end(id: String) {
         val p = dao.plan(id) ?: return
         val now = System.currentTimeMillis()
-        if (p.endedAt == null) dao.upsertPlan(p.copy(endedAt = now, updatedAt = now, synced = false))
+        if (p.endedAt == null) { dao.upsertPlan(p.copy(endedAt = now, updatedAt = now, synced = false)); onEnded() }
     }
 
     /** The setlist as the planner needs it, and a note from her latest warmup. */
@@ -137,6 +156,12 @@ class PracticePlans(
         lastPracticedAt = g.all.mapNotNull { last[it.id] }.maxOrNull(),
         text = g.all.joinToString(" ") { listOf(it.herWords, it.cue, it.summary).joinToString(" ") },
     )
+
+    /** The feedback ids of the notes skipped in a sitting, for the teacher's log. */
+    fun skippedCards(p: PracticePlanEntity): List<String> {
+        val steps = steps(p)
+        return skipped(p).mapNotNull { steps.getOrNull(it)?.cardId }.distinct()
+    }
 
     private fun checked(c: CardEntity) = c.summaryCheck == "said" || c.summaryCheck == "close" || c.editedByTeacher
 

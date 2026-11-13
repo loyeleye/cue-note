@@ -3,7 +3,7 @@
 // touches the real database. Dates are relative to today so it looks fresh.
 import type { FullLessonPass,
   Annotation, CardVersion, Checkpoint, Comment, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark, PracticeItem,
-  PracticeSession, Profile, Score, Share, SharedTake, Song, StudentQuestion, Take
+  PlanSetting, PlanSitting, PracticeSession, Profile, Score, Share, SharedTake, Song, StudentQuestion, Take
 } from './types';
 import { contourFor, type Note } from './tone';
 import { weekOf as mondayOf } from './format';
@@ -87,6 +87,9 @@ export interface DemoState {
   practice: PracticeItem[];
   /** The next lesson's agenda; missing from demo states saved before it. */
   practiceSessions?: PracticeSession[];
+  /** Suggested practice; missing from demo states saved before it. */
+  planSittings?: PlanSitting[];
+  planSettings?: PlanSetting[];
   sharedTakes?: SharedTake[];
   questions?: StudentQuestion[];
   songs: Song[];
@@ -334,6 +337,25 @@ export function demoPasses(): FullLessonPass[] {
     status: 'pending', note: 'Audition next Friday. Can you hear the whole thing?', created_at: ago(0, 9),
     decided_at: null, ends_at: null, ended_at: null
   }];
+}
+
+/** Sam's sittings of suggested practice: fine, a bit tired, then hoarse, then fine again. */
+export function demoPlanSittings(): PlanSitting[] {
+  const at = (days: number, hour: number, minute = 0) => {
+    const d = new Date(Date.now() - days * day);
+    d.setHours(hour, minute, 0, 0);
+    return d;
+  };
+  const s = (id: string, days: number, hour: number, mins: number, voice: PlanSitting['voice'], steps: number, done: number, skipped: string[] = []): PlanSitting => ({
+    id, student_id: SAM, day: at(days, hour).toISOString().slice(0, 10), started_at: at(days, hour).toISOString(),
+    ended_at: at(days, hour, mins).toISOString(), voice, minutes: mins, steps, done, skipped
+  });
+  return [
+    s('demo-pp-4', 0, 18, 18, 'fine', 6, 5, ['demo-fb-2']),
+    s('demo-pp-3', 1, 9, 9, 'hoarse', 3, 3),
+    s('demo-pp-2', 3, 8, 12, 'tired', 5, 5),
+    s('demo-pp-1', 4, 19, 20, 'fine', 6, 6)
+  ];
 }
 
 /** Sam's week since the last lesson: three sittings, two shared takes, three questions. */

@@ -3,7 +3,7 @@
 // and the demo one keeps made-up sample data in the browser. Screens never know
 // which one they have, so the demo exercises exactly the same screens.
 import type { FullLessonPass, LessonViewRequest,
-  Agenda, Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Exercise, Feedback,
+  Agenda, Annotation, PlanSetting, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Exercise, Feedback,
   Lesson, PhotoMark,
   PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, SummaryCheck, SummaryTally, Take, Teacher
 } from './types';
@@ -167,6 +167,9 @@ export interface Api {
 
   /** The next lesson's agenda: the practice log, shared takes and questions, newest first. */
   getAgenda(studentId: string): Promise<Agenda>;
+  /** This teacher's settings for the student's suggested practice, or null before any are saved. */
+  getPlanSetting(studentId: string): Promise<PlanSetting | null>;
+  savePlanSetting(studentId: string, changes: Partial<Omit<PlanSetting, 'student_id' | 'teacher_id'>>): Promise<PlanSetting>;
   /** Marks a shared take as listened to (or not), which frees the student to share another. */
   markTakeHeard(takeId: string, heard: boolean): Promise<void>;
   /**

@@ -473,6 +473,20 @@ is kept in `practice_plan` (Room 12 to 13), so it can be picked up within the
 hour. The concept, mockups and panel reviews are in the project files under
 `suggested-practice/`.
 
+**The teacher's side.** On the dashboard's **Next lesson** tab, **Practice
+plan** lets a teacher pick the main point (always first after the warmup),
+"Up to 10 / 20 / 30 min" and days a week, rest until a date (listening only),
+and the words of the gentle start and cool-down
+(`practice_plan_setting`, one row per teacher; with two teachers the phone
+takes every main point, the strictest cap and the latest rest). A point she
+made two or more times in a lesson without marking it "practice this" is
+offered to her ("Add to practice" / "Not yet"), never to the student. Each
+sitting goes up to `practice_plan_log` (how the voice felt, steps done, notes
+skipped; no audio) and shows under **Suggested practice**, with a note when
+a tired voice was followed by a hoarse one within a week. `PracticeSyncWorker`
+sends sittings and brings the settings back
+(`supabase/migrations/20261124000001_suggested_practice.sql`).
+
 **Posture during practice.** **Watch my posture** on the practice screen
 uses the lesson's posture tracking (`PostureService`, MediaPipe on the
 phone). Switching it on runs the framing check from the student's singing
