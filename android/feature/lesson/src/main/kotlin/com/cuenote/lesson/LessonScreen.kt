@@ -251,7 +251,7 @@ fun LessonScreen(
                 val close = groups.count { it.check == LessonOutline.SummaryCheck.CLOSE }
                 val corrected = groups.count { it.check == LessonOutline.SummaryCheck.FLAGGED || it.check == LessonOutline.SummaryCheck.CORRECTED }
                 if (close + corrected > 0) item(key = "corrected") {
-                    val parts = listOfNotNull("$close close".takeIf { close > 0 }, "$corrected corrected".takeIf { corrected > 0 })
+                    val parts = listOfNotNull("$close close".takeIf { close > 0 }, "$corrected wrong".takeIf { corrected > 0 })
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.tertiary))
                         Text(
@@ -272,7 +272,7 @@ fun LessonScreen(
                         val her = clipFile[c.id]
                         CueCard(
                             g, mod,
-                            Clip(her, "Her words", her?.let(clipMs::get)),
+                            Clip(her, "Lesson clip", her?.let(clipMs::get)),
                             Clip(c.takeId?.let(clipFile::get), tryLabel(sec.tryNo(take?.id), take?.id in sec.starred), null),
                             likedTry?.takeIf { liked.id != take?.id },
                             player,
@@ -293,7 +293,7 @@ fun LessonScreen(
                         val her = clipFile[CloudIds.feedback(g.feedback.id)]
                         GuessCard(
                             g, Modifier.animateItem(),
-                            Clip(her, "Her words", her?.let(clipMs::get)),
+                            Clip(her, "Lesson clip", her?.let(clipMs::get)),
                             Clip(take?.let { clipFile[CloudIds.take(it)] }, tryLabel(sec.tryNo(take), take in sec.starred), null),
                             player,
                         )
@@ -504,8 +504,8 @@ private fun CueCard(
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 when (check) {
-                    LessonOutline.SummaryCheck.CLOSE -> Tag("Close", m.tertiaryContainer, m.onTertiaryContainer, bold = true)
-                    LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> Tag("Corrected", m.errorContainer, m.onErrorContainer, bold = true)
+                    LessonOutline.SummaryCheck.CLOSE -> Tag("App: close", m.tertiaryContainer, m.onTertiaryContainer, bold = true)
+                    LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> Tag("App: wrong", m.errorContainer, m.onErrorContainer, bold = true)
                     else -> {}
                 }
             }
@@ -513,11 +513,11 @@ private fun CueCard(
             val old = card.summaryRejected?.takeIf { it.isNotBlank() }
             when (check) {
                 S.FLAGGED -> Text(
-                    "The app got this one wrong. Go by your teacher.",
+                    "The app got this one wrong. Go with what your teacher said.",
                     style = MaterialTheme.typography.labelMedium, color = muted,
                 )
                 S.CLOSE -> Text(
-                    "The app's summary is close, but not quite. Go by your teacher.",
+                    "The app's summary is close, but not quite right. Go with what your teacher said.",
                     style = MaterialTheme.typography.labelMedium, color = m.tertiary,
                 )
                 else -> {}
@@ -528,7 +528,7 @@ private fun CueCard(
                 Source("Your teacher's summary", teacher = true)
                 Text(card.summary, style = MaterialTheme.typography.bodyLarge)
             } else if (check == S.FLAGGED && card.herWords.isNotBlank()) {
-                Source("Your teacher's words in the lesson", teacher = true)
+                Source("What your teacher said in the lesson", teacher = true)
                 Text(
                     "“${card.herWords}”",
                     style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
@@ -539,15 +539,15 @@ private fun CueCard(
             if (card.summary.isNotBlank() && check != S.CORRECTED) {
                 if (check == S.CLOSE && group.explained) {
                     // The teacher's note says it better; the near miss folds away until asked for.
-                    Disclosure("From the app: its summary, marked close", showOld, { showOld = it }) {
+                    Disclosure("App summary (close)", showOld, { showOld = it }) {
                         Text(card.summary, style = MaterialTheme.typography.bodyMedium, color = muted)
                     }
                 } else {
                     Source(
                         when (check) {
-                            S.CONFIRMED -> "From the app · ✓ checked by your teacher"
-                            S.CLOSE -> "From the app · your teacher marked it close"
-                            else -> "From the app · a summary of what your teacher said"
+                            S.CONFIRMED -> "App summary · your teacher checked it ✓"
+                            S.CLOSE -> "App summary · your teacher says it's close"
+                            else -> "App summary · not checked yet"
                         },
                         teacher = false,
                     )
@@ -557,11 +557,11 @@ private fun CueCard(
                         maxLines = 4, overflow = TextOverflow.Ellipsis,
                     )
                     if (check != S.CONFIRMED) {
-                        Text("Your teacher's clip is the real thing.", style = MaterialTheme.typography.labelSmall, color = muted)
+                        Text("When in doubt, listen to the lesson clip.", style = MaterialTheme.typography.labelSmall, color = muted)
                     }
                 }
             } else if (card.summary.isBlank() && check != S.FLAGGED && card.herWords.isNotBlank()) {
-                Source("Your teacher's words in the lesson", teacher = true)
+                Source("What your teacher said in the lesson", teacher = true)
                 Text(
                     "“${card.herWords}”",
                     style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
@@ -570,23 +570,23 @@ private fun CueCard(
             }
             if (old != null) {
                 // Wrong, so folded away by default: one quiet line, open only if they want it.
-                Disclosure("From the app: its wrong summary", showOld, { showOld = it }) {
+                Disclosure("App summary (wrong)", showOld, { showOld = it }) {
                     Text(
-                        "“$old” If you practiced from this, go by your teacher instead.",
+                        "“$old” If you've been practicing from this, switch to what your teacher said.",
                         style = MaterialTheme.typography.bodySmall, color = muted,
                     )
                 }
             }
             if (check == LessonOutline.SummaryCheck.FLAGGED && !group.explained) {
                 if (nudge.asked) {
-                    Text("On your questions for the next lesson.", style = MaterialTheme.typography.bodySmall, color = muted)
+                    Text("Added to your questions for next lesson.", style = MaterialTheme.typography.bodySmall, color = muted)
                 }
                 AnimatedVisibility(nudge.open && !nudge.asked, exit = shrinkVertically() + fadeOut()) {
                     Column(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(m.surfaceContainerHigh).padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text("Listen to your teacher's clip. Still unclear?", style = MaterialTheme.typography.bodyMedium)
+                        Text("Listen to the lesson clip. Still not sure?", style = MaterialTheme.typography.bodyMedium)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = nudge.gotIt) { Text("Got it") }
                             nudge.ask?.let { FilledTonalButton(onClick = it) { Text("Add to my questions", maxLines = 1) } }
@@ -641,7 +641,7 @@ private fun TeacherNote(note: String?, clipPath: String?, player: ClipPlayer, vo
         Modifier.fillMaxWidth().background(m.secondaryContainer, RoundedCornerShape(10.dp)).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text("Your teacher · what they meant", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = m.onSecondaryContainer)
+        Text("What your teacher meant", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = m.onSecondaryContainer)
         if (!note.isNullOrBlank()) {
             Text(
                 note, style = MaterialTheme.typography.bodyMedium, color = m.onSecondaryContainer,
@@ -665,7 +665,7 @@ private fun TeacherNote(note: String?, clipPath: String?, player: ClipPlayer, vo
             }) {
                 // The label stays put while it downloads; a small spinner stands in for the ▶.
                 if (fetching) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp) else Text(if (on) "■" else "▶")
-                Text(" Note from your teacher")
+                Text(" Play your teacher's note")
             }
             if (failed) Text("Couldn't get the voice note. Check the internet and try again.", style = MaterialTheme.typography.bodySmall, color = m.error)
         }

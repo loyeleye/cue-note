@@ -103,7 +103,7 @@
     <p class="muted small">{HELP[current]}{card.summary_checked_at ? ` Answered ${ago(card.summary_checked_at)}.` : ''}</p>
   {/if}
   {#if current === 'not_said' && card.summary_rejected}
-    <details class="old small"><summary>From the app: its wrong summary</summary><p>“{card.summary_rejected}”</p></details>
+    <details class="old small"><summary>App summary (you marked it wrong)</summary><p>“{card.summary_rejected}”</p></details>
   {/if}
 
   {#if current === 'close' || current === 'not_said'}
