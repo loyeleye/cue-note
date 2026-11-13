@@ -4,6 +4,7 @@ import com.cuenote.pipeline.practice.Contour
 import com.cuenote.pipeline.practice.LoggedSession
 import com.cuenote.pipeline.practice.LoggedTake
 import com.cuenote.pipeline.practice.NoteResult
+import com.cuenote.pipeline.practice.OfferTake
 import com.cuenote.pipeline.practice.PracticeLog
 import com.cuenote.pipeline.practice.Questions
 import com.cuenote.pipeline.practice.SessionItem
@@ -71,5 +72,28 @@ class PracticeLogTest {
         assertEquals(12, Questions.bar(" 12 "))
         assertNull(Questions.bar("twelve"))
         assertNull(Questions.bar("0"))
+    }
+
+    // ------------------------------------------------ the pre-lesson offer
+    private fun t(id: String, card: String, at: Long, shared: Boolean = false) = OfferTake(id, card, at, shared)
+
+    @Test fun `offers the latest take on each practice-this note since the last lesson`() {
+        val takes = listOf(t("a1", "lift", 10), t("a2", "lift", 30), t("b1", "breathe", 20), t("old", "vowel", 1), t("x", "free", 40))
+        val got = PracticeLog.toOffer(setOf("lift", "breathe", "vowel"), takes, waiting = 0, since = 5)
+        assertEquals(listOf("a2", "b1"), got.map { it.id })   // newest first; not the old one, not a note the teacher didn't mark
+    }
+
+    @Test fun `a note already shared since the lesson isn't offered again`() {
+        val takes = listOf(t("a1", "lift", 10, shared = true), t("a2", "lift", 30), t("b1", "breathe", 20))
+        assertEquals(listOf("b1"), PracticeLog.toOffer(setOf("lift", "breathe"), takes, 1, 0).map { it.id })
+    }
+
+    @Test fun `the offer fits the free places and leaves out skipped takes`() {
+        val takes = listOf(t("a", "n1", 1), t("b", "n2", 2), t("c", "n3", 3), t("d", "n4", 4))
+        val all = setOf("n1", "n2", "n3", "n4")
+        assertEquals(listOf("d", "c", "b"), PracticeLog.toOffer(all, takes, 0, 0).map { it.id })
+        assertEquals(listOf("d"), PracticeLog.toOffer(all, takes, 2, 0).map { it.id })
+        assertEquals(emptyList<String>(), PracticeLog.toOffer(all, takes, 3, 0).map { it.id })
+        assertEquals(listOf("c", "b", "a"), PracticeLog.toOffer(all, takes, 0, 0, skipped = setOf("d")).map { it.id })
     }
 }

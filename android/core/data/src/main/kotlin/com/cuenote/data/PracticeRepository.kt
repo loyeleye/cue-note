@@ -193,6 +193,9 @@ class PracticeRepository(
     /** Shared takes the teacher hasn't listened to yet. */
     fun waiting(): Flow<List<PracticeTakeEntity>> = dao.observeWaiting()
 
+    /** Every take (not deleted) recorded since [since], newest first. */
+    fun takesSince(since: Long): Flow<List<PracticeTakeEntity>> = dao.observeTakesSince(since)
+
     /** Shares a take with the student's teachers, or stops sharing it. Goes up at the next sync. */
     suspend fun share(take: PracticeTakeEntity, on: Boolean) = withContext(Dispatchers.IO) {
         dao.setShared(take.id, on)
@@ -263,7 +266,22 @@ class PracticeAgenda(context: Context) {
         _nextLessonAt.value = at
     }
 
-    private companion object { const val KEY_NEXT = "next_lesson_at" }
+    private val _skipped = MutableStateFlow(prefs.getStringSet(KEY_SKIPPED, emptySet())!!.toSet())
+    /** Takes the student said "not this one" to when offered before a lesson, so they aren't offered again. */
+    val skipped: StateFlow<Set<String>> = _skipped.asStateFlow()
+
+    fun skip(takeIds: Collection<String>) {
+        if (takeIds.isEmpty()) return
+        // Only the last few hundred matter; older takes are long past their lesson.
+        val all = (_skipped.value + takeIds).toList().takeLast(300).toSet()
+        prefs.edit().putStringSet(KEY_SKIPPED, all).apply()
+        _skipped.value = all
+    }
+
+    private companion object {
+        const val KEY_NEXT = "next_lesson_at"
+        const val KEY_SKIPPED = "offer_skipped"
+    }
 }
 
 /**

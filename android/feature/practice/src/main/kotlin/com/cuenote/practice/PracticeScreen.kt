@@ -438,7 +438,7 @@ private fun LazyListScope.takesList(
         }
     }
     item(key = "private") {
-        Text(if (share == null) "Practice takes stay on this phone." else "Practice takes stay on this phone unless you share one.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Text(if (share == null) "Practice takes stay on this phone." else "Practice takes stay on this phone unless you share one. Share the ones you're least sure about, not just your best.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
     }
 }
 

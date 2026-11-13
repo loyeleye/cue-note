@@ -320,6 +320,7 @@ private fun AppNav(app: CueNoteApp) {
                 repo = app.practice,
                 setlist = setlist,
                 teacher = onlyTeacher,
+                sharing = sharing,
                 onPractice = { cardId -> withPermission { nav.navigate("practice/$cardId") } },
                 onBack = { nav.popBackStack() },
             )
