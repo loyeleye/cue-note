@@ -66,7 +66,7 @@ interface LessonDao {
         PhotoEntity::class, PracticeSessionEntity::class, PracticeTakeEntity::class,
         PracticeQuestionEntity::class, ExerciseEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class LessonDatabase : RoomDatabase() {
@@ -82,7 +82,7 @@ abstract class LessonDatabase : RoomDatabase() {
         /** One database for the app and its background workers. */
         fun get(context: Context): LessonDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, LessonDatabase::class.java, "cuenote.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .build().also { instance = it }
         }
 
@@ -133,6 +133,13 @@ abstract class LessonDatabase : RoomDatabase() {
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_8_9_SQL.forEach(db::execSQL)
+            }
+        }
+
+        /** Cards get the writer's one- or two-sentence summary and how much each point is worth drilling. */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_9_10_SQL.forEach(db::execSQL)
             }
         }
 
@@ -213,5 +220,14 @@ internal val MIGRATION_8_9_ADDED_COLUMNS = mapOf(
 )
 
 internal val MIGRATION_8_9_SQL = MIGRATION_8_9_ADDED_COLUMNS.flatMap { (table, cols) ->
+    cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
+}
+
+/** Copied from schemas/com.cuenote.data.LessonDatabase/10.json (Room checks they match). */
+internal val MIGRATION_9_10_ADDED_COLUMNS = mapOf(
+    "card" to listOf("`summary` TEXT NOT NULL DEFAULT ''", "`weight` REAL"),
+)
+
+internal val MIGRATION_9_10_SQL = MIGRATION_9_10_ADDED_COLUMNS.flatMap { (table, cols) ->
     cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
 }

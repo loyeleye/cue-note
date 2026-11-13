@@ -168,7 +168,8 @@ Deno.serve(async (req) => {
         model, cost_usd: cost, input_tokens: r.usage.input, output_tokens: r.usage.output, error: r.error ?? null,
         exercises: [...r.titles].map(([id, title]) => ({ id, title })),
         cards: checked.map((c) => ({
-          id: c.block.id, cue: c.payload.cue, her_words: c.payload.her_words, category: c.payload.category,
+          id: c.block.id, cue: c.payload.cue, her_words: c.payload.her_words, summary: c.summary, weight: c.weight,
+          category: c.payload.category,
           practice_flag: c.payload.practice_flag, bar_start: c.payload.bar_start, bar_end: c.payload.bar_end,
           repaired: c.repaired, missing: c.missing,
         })),
@@ -207,6 +208,9 @@ Deno.serve(async (req) => {
     transcript: c.block.transcript,
     link_confidence: c.block.link_confidence,
     exercise_id: c.block.exercise_id ?? null,
+    // The writer's reading of her point; refreshed on every run, her edits or not.
+    summary: c.summary,
+    weight: c.weight,
   });
 
   const fresh = checked.filter((c) => !edited.has(c.block.id));
