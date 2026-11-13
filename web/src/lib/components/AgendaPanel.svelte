@@ -7,6 +7,7 @@
   import { ago, clock, date } from '$lib/format';
   import type { Agenda, Feedback, Lesson, SharedTake, StudentQuestion } from '$lib/types';
   import ClipPlayer from './ClipPlayer.svelte';
+  import VoiceRecorder from './VoiceRecorder.svelte';
 
   let { studentId, studentName, cards = [], lessons = [], nextLessonAt = null, keepLesson = () => true }: {
     studentId: string;
@@ -20,8 +21,11 @@
 
   let agenda = $state<Agenda | null>(null);
   let error = $state('');
+  // One reply open at a time: to a question ('q-<id>') or a take ('t-<id>').
   let answering = $state<string | null>(null);
   let answerText = $state('');
+  let answerVoice = $state<Blob | null>(null);
+  let sending = $state(false);
   let showHeard = $state(false);
 
   async function reload() {
@@ -75,17 +79,46 @@
     await reload();
   }
 
-  async function answer(q: StudentQuestion, words: string | null) {
-    await api().answerQuestion(q.id, words?.trim() || null);
-    answering = null; answerText = '';
-    await reload();
+  function openReply(key: string) { answering = key; answerText = ''; answerVoice = null; }
+  function closeReply() { answering = null; answerText = ''; answerVoice = null; }
+
+  async function send(f: () => Promise<void>) {
+    sending = true; error = '';
+    try { await f(); closeReply(); await reload(); }
+    catch (e) { error = e instanceof Error ? e.message : String(e); }
+    finally { sending = false; }
   }
+
+  const answer = (q: StudentQuestion, words: string | null, voice: Blob | null = null) =>
+    send(() => api().answerQuestion(q.id, words?.trim() || null, voice));
+
+  const reply = (t: SharedTake) => send(() => api().replyToTake(t, answerText, answerVoice));
 
   async function reopen(q: StudentQuestion) {
     await api().reopenQuestion(q.id);
     await reload();
   }
 </script>
+
+{#snippet composer(key: string, placeholder: string, onsend: () => void)}
+  <label class="visually-hidden" for="reply-{key}">Your reply</label>
+  <textarea id="reply-{key}" rows="2" bind:value={answerText} {placeholder}></textarea>
+  <div class="row between">
+    <VoiceRecorder maxSeconds={60} onrecorded={(b) => (answerVoice = b)} />
+    <span class="row">
+      <button class="ghost small" onclick={closeReply}>Cancel</button>
+      <button class="primary small" disabled={sending || (!answerText.trim() && !answerVoice)} onclick={onsend}>{sending ? 'Sending…' : 'Send'}</button>
+    </span>
+  </div>
+{/snippet}
+
+{#snippet yourReply(words: string | null, clip: string | null)}
+  <div class="reply">
+    <span class="muted small">You replied</span>
+    {#if words}<p class="small">{words}</p>{/if}
+    {#if clip}<ClipPlayer path={clip} label="Your voice note" compact />{/if}
+  </div>
+{/snippet}
 
 {#if error}<p class="error" role="alert">{error}</p>{/if}
 {#if !agenda}
@@ -121,7 +154,14 @@
         {#if t.clip_path}<ClipPlayer path={t.clip_path} compact />{/if}
         {#if t.feeling_note}<p class="felt">How it felt: “{t.feeling_note}”</p>{/if}
         {#if pitchLine(t)}<p class="muted small">{pitchLine(t)}</p>{/if}
-        <div class="row"><button class="primary small" onclick={() => heardIt(t, true)}>I've listened</button></div>
+        {#if answering === 't-' + t.id}
+          {@render composer('t-' + t.id, `A word for ${first}, or record a few seconds`, () => reply(t))}
+        {:else}
+          <div class="row">
+            <button class="primary small" onclick={() => heardIt(t, true)}>I've listened</button>
+            <button class="ghost small" onclick={() => openReply('t-' + t.id)}>Reply</button>
+          </div>
+        {/if}
       </div>
     {:else}
       <p class="muted">{first} hasn't shared a practice take since you last listened. They can share up to three at a time.</p>
@@ -136,6 +176,7 @@
               <span class="muted small">listened {ago(t.heard_at!)}</span>
             </div>
             {#if t.clip_path}<ClipPlayer path={t.clip_path} compact />{/if}
+            {@render yourReply(t.reply ?? null, t.reply_clip_path ?? null)}
             <div class="row"><button class="link" onclick={() => heardIt(t, false)}>Put back on the list</button></div>
           </div>
         {/each}
@@ -151,16 +192,11 @@
           {cueOf(q.feedback_id) ? `On “${cueOf(q.feedback_id)}”` : 'General'}{q.bar ? `, bar ${q.bar}` : ''} · {ago(q.created_at)}
         </p>
         <p class="q">{q.body}</p>
-        {#if answering === q.id}
-          <label class="visually-hidden" for="answer-{q.id}">Your answer</label>
-          <textarea id="answer-{q.id}" rows="2" bind:value={answerText} placeholder="A short answer {first} sees on the phone"></textarea>
-          <div class="row end">
-            <button class="ghost small" onclick={() => { answering = null; answerText = ''; }}>Cancel</button>
-            <button class="primary small" disabled={!answerText.trim()} onclick={() => answer(q, answerText)}>Send answer</button>
-          </div>
+        {#if answering === 'q-' + q.id}
+          {@render composer('q-' + q.id, `A short answer ${first} sees on the phone`, () => answer(q, answerText, answerVoice))}
         {:else}
           <div class="row">
-            <button class="primary small" onclick={() => { answering = q.id; answerText = ''; }}>Answer</button>
+            <button class="primary small" onclick={() => openReply('q-' + q.id)}>Answer</button>
             <button class="ghost small" onclick={() => answer(q, null)}>We covered it in the lesson</button>
           </div>
         {/if}
@@ -173,7 +209,11 @@
       {#each answered as q (q.id)}
         <div class="card item faded">
           <p class="q">{q.body}</p>
-          <p class="small">{q.answer ?? 'Covered in the lesson.'}</p>
+          {#if q.answer || q.answer_clip_path}
+            {@render yourReply(q.answer, q.answer_clip_path ?? null)}
+          {:else}
+            <p class="small">Covered in the lesson.</p>
+          {/if}
           <div class="row"><button class="link" onclick={() => reopen(q)}>Reopen</button></div>
         </div>
       {/each}
@@ -191,7 +231,8 @@
   .item.faded { opacity: 0.75; }
   .top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .row.end { justify-content: flex-end; }
+  .row.between { justify-content: space-between; align-items: center; }
+  .reply { display: grid; gap: 4px; padding-left: 10px; border-left: 2px solid var(--accent-soft, var(--muted)); }
   .felt { margin: 0; font-style: italic; }
   .q { margin: 0; font-size: 15px; }
   .where { margin: 0; }

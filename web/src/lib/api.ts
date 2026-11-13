@@ -2,7 +2,7 @@
 // Two versions sit behind it: the real one talks to Supabase with her session,
 // and the demo one keeps made-up sample data in the browser. Screens never know
 // which one they have, so the demo exercises exactly the same screens.
-import type { LessonViewRequest,
+import type { FullLessonPass, LessonViewRequest,
   Agenda, Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Exercise, Feedback,
   Lesson, PhotoMark,
   PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
@@ -154,8 +154,22 @@ export interface Api {
   getAgenda(studentId: string): Promise<Agenda>;
   /** Marks a shared take as listened to (or not), which frees the student to share another. */
   markTakeHeard(takeId: string, heard: boolean): Promise<void>;
-  /** Answers a question, in words or (answer null) as covered in the lesson; reopen puts it back. */
-  answerQuestion(questionId: string, answer: string | null): Promise<void>;
+  /**
+   * Answers a question, in words, a voice note, or (both null) as covered in
+   * the lesson; reopen puts it back.
+   */
+  answerQuestion(questionId: string, answer: string | null, voice?: Blob | null): Promise<void>;
+  /** Replies to a shared take in words and/or a voice note, which also marks it heard. */
+  replyToTake(take: { id: string; student_id: string }, words: string | null, voice: Blob | null): Promise<void>;
+
+  /** Every full-lesson ask, invite and pass this teacher is part of, newest first. */
+  listFullLessonPasses(): Promise<FullLessonPass[]>;
+  /** Asks the student to open this whole lesson for 14 days; their yes starts it. */
+  askFullLesson(lessonId: string, note: string | null): Promise<void>;
+  /** Yes, or "not this time", to a student's invite. */
+  answerFullLesson(passId: string, yes: boolean): Promise<void>;
+  /** Ends a pass early, or takes back an ask. */
+  endFullLesson(passId: string): Promise<void>;
   reopenQuestion(questionId: string): Promise<void>;
 
   listSongs(studentId: string): Promise<Song[]>;

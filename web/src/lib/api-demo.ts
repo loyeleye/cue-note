@@ -3,10 +3,10 @@
 // reload; "Reset demo" puts everything back.
 import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeacher } from './api';
 import { EditConflict, scoreFormatOf } from './api';
-import type { CardFields, CardVersion, DiagramSuggestion, Feedback, Profile, StorageRow, Teacher } from './types';
-import { CARD_FIELDS } from './types';
+import type { FullLessonPass, CardFields, CardVersion, DiagramSuggestion, Feedback, Profile, StorageRow, Teacher } from './types';
+import { CARD_FIELDS, passState } from './types';
 import {
-  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, demoExercises, initialDemoState, type DemoState
+  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoPasses, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, demoExercises, initialDemoState, type DemoState
 } from './demo-data';
 import { wavFor } from './tone';
 
@@ -61,6 +61,21 @@ function withAgenda(): DemoState {
   const s = load();
   if (!s.practiceSessions || !s.sharedTakes || !s.questions) Object.assign(s, demoAgenda());
   return s;
+}
+
+function passes(s: DemoState): FullLessonPass[] {
+  return (s.passes ??= demoPasses());
+}
+
+/** The demo teacher hears this whole lesson: a pass that hasn't ended. */
+function fullLesson(s: DemoState, lessonId: string) {
+  return passes(s).some((p) => p.lesson_id === lessonId && p.teacher_id === DEMO_TEACHER.id && passState(p) === 'active');
+}
+
+async function keepVoice(s: DemoState, voice: Blob): Promise<string> {
+  const path = `demo-file:${id()}`;
+  s.files[path] = await blobToDataUrl(voice);
+  return path;
 }
 
 function lessonStudent(s: DemoState, lessonId: string) {
@@ -181,9 +196,16 @@ export const demoApi: Api = {
       .sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
   },
   async getLesson(lessonId) { return load().lessons.find((l) => l.id === lessonId) ?? null; },
-  async listTakes(lessonId) { return load().takes.filter((t) => t.lesson_id === lessonId).sort((a, b) => a.start_ms - b.start_ms); },
+  // As in the database: without a pass, only the takes on "Practice this" cards, and no timeline.
+  async listTakes(lessonId) {
+    const s = load();
+    const open = fullLesson(s, lessonId);
+    const moments = new Set(s.feedback.filter((f) => f.practice_flag === 'practice_this' && f.take_id).map((f) => f.take_id));
+    return s.takes.filter((t) => t.lesson_id === lessonId && (open || moments.has(t.id))).sort((a, b) => a.start_ms - b.start_ms);
+  },
   async listExercises(lessonId) {
     const s = load();
+    if (!fullLesson(s, lessonId)) return [];
     return (s.exercises ??= demoExercises()).filter((e) => e.lesson_id === lessonId).sort((a, b) => a.start_ms - b.start_ms);
   },
   async listFeedback(lessonId) { return load().feedback.filter((f) => f.lesson_id === lessonId).sort((a, b) => a.span_start_ms - b.span_start_ms); },
@@ -480,17 +502,67 @@ export const demoApi: Api = {
     save();
   },
 
-  async answerQuestion(questionId, answer) {
-    const q = withAgenda().questions!.find((x) => x.id === questionId);
+  async answerQuestion(questionId, answer, voice) {
+    const s = withAgenda();
+    const q = s.questions!.find((x) => x.id === questionId);
     if (!q) throw new Error('That question was taken back.');
-    Object.assign(q, { status: 'answered', answer, answered_by: DEMO_TEACHER.id, answered_at: q.answered_at ?? now() });
+    const answer_clip_path = voice ? await keepVoice(s, voice) : null;
+    Object.assign(q, { status: 'answered', answer, answer_clip_path, answered_by: DEMO_TEACHER.id, answered_at: q.answered_at ?? now() });
     save();
   },
 
   async reopenQuestion(questionId) {
     const q = withAgenda().questions!.find((x) => x.id === questionId);
     if (!q) return;
-    Object.assign(q, { status: 'open', answer: null, answered_by: null, answered_at: null });
+    Object.assign(q, { status: 'open', answer: null, answer_clip_path: null, answered_by: null, answered_at: null });
+    save();
+  },
+
+  async replyToTake(take, words, voice) {
+    const s = withAgenda();
+    const t = s.sharedTakes!.find((x) => x.id === take.id);
+    if (!t) throw new Error('That take is no longer shared.');
+    const reply = words?.trim() || null;
+    const reply_clip_path = voice ? await keepVoice(s, voice) : null;
+    const any = reply !== null || reply_clip_path !== null;
+    Object.assign(t, {
+      reply, reply_clip_path, replied_by: any ? DEMO_TEACHER.id : null, replied_at: any ? now() : null,
+      heard_at: t.heard_at ?? (any ? now() : null), heard_by: t.heard_by ?? (any ? DEMO_TEACHER.id : null)
+    });
+    save();
+  },
+
+  async listFullLessonPasses() {
+    return passes(load()).filter((p) => p.teacher_id === DEMO_TEACHER.id).map((p) => ({ ...p }))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  },
+
+  async askFullLesson(lessonId, note) {
+    await wait();
+    const s = load();
+    const open = passes(s).find((p) => p.lesson_id === lessonId && p.teacher_id === DEMO_TEACHER.id && (p.status === 'pending' || passState(p) === 'active'));
+    if (open) return;
+    passes(s).push({
+      id: id(), lesson_id: lessonId, student_id: lessonStudent(s, lessonId) ?? '', teacher_id: DEMO_TEACHER.id,
+      asked_by: 'teacher', status: 'pending', note: note?.trim() || null, created_at: now(),
+      decided_at: null, ends_at: null, ended_at: null
+    });
+    save();
+  },
+
+  async answerFullLesson(passId, yes) {
+    await wait();
+    const p = passes(load()).find((x) => x.id === passId);
+    if (!p || p.status !== 'pending') throw new Error('That request was already answered.');
+    Object.assign(p, yes
+      ? { status: 'active', decided_at: now(), ends_at: new Date(Date.now() + 14 * 86_400_000).toISOString() }
+      : { status: 'declined', decided_at: now() });
+    save();
+  },
+
+  async endFullLesson(passId) {
+    const p = passes(load()).find((x) => x.id === passId);
+    if (p && (p.status === 'pending' || p.status === 'active')) Object.assign(p, { status: 'ended', ended_at: now() });
     save();
   },
 

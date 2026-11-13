@@ -14,6 +14,7 @@
     CardFields, CardVersion, Checkpoint, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark, Profile, Song, Take, Teacher
   } from '$lib/types';
   import CardEditor from '$lib/components/CardEditor.svelte';
+  import FullLessonBanner from '$lib/components/FullLessonBanner.svelte';
   import LessonHistory from '$lib/components/LessonHistory.svelte';
   import Who from '$lib/components/Who.svelte';
   import ClipPlayer from '$lib/components/ClipPlayer.svelte';
@@ -387,6 +388,10 @@
       {/if}
       {#if claimError}<span class="error small" role="alert">{claimError}</span>{/if}
     </p>
+  {/if}
+
+  {#if !app.me?.debug}
+    <FullLessonBanner lessonId={lesson.id} studentName={student?.display_name ?? ''} onchanged={() => load(lesson!.id)} />
   {/if}
 
   {#if photos.length}

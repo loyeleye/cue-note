@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeacher } from './api';
 import { EditConflict, scoreFormatOf } from './api';
 import type {
-  PracticeSession, SharedTake, StudentQuestion,
+  FullLessonPass, PracticeSession, SharedTake, StudentQuestion,
   Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark,
   LessonViewRequest, PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
@@ -46,6 +46,14 @@ async function debugShares(): Promise<Share[]> {
     id: `debug-${id}`, student_id: id, invite_email: '', teacher_id: null, status: 'active',
     next_lesson_at: null, created_at: new Date(0).toISOString(), show_only_taught: false, restricted_to_taught: false
   }));
+}
+
+/** Uploads a teacher's voice note to clips/<student>/teacher-notes/ and returns its path. */
+async function uploadVoiceNote(studentId: string, voice: Blob): Promise<string> {
+  const ext = voice.type.includes('mp4') ? 'm4a' : voice.type.includes('ogg') ? 'ogg' : 'webm';
+  const path = `${studentId}/teacher-notes/${crypto.randomUUID()}.${ext}`;
+  check(await supabase.storage.from('clips').upload(path, voice, { contentType: voice.type }));
+  return path;
 }
 
 export const supabaseApi: Api = {
@@ -317,12 +325,7 @@ export const supabaseApi: Api = {
 
   async addComment(c: NewComment) {
     const me = await uid();
-    let clip_path: string | null = null;
-    if (c.voice) {
-      const ext = c.voice.type.includes('mp4') ? 'm4a' : c.voice.type.includes('ogg') ? 'ogg' : 'webm';
-      clip_path = `${c.student_id}/teacher-notes/${crypto.randomUUID()}.${ext}`;
-      check(await supabase.storage.from('clips').upload(clip_path, c.voice, { contentType: c.voice.type }));
-    }
+    const clip_path = c.voice ? await uploadVoiceNote(c.student_id, c.voice) : null;
     return check(await supabase.from('comment').insert({
       student_id: c.student_id, lesson_id: c.lesson_id, author_id: me, body: c.body, clip_path
     }).select().single()) as Comment;
@@ -371,12 +374,40 @@ export const supabaseApi: Api = {
     check(await supabase.from('practice_take').update({ heard_at: heard ? new Date().toISOString() : null }).eq('id', takeId));
   },
 
-  async answerQuestion(questionId, answer) {
-    check(await supabase.from('student_question').update({ status: 'answered', answer }).eq('id', questionId));
+  async answerQuestion(questionId, answer, voice) {
+    let answer_clip_path: string | null = null;
+    if (voice) {
+      const q = check(await supabase.from('student_question').select('student_id').eq('id', questionId).single()) as { student_id: string };
+      answer_clip_path = await uploadVoiceNote(q.student_id, voice);
+    }
+    check(await supabase.from('student_question').update({ status: 'answered', answer, answer_clip_path }).eq('id', questionId));
   },
 
   async reopenQuestion(questionId) {
-    check(await supabase.from('student_question').update({ status: 'open', answer: null }).eq('id', questionId));
+    check(await supabase.from('student_question').update({ status: 'open', answer: null, answer_clip_path: null }).eq('id', questionId));
+  },
+
+  async replyToTake(take, words, voice) {
+    const reply_clip_path = voice ? await uploadVoiceNote(take.student_id, voice) : null;
+    check(await supabase.from('practice_take').update({ reply: words?.trim() || null, reply_clip_path }).eq('id', take.id));
+  },
+
+  async listFullLessonPasses() {
+    const me = await uid();
+    return check(await supabase.from('full_lesson_pass').select('*').eq('teacher_id', me)
+      .order('created_at', { ascending: false })) as FullLessonPass[];
+  },
+
+  async askFullLesson(lessonId, note) {
+    check(await supabase.rpc('ask_full_lesson', { lesson: lessonId, note: note?.trim() || null }));
+  },
+
+  async answerFullLesson(passId, yes) {
+    check(await supabase.rpc('answer_full_lesson', { pass: passId, yes }));
+  },
+
+  async endFullLesson(passId) {
+    check(await supabase.rpc('end_full_lesson', { pass: passId }));
   },
 
   async listSongs(studentId) {
