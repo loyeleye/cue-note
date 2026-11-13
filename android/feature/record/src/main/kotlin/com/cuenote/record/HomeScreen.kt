@@ -80,13 +80,10 @@ import java.util.Locale
 /** Brass from the art pass: the one warm accent, for the moment that matters. */
 internal val Brass = com.cuenote.ui.Brass
 
-/** How many setlist notes Home shows before "All n notes". */
-private const val HOME_NOTES = 3
-
 /**
- * Home, in the Setlist style. Three tabs: Home leads with the teacher's
- * notes to practice, then Start; Setlist has every note; Lessons has every
- * lesson. Teachers and sign-in live behind the avatar.
+ * Home, in the Setlist style. Three tabs: Home leads with Start lesson, so
+ * it's one tap at the teacher's; Practice has the daily plan, the warm-up and
+ * every note; Lessons has every lesson. Teachers and sign-in live behind the avatar.
  */
 @Composable
 fun HomeScreen(
@@ -127,7 +124,7 @@ fun HomeScreen(
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                listOf("Home" to Icons.Filled.Home, "Setlist" to Icons.Filled.QueueMusic, "Lessons" to Icons.Filled.History)
+                listOf("Home" to Icons.Filled.Home, "Practice" to Icons.Filled.QueueMusic, "Lessons" to Icons.Filled.History)
                     .forEachIndexed { i, (label, icon) ->
                         NavigationBarItem(
                             selected = tab == i,
@@ -165,7 +162,6 @@ fun HomeScreen(
                     onPractice = onPractice,
                     nextLesson = nextLesson,
                     onNextLesson = onNextLesson,
-                    today = today,
                 )
                 1 -> setlistTab(setlist, teacherName, player, onPractice, today)
                 else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen)
@@ -195,7 +191,6 @@ private fun LazyListScope.homeTab(
     onPractice: (String) -> Unit,
     nextLesson: NextLessonPeek?,
     onNextLesson: () -> Unit,
-    today: (@Composable () -> Unit)?,
 ) {
     val firstRun = lessons.isEmpty()
     val last = lessons.firstOrNull()
@@ -226,32 +221,44 @@ private fun LazyListScope.homeTab(
         item(key = "models") { Text(modelStatus, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
     }
 
-    item(key = "sech") {
-        SectionHead("This week's setlist", if (setlist.size > HOME_NOTES) "All ${setlist.size} notes" else null, onAllNotes)
-    }
-    if (setlist.isNotEmpty() && !recordingInProgress) today?.let { t -> item(key = "today") { t() } }
-    if (setlist.isEmpty()) {
-        item(key = "empty") {
-            EmptySetlist(firstRun, last?.takeIf { it.pipelineState == "processing" || it.pipelineState == "recorded" } != null, last?.let { teacherName(it.id) })
-        }
-    } else {
-        items(setlist.take(HOME_NOTES), key = { "n-" + it.card.id }) { SetlistNote(it, teacherName, player, onPractice) }
-    }
-    if (nextLesson != null && !firstRun) {
-        item(key = "next") { NextLessonRow(nextLesson, onNextLesson) }
-    }
-
+    // Home is for the lesson: Start comes first. Practice has its own tab.
     if (firstRun) {
         item(key = "steps") { FirstSteps(hasTeacher, onTeachers, onSetupCheck, onStartLesson) }
     } else if (!recordingInProgress) {
         item(key = "start") { StartCard(onStartLesson, onSetupCheck) }
     }
+    if (nextLesson != null && !firstRun) {
+        item(key = "next") { NextLessonRow(nextLesson, onNextLesson) }
+    }
+    if (!firstRun) {
+        if (setlist.isEmpty()) {
+            item(key = "empty") {
+                EmptySetlist(false, last?.takeIf { it.pipelineState == "processing" || it.pipelineState == "recorded" } != null, last?.let { teacherName(it.id) })
+            }
+        } else {
+            item(key = "practice") { PracticeRow(setlist.size, onAllNotes) }
+        }
+    }
     if (last != null && last.pipelineState != "recording") {
         item(key = "lasth") { SectionHead("Your last lesson", if (lessons.size > 1) "All ${lessons.size}" else null, onAllLessons) }
         item(key = "last") { LastLesson(last, cardCounts[last.id], teacherName(last.id), onOpen) }
     }
-    item(key = "warmh") { SectionHead("Today's warm-up", null) {} }
-    item(key = "warm") { WarmUpCard(warmUpFor(Calendar.getInstance())) }
+}
+
+/** One row on Home that opens the Practice tab. */
+@Composable
+private fun PracticeRow(notes: Int, onOpen: () -> Unit) {
+    TicketRow(onClick = onOpen) {
+        Icon(Icons.Filled.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Column(Modifier.weight(1f)) {
+            Text("Today's practice", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (notes == 1) "1 note on your setlist" else "$notes notes on your setlist",
+                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Text("Practice", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+    }
 }
 
 private fun LazyListScope.setlistTab(
@@ -261,12 +268,16 @@ private fun LazyListScope.setlistTab(
     onPractice: (String) -> Unit,
     today: (@Composable () -> Unit)?,
 ) {
-    item(key = "mast") { Masthead("Your ", "setlist") }
+    item(key = "mast") { Masthead("Time to ", "practice") }
     if (setlist.isEmpty()) {
         item(key = "empty") { EmptySetlist(firstRun = false, notesOnTheWay = false, teacher = null) }
-        return
+    } else {
+        today?.let { t -> item(key = "today") { t() } }
     }
-    today?.let { t -> item(key = "today") { t() } }
+    item(key = "warmh") { SectionHead("Today's warm-up", null) {} }
+    item(key = "warm") { WarmUpCard(warmUpFor(Calendar.getInstance())) }
+    if (setlist.isEmpty()) return
+    item(key = "seth") { SectionHead("Your setlist", null) {} }
     item(key = "hint") {
         Text(
             "What your teacher asked you to practice, newest first. Switch a note off in its lesson once you've got it.",

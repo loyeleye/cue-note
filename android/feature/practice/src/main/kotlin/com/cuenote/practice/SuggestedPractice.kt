@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -53,6 +55,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cuenote.data.PracticePlanEntity
@@ -202,14 +205,16 @@ fun TodayCard(
             }
             else -> {
                 Text("How's your voice today?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                // One height for all three: when "Hoarse or sore" wraps, the others grow with it.
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                     val opts = listOf(Voice.FINE to "Fine", Voice.TIRED to "A bit tired", Voice.HOARSE to "Hoarse or sore")
                     opts.forEachIndexed { i, (v, label) ->
                         SegmentedButton(
                             selected = voice == v, onClick = { voice = v },
                             shape = SegmentedButtonDefaults.itemShape(i, opts.size),
                             icon = {},
-                        ) { Text(label, maxLines = 2) }
+                            modifier = Modifier.fillMaxHeight(),
+                        ) { Text(label, maxLines = 2, textAlign = TextAlign.Center) }
                     }
                 }
                 if (voice != Voice.HOARSE) {
