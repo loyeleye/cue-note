@@ -14,6 +14,23 @@ export interface Profile {
   alias?: string;
   color?: TeacherColor;
   name_public?: boolean;
+  /** A debug account: sees every student, read-only. For testing; removed before release. */
+  debug?: boolean;
+}
+
+/**
+ * Another teacher would like to see the lessons this teacher taught a
+ * student (the student let them "see all"). Only this teacher can answer.
+ */
+export interface LessonViewRequest {
+  id: string;
+  student_id: string;
+  student_name: string;
+  viewer_id: string;
+  viewer_alias: string;
+  status: 'pending' | 'granted' | 'declined';
+  created_at: string;
+  decided_at: string | null;
 }
 
 export const TEACHER_COLORS = ['blue', 'teal', 'green', 'amber', 'coral', 'rose', 'violet', 'indigo'] as const;

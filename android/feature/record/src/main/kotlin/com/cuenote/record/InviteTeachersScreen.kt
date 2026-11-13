@@ -170,7 +170,7 @@ private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit
                         when {
                             !t.active -> "Invite sent. Waiting on them."
                             t.restrictedToTaught -> "Active: sees only the lessons they taught"
-                            else -> "Active: can see all your lessons"
+                            else -> "Active: sees all your lessons (other teachers' once they agree)"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = if (t.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -186,7 +186,8 @@ private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit
                     Column(Modifier.weight(1f)) {
                         Text("Can see all my lessons", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "Off: only lessons marked as theirs.",
+                            if (t.restrictedToTaught) "Off: only lessons marked as theirs."
+                            else "Lessons your other teachers taught show once each of them agrees.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

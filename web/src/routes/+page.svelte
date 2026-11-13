@@ -3,7 +3,7 @@
   import { api, app, enterDemo, refreshMe } from '$lib/app.svelte';
   import { isConfigured, supabase } from '$lib/supabase';
   import { date, ago } from '$lib/format';
-  import type { Share, StudentSummary } from '$lib/types';
+  import type { LessonViewRequest, Share, StudentSummary } from '$lib/types';
 
   let email = $state('');
   let status = $state('');
@@ -11,13 +11,17 @@
   let students = $state<StudentSummary[] | null>(null);
   let invites = $state<(Share & { student_name: string })[]>([]);
   let error = $state('');
+  let requests = $state<LessonViewRequest[]>([]);
+  // A debug account uses the teacher dashboard too, seeing every student.
+  const teacherView = $derived(app.me?.role === 'teacher' || !!app.me?.debug);
 
   async function reload() {
     try {
       // A new account is a student until it accepts an invite, so look for
       // invites whatever the role; only a teacher has students to list.
       invites = await api().listInvites();
-      students = app.me?.role === 'teacher' ? await api().listStudents() : [];
+      students = teacherView ? await api().listStudents() : [];
+      requests = app.me?.role === 'teacher' ? await api().listLessonViewRequests() : [];
     } catch (e) {
       error = (e as Error).message;
     }
@@ -41,6 +45,15 @@
     });
     sending = false;
     status = error ? `Couldn't send the link: ${error.message}` : 'Check your email for the sign-in link.';
+  }
+
+  async function decide(r: LessonViewRequest, allow: boolean) {
+    try {
+      await api().decideLessonView(r.id, allow);
+      requests = await api().listLessonViewRequests();
+    } catch (e) {
+      error = (e as Error).message;
+    }
   }
 
   async function accept(id: string) {
@@ -72,7 +85,7 @@
     {/if}
     <p class="demo">No lessons yet? <button class="link" onclick={enterDemo}>Try the demo</button> with sample students and lessons.</p>
   </section>
-{:else if app.me.role !== 'teacher' && invites.length}
+{:else if !teacherView && invites.length}
   <h1>Welcome to Cue Note</h1>
   <p>A student has invited you to see their lessons. Accepting makes this a teacher account.</p>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -84,7 +97,7 @@
       </div>
     {/each}
   </section>
-{:else if app.me.role !== 'teacher'}
+{:else if !teacherView}
   <h1>This dashboard is for teachers</h1>
   <p class="muted">
     You're signed in as {app.email}, which isn't a teacher account yet. An account becomes a teacher
@@ -94,7 +107,28 @@
 {:else}
   <h1>Students</h1>
   <p class="muted">Newest lesson first.</p>
+  {#if app.me.debug}
+    <p class="card debug" role="note"><strong>Debug view.</strong> You see every student and lesson, as a teacher with full access would. Nothing can be changed from here.</p>
+  {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
+
+  {#if requests.length}
+    <section class="requests" id="requests" aria-label="Requests to see your lessons">
+      {#each requests as r (r.id)}
+        <div class="card request" class:pending={r.status === 'pending'}>
+          <span>
+            <strong>{r.viewer_alias || 'Another teacher'}</strong> would like to see the lessons you taught
+            <strong>{r.student_name || 'your student'}</strong>.
+            {#if r.status === 'granted'}<span class="muted">You said yes.</span>{:else if r.status === 'declined'}<span class="muted">You said no.</span>{/if}
+          </span>
+          <span class="actions">
+            {#if r.status !== 'granted'}<button class="primary small" onclick={() => decide(r, true)}>Allow</button>{/if}
+            {#if r.status !== 'declined'}<button class="small" onclick={() => decide(r, false)}>{r.status === 'granted' ? 'Take back' : 'Decline'}</button>{/if}
+          </span>
+        </div>
+      {/each}
+    </section>
+  {/if}
 
   {#if invites.length}
     <section class="invites">
@@ -154,4 +188,9 @@
   .who .muted { font-size: 13px; }
   .empty p { margin: 4px 0; }
   .error { color: var(--danger); }
+  .debug { border-color: var(--accent); }
+  .requests { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+  .request { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .request.pending { border-color: var(--accent); }
+  .request .actions { display: flex; gap: 8px; }
 </style>

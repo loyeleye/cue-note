@@ -2,7 +2,7 @@
 // Two versions sit behind it: the real one talks to Supabase with her session,
 // and the demo one keeps made-up sample data in the browser. Screens never know
 // which one they have, so the demo exercises exactly the same screens.
-import type {
+import type { LessonViewRequest,
   Agenda, Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Feedback,
   Lesson, PhotoMark,
   PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
@@ -87,6 +87,10 @@ export interface Api {
   listStudents(): Promise<StudentSummary[]>;
   listInvites(): Promise<(Share & { student_name: string })[]>;
   acceptInvite(shareId: string): Promise<void>;
+  /** Other teachers asking to see the lessons this teacher taught, newest first, pending ones on top. */
+  listLessonViewRequests(): Promise<LessonViewRequest[]>;
+  /** Yes or no to one of those; can be changed later. */
+  decideLessonView(requestId: string, allow: boolean): Promise<void>;
   getStudent(studentId: string): Promise<{ student: Profile; share: Share } | null>;
   setNextLesson(shareId: string, at: string | null): Promise<void>;
   /** The teacher's "only my lessons" view setting for one student. */
