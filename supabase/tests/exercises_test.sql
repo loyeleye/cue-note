@@ -7,8 +7,9 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-00000000000a', 'sam@example.com', '{"display_name":"Sam"}'),
   ('00000000-0000-0000-0000-00000000000b', 'tia@example.com', '{"role":"teacher","display_name":"Tia"}'),
   ('00000000-0000-0000-0000-00000000000c', 'uma@example.com', '{"role":"teacher"}');
-insert into public.teacher_student_share (student_id, invite_email, teacher_id, status, accepted_at)
-values ('00000000-0000-0000-0000-00000000000a', 'tia@example.com', '00000000-0000-0000-0000-00000000000b', 'active', now());
+-- Sam lets Tia see all of Sam's lessons (shares start limited to the lessons a teacher taught)
+insert into public.teacher_student_share (student_id, invite_email, teacher_id, status, accepted_at, restricted_to_taught)
+values ('00000000-0000-0000-0000-00000000000a', 'tia@example.com', '00000000-0000-0000-0000-00000000000b', 'active', now(), false);
 
 -- ---------------------------------------------------------------- Sam uploads
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","email":"sam@example.com"}', false);
