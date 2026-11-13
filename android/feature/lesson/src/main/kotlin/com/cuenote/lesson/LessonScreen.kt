@@ -527,7 +527,7 @@ private fun CueCard(
             if (check == S.CORRECTED) {
                 Source("Your teacher's summary", teacher = true)
                 Text(card.summary, style = MaterialTheme.typography.bodyLarge)
-            } else if (check == S.FLAGGED && card.herWords.isNotBlank()) {
+            } else if ((check == S.FLAGGED || (check == S.CLOSE && !group.explained)) && card.herWords.isNotBlank()) {
                 Source("What your teacher said in the lesson", teacher = true)
                 Text(
                     "“${card.herWords}”",
