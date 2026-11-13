@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -745,14 +747,25 @@ private fun TeacherRule() = HorizontalDivider(
     color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
 )
 
-/** The teacher's words from the recording, in italics and quotes. */
+/**
+ * The teacher's words from the recording, in italics, with a large plum opening quote mark
+ * hung in the box's padding so the words line up with the label above.
+ */
 @Composable
 private fun TeacherQuote(words: String, color: androidx.compose.ui.graphics.Color) {
-    Text(
-        "“$words”",
-        style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic), color = color,
-        maxLines = 4, overflow = TextOverflow.Ellipsis,
-    )
+    Box {
+        Text(
+            "“", color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = com.cuenote.ui.Fraunces, fontSize = 28.sp, lineHeight = 28.sp, fontStyle = FontStyle.Normal,
+            ),
+            modifier = Modifier.offset(x = (-12).dp, y = (-6).dp),
+        )
+        Text(
+            words, style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic), color = color,
+            maxLines = 4, overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 /** Who a block of words comes from. The teacher's label is bold and coloured; the app's is muted. */
