@@ -300,6 +300,8 @@ private fun AppNav(app: CueNoteApp) {
                 lessonId = id,
                 onFixCorners = { nav.navigate("corners/$id/$photoId") },
                 onBack = { nav.popBackStack() },
+                teacherName = teacherNameFor(app, myTeachers, firstSetup?.teacherName, id, teacherVersion),
+                canShare = sharing,
             )
         }
         composable("corners/{lesson}/{photo}") { entry ->

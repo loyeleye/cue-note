@@ -12,7 +12,7 @@
   const FREE_PLAN_BYTES = 1024 ** 3;
   const LABEL: Record<StorageRow['category'], string> = {
     clips: 'Lesson clips (takes and teacher feedback)',
-    photos: 'Sketch photos',
+    photos: 'Photos (sketches and shared photos)',
     scores: 'Scores',
     voice_notes: 'Your voice notes'
   };
@@ -148,7 +148,7 @@
     <div class="meter" role="meter" aria-valuemin="0" aria-valuemax={FREE_PLAN_BYTES} aria-valuenow={total} aria-label="Storage used">
       <span style="width:{Math.min(100, Math.max(total > 0 ? 0.5 : 0, (total / FREE_PLAN_BYTES) * 100))}%"></span>
     </div>
-    <p class="muted small">Full lesson recordings stay on the student's phone. Only short clips, sketch photos, scores and your voice notes are stored online.</p>
+    <p class="muted small">Full lesson recordings stay on the student's phone. Only short clips, sketches, photos the student shares, scores and your voice notes are stored online.</p>
   </div>
 
   {#each students as s (s.student.id)}

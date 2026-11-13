@@ -122,6 +122,7 @@ fun PracticeScreen(
 ) {
     val row by repo.card(cardId).collectAsStateWithLifecycle(null)
     val takes by repo.takes(cardId).collectAsStateWithLifecycle(emptyList())
+    val mePhotos by remember(row?.card?.localId) { repo.mePhotos(row?.card) }.collectAsStateWithLifecycle(emptyList())
     val waiting by remember { repo.waiting() }.collectAsStateWithLifecycle(emptyList())
     val allQuestions by remember { repo.questions() }.collectAsStateWithLifecycle(emptyList())
     val questions = allQuestions.filter { it.cardId == cardId }
@@ -265,7 +266,7 @@ fun PracticeScreen(
     ) { padding ->
         val r = row
         if (recording && r != null) {
-            Singing(r, { recorder.level.value }, Modifier.padding(padding))
+            Singing(r, { recorder.level.value }, Modifier.padding(padding), mePhotos.firstOrNull())
             return@Scaffold
         }
         LazyColumn(
@@ -283,7 +284,7 @@ fun PracticeScreen(
                 }
                 return@LazyColumn
             }
-            item(key = "note") { Note(r, teacherName(r.card.lessonId), player) }
+            item(key = "note") { Note(r, teacherName(r.card.lessonId), player, mePhotos) }
             player.error?.let { e -> item(key = "perr") { Text(e, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } }
 
             item(key = "backing") {
@@ -456,7 +457,7 @@ private fun LazyListScope.takesList(
 }
 
 @Composable
-private fun Note(r: SetlistRow, teacher: String?, player: ClipPlayer) {
+private fun Note(r: SetlistRow, teacher: String?, player: ClipPlayer, mePhotos: List<PracticeRepository.MePhoto> = emptyList()) {
     val c = r.card
     val topic = Topic.of(c.category)
     val words = c.herWords.ifBlank { c.cue }
@@ -471,6 +472,7 @@ private fun Note(r: SetlistRow, teacher: String?, player: ClipPlayer) {
         if (c.cue.isNotBlank() && c.cue != words) {
             Text(c.cue, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        for (m in mePhotos) MeReference(m)
         if (r.wordsFile != null || r.takeFile != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 r.wordsFile?.let { f -> PlayPill("Their words", player.playing == f, filled = true, onClick = { player.toggle(f) }) }
@@ -569,7 +571,7 @@ private fun SingBar(
 
 /** While a take records: the cue to sing with, and a calm sign that the mic hears you. */
 @Composable
-private fun Singing(r: SetlistRow, level: () -> Double?, modifier: Modifier) {
+private fun Singing(r: SetlistRow, level: () -> Double?, modifier: Modifier, me: PracticeRepository.MePhoto? = null) {
     val c = r.card
     Column(
         modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp),
@@ -586,6 +588,8 @@ private fun Singing(r: SetlistRow, level: () -> Double?, modifier: Modifier) {
             Text(c.cue, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         bars(r)?.let { Text(it.replaceFirstChar { ch -> ch.uppercase() }, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+        // the photo of you from the lesson stays up while you sing, to match the shape
+        me?.let { MeThumb(it, Modifier.size(160.dp)) }
         Spacer(Modifier.weight(1f))
         Text("Sing it as many times as you like, then tap Done.", color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)

@@ -66,11 +66,13 @@ Deno.serve(async (req) => {
   });
   const { data: photo, error } = await asCaller
     .from('photo_mark')
-    .select('id, image_path, cleaned_path, feedback_id')
+    .select('id, image_path, cleaned_path, feedback_id, kind')
     .eq('id', id)
     .maybeSingle();
   if (error) return Response.json({ error: error.message }, { status: 500 });
   if (!photo) return Response.json({ error: 'no such photo' }, { status: 404 });
+  // A photo the student took of themself is kept as taken and never goes to the model.
+  if (photo.kind === 'me') return Response.json({ error: 'photos of the student are not captioned' }, { status: 422 });
   const path = photo.cleaned_path ?? photo.image_path;
   if (!path) return Response.json({ error: 'the photo is not uploaded yet' }, { status: 409 });
 

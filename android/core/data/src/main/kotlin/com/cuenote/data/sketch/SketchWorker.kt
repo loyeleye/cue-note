@@ -12,8 +12,8 @@ import com.cuenote.data.LessonDatabase
 import java.io.File
 
 /**
- * After a lesson: makes a row for every photo, cleans each one that has no
- * cleaned copy yet, then queues the upload. Cleaning a photo takes about a
+ * After a lesson: makes a row for every photo, cleans each sketch that has no
+ * cleaned copy yet (photos of me are left as taken), then queues the upload. Cleaning a photo takes about a
  * second, so this runs straight away, without waiting for the charger.
  */
 class SketchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -27,7 +27,8 @@ class SketchWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         SketchRepository.register(dao, lessonId, dir)
         for (p in dao.forLesson(lessonId)) {
             if (isStopped) return Result.retry()
-            if (p.cleanFileName != null) continue
+            // a photo of me is kept as taken: cleaning would ruin a face
+            if (p.cleanFileName != null || p.isMe || p.deleted) continue
             try {
                 SketchRepository.clean(dao, dir, p, SketchRepository.cornersOf(p))
             } catch (e: Exception) {

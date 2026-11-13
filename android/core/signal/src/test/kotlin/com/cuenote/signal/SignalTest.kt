@@ -145,10 +145,16 @@ class LessonEventTest {
         val events = listOf(
             LessonEvent.Mark(1_000),
             LessonEvent.Photo(2_500, "photo_0001.jpg"),
+            LessonEvent.Photo(2_900, "me_0002.jpg", LessonEvent.Photo.ME),
             LessonEvent.Gap(3_000, 400),
             LessonEvent.MicChanged(0, "LARK M2S"),
         )
         assertEquals(events, events.map { LessonEvent.parse(it.toLine()) })
+    }
+
+    @Test fun `a photo line from before photos of me is a sketch`() {
+        assertEquals(LessonEvent.Photo(2_500, "photo_0001.jpg", LessonEvent.Photo.SKETCH), LessonEvent.parse("photo\t2500\tphoto_0001.jpg"))
+        assertEquals("photo\t2500\tphoto_0001.jpg", LessonEvent.Photo(2_500, "photo_0001.jpg").toLine())
     }
 }
 

@@ -66,7 +66,7 @@ interface LessonDao {
         PhotoEntity::class, PracticeSessionEntity::class, PracticeTakeEntity::class,
         PracticeQuestionEntity::class, ExerciseEntity::class, PracticePlanEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 abstract class LessonDatabase : RoomDatabase() {
@@ -82,7 +82,7 @@ abstract class LessonDatabase : RoomDatabase() {
         /** One database for the app and its background workers. */
         fun get(context: Context): LessonDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, LessonDatabase::class.java, "cuenote.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .build().also { instance = it }
         }
 
@@ -161,6 +161,13 @@ abstract class LessonDatabase : RoomDatabase() {
         val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_12_13_SQL.forEach(db::execSQL)
+            }
+        }
+
+        /** Photos of me beside sketches: a kind, sharing, the student's note, and deleting. */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_13_14_SQL.forEach(db::execSQL)
             }
         }
 
@@ -275,3 +282,17 @@ internal val MIGRATION_11_12_SQL = MIGRATION_11_12_ADDED_COLUMNS.flatMap { (tabl
 internal val MIGRATION_12_13_SQL = listOf(
     "CREATE TABLE IF NOT EXISTS `practice_plan` (`id` TEXT NOT NULL, `day` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `endedAt` INTEGER, `voice` TEXT NOT NULL, `minutes` INTEGER NOT NULL, `steps` TEXT NOT NULL, `stepIndex` INTEGER NOT NULL, `done` INTEGER NOT NULL, `skipped` TEXT NOT NULL, `easyChecked` INTEGER NOT NULL, `synced` INTEGER NOT NULL, PRIMARY KEY(`id`))",
 )
+
+/** Copied from schemas/com.cuenote.data.LessonDatabase/14.json (Room checks they match). */
+internal val MIGRATION_13_14_ADDED_COLUMNS = mapOf(
+    "photo" to listOf(
+        "`kind` TEXT NOT NULL DEFAULT 'sketch'",
+        "`shared` INTEGER NOT NULL DEFAULT 0",
+        "`note` TEXT",
+        "`deleted` INTEGER NOT NULL DEFAULT 0",
+    ),
+)
+
+internal val MIGRATION_13_14_SQL = MIGRATION_13_14_ADDED_COLUMNS.flatMap { (table, cols) ->
+    cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
+}
