@@ -23,7 +23,7 @@
   const HELP: Record<SummaryCheck, string> = {
     said: 'The student sees it marked as checked by you.',
     close: 'The student keeps the summary, marked as close. Say what you meant below if it helps.',
-    not_said: "Taken off the student's card: they see your clip and your own words instead. Say what you meant below if it helps."
+    not_said: "Taken off the student's card: they see your clip and your own words instead. Say what you meant below if it helps, and use Edit if the title is wrong too."
   };
 
   let busy = $state(false);
@@ -33,7 +33,11 @@
   let recorderKey = $state(0);
   let saved = $state(false);
 
-  const current = $derived(card.summary_check ?? null);
+  // The thumb moves at once; the answer is sent after a short pause, so
+  // arrowing from Yes to Wrong sends one answer, not two.
+  let chosen = $state<SummaryCheck | null>(null);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const current = $derived(chosen ?? card.summary_check ?? null);
   const index = $derived(STOPS.findIndex((s) => s.value === current));
   const dirty = $derived((note.trim() || null) !== (card.summary_note ?? null) || !!voice);
 
@@ -55,8 +59,15 @@
   // A tap on the slider keeps whatever she has already said.
   function pick(verdict: SummaryCheck) {
     if (busy || verdict === current) return;
-    answer(verdict, { note: card.summary_note ?? null, clip: card.summary_note_clip ?? null });
+    chosen = verdict;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (verdict === (card.summary_check ?? null)) { chosen = null; return; }
+      await answer(verdict, { note: card.summary_note ?? null, clip: card.summary_note_clip ?? null });
+      chosen = null; // the card now says what was saved, or the old answer if it failed
+    }, 450);
   }
+  $effect(() => () => clearTimeout(timer));
 
   function keys(e: KeyboardEvent) {
     const at = index < 0 ? -1 : index;
@@ -84,7 +95,7 @@
       <span class="thumb" aria-hidden="true"></span>
       {#each STOPS as s, i (s.value)}
         <button type="button" role="radio" aria-checked={current === s.value} tabindex={index === i || (index < 0 && i === 0) ? 0 : -1}
-                class:on={current === s.value} disabled={busy} onclick={() => pick(s.value)}>{s.label}</button>
+                class:on={current === s.value} aria-disabled={busy} onclick={() => pick(s.value)}>{s.label}</button>
       {/each}
     </div>
   </div>
@@ -111,8 +122,8 @@
         {/key}
       </div>
       <div class="actions">
-        {#if saved && !dirty}<span class="small muted">Saved. The student sees it next time they open the lesson.</span>{/if}
-        <button type="submit" class="small" disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save'}</button>
+        <span class="small muted" role="status">{#if dirty}Not saved yet.{:else if saved}Saved. The student sees it next time they open the lesson.{/if}</span>
+        <button type="submit" class="small" class:primary={dirty} disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save'}</button>
       </div>
     </form>
   {/if}
@@ -137,12 +148,16 @@
   .slider[data-at='not_said'] .thumb { background: color-mix(in srgb, var(--danger) 18%, transparent); }
   .slider button {
     position: relative; z-index: 1; border: none; background: transparent; color: var(--fg);
-    border-radius: 999px; padding: 6px 12px; font-size: 13px; min-height: 32px; cursor: pointer;
+    border-radius: 999px; padding: 8px 14px; font-size: 14px; min-height: 40px; cursor: pointer;
   }
-  .slider button.on { font-weight: 700; }
+  .slider button.on { font-weight: 600; }
+  .slider[data-at='close'] button.on { color: var(--warn-fg); }
+  .slider[data-at='not_said'] button.on { color: var(--danger); }
+  .slider button[aria-disabled='true'] { cursor: progress; }
   .slider button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   @media (prefers-reduced-motion: reduce) { .thumb { transition: none; } }
-  .old { margin: 0; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--fg) 40%, transparent); }
+  .old { margin: 0; color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+  .actions button:disabled { color: var(--muted); border: 1px solid var(--border); background: transparent; opacity: 1; }
   .explain { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
   .explain textarea { width: 100%; resize: vertical; }
   .voice { display: flex; flex-direction: column; gap: 6px; }

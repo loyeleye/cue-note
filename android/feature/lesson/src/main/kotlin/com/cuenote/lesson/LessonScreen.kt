@@ -52,6 +52,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -189,7 +192,11 @@ fun LessonScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
-                Status(lesson, takes, feedback, cards, outline.size, progress, cardProgress, stages.any { it.stage == "upload" && it.status == "waiting" })
+                Status(
+                    lesson, takes, feedback, cards, outline.size, progress, cardProgress,
+                    stages.any { it.stage == "upload" && it.status == "waiting" },
+                    lastFailure = stages.filter { it.status == "failed" }.maxByOrNull { it.finishedAt }?.detail,
+                )
                 if (onChangeTeacher != null) Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (taughtBy != null) "Taught by $taughtBy" else "No teacher set for this lesson",
@@ -237,15 +244,17 @@ fun LessonScreen(
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                val corrected = groups.count {
-                    it.check == LessonOutline.SummaryCheck.FLAGGED || it.check == LessonOutline.SummaryCheck.CORRECTED ||
-                        (it.check == LessonOutline.SummaryCheck.CLOSE && it.explained)
-                }
-                if (corrected > 0) item(key = "corrected") {
-                    Text(
-                        "Your teacher corrected the app's summary on ${plural(corrected, "point")}. Each is marked below, with her clip.",
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                val close = groups.count { it.check == LessonOutline.SummaryCheck.CLOSE }
+                val corrected = groups.count { it.check == LessonOutline.SummaryCheck.FLAGGED || it.check == LessonOutline.SummaryCheck.CORRECTED }
+                if (close + corrected > 0) item(key = "corrected") {
+                    val parts = listOfNotNull("$close close".takeIf { close > 0 }, "$corrected corrected".takeIf { corrected > 0 })
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.tertiary))
+                        Text(
+                            "Your teacher reviewed the app's summary on ${plural(close + corrected, "point")}: ${parts.joinToString(", ")}. Each is marked below.",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
                 for (sec in outline) {
                     val key = sec.exercise?.id ?: "loose"
@@ -312,7 +321,7 @@ fun LessonScreen(
             if (showDetails) {
                 item {
                     Row {
-                        OutlinedButton(onClick = { repo.process(lesson.id, again = true) }) { Text("Process again from scratch") }
+                        OutlinedButton(modifier = Modifier.width(IntrinsicSize.Max), onClick = { repo.process(lesson.id, again = true) }) { Text("Process again from scratch") }
                     }
                     if (hasTimeline) TextButton(onClick = onOpenTimeline) { Text("Open the debug timeline") }
                 }
@@ -344,6 +353,8 @@ private fun Status(
     p: com.cuenote.data.pipeline.PipelineScheduler.Progress?,
     c: LessonUploadWorker.Companion.Progress?,
     needsSignIn: Boolean,
+    /** Why the last try at a stage failed, from the pipeline log. */
+    lastFailure: String? = null,
 ) {
     val processing = p?.state == WorkInfo.State.RUNNING
     val carding = c?.state == WorkInfo.State.RUNNING
@@ -351,6 +362,9 @@ private fun Status(
         processing -> (LessonPipelineWorker.STAGE_NAMES[p?.stage] ?: "Processing") + "… ${p?.percent ?: 0}%"
         carding -> (LessonUploadWorker.STAGE_NAMES[c?.stage] ?: "Making cards") + "… ${c?.percent ?: 0}%"
         p?.state == WorkInfo.State.ENQUEUED -> "Your notes will be ready after the phone's next charge, or tap Make my notes now."
+        // A try failed and the phone will try again: say why, not "waiting for the internet".
+        c?.state == WorkInfo.State.ENQUEUED && c.attempts > 0 ->
+            "Couldn't write your notes yet (${lastFailure?.take(140) ?: "no reason given"}). The phone will try again in a few minutes, or tap Make my notes."
         c?.state == WorkInfo.State.ENQUEUED -> "Waiting for the internet to finish your notes."
         c?.state == WorkInfo.State.BLOCKED -> "Your notes will start in a moment."
         c?.state == WorkInfo.State.FAILED && c.error != "not signed in" ->
@@ -468,20 +482,44 @@ private fun CueCard(
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     var showAll by rememberSaveable(card.id) { mutableStateOf(false) }
     val transcript = group.all.joinToString("\n\n") { it.transcript.trim() }.trim()
+    val check = group.check
+    val m = MaterialTheme.colorScheme
+    // The same colours as the dashboard's slider: brass for close, red for corrected.
+    val edge = when (check) {
+        LessonOutline.SummaryCheck.CLOSE -> m.tertiary
+        LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> m.error.copy(alpha = 0.7f)
+        else -> null
+    }
     Card(
-        modifier.fillMaxWidth().animateContentSize(),
+        modifier.fillMaxWidth().animateContentSize().then(
+            if (edge == null) Modifier else Modifier.drawBehind { drawRect(edge, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
+        ),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleMedium)
-            val check = group.check
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                when (check) {
+                    LessonOutline.SummaryCheck.CLOSE -> Tag("Close", m.tertiaryContainer, m.onTertiaryContainer, bold = true)
+                    LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> Tag("Corrected", m.errorContainer, m.onErrorContainer, bold = true)
+                    else -> {}
+                }
+            }
             if (check == LessonOutline.SummaryCheck.FLAGGED) {
-                // She said the app got this one wrong: her words lead, the old summary is a tap away.
+                // The app got this one wrong: the teacher's own words lead, the old summary is a tap away.
                 Text(
-                    "Your teacher flagged the app's summary of this. Her clip and your try are the real thing.",
+                    "Your teacher flagged the app's summary of this. Their clip and your try are the real thing.",
                     style = MaterialTheme.typography.labelMedium, color = muted,
                 )
             }
+            if (check == LessonOutline.SummaryCheck.CLOSE) {
+                // Above the summary, so it isn't read as the instruction first.
+                Text(
+                    if (group.explained) "Close, but not quite. Read what your teacher meant first." else "Close, but not quite. Listen to your teacher's clip too.",
+                    style = MaterialTheme.typography.labelMedium, color = m.tertiary,
+                )
+            }
+            if (check == LessonOutline.SummaryCheck.CLOSE && group.explained) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
             if (card.summary.isNotBlank()) {
                 Text(card.summary, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
                 // Say whose words these are: the summary is the app's reading unless she wrote or checked it.
@@ -489,12 +527,15 @@ private fun CueCard(
                     when (check) {
                         LessonOutline.SummaryCheck.CORRECTED -> "Your teacher's own words. She corrected the app's summary."
                         LessonOutline.SummaryCheck.CONFIRMED -> "✓ Your teacher checked this summary."
-                        LessonOutline.SummaryCheck.CLOSE -> "Your teacher says this summary is close, not quite it."
+                        LessonOutline.SummaryCheck.CLOSE -> "The app's summary, which your teacher marked close."
                         else -> "Summary of what she said. Her words are the real thing."
                     },
                     style = MaterialTheme.typography.labelSmall, color = muted,
                 )
             } else if (card.herWords.isNotBlank()) {
+                if (check == LessonOutline.SummaryCheck.FLAGGED) {
+                    Text("Your teacher's words in the lesson", style = MaterialTheme.typography.labelSmall, color = muted)
+                }
                 Text(
                     "“${card.herWords}”",
                     style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
@@ -504,23 +545,31 @@ private fun CueCard(
             val old = card.summaryRejected?.takeIf { it.isNotBlank() }
             if (old != null) {
                 TextButton(onClick = { showOld = !showOld }, contentPadding = PaddingValues(0.dp)) {
-                    Text(if (showOld) "Hide the app's summary" else "See the app's summary she flagged", style = MaterialTheme.typography.labelMedium)
+                    Text(if (showOld) "Hide the app's summary" else "See the app's summary your teacher flagged", style = MaterialTheme.typography.labelMedium)
                 }
                 AnimatedVisibility(showOld) {
                     Text(
-                        "The app had: “$old” If you practiced from this, go by her clip instead.",
+                        "The app had: “$old” If you practiced from this, go by your teacher's clip instead.",
                         style = MaterialTheme.typography.bodySmall, color = muted,
                     )
                 }
             }
-            if (group.explained) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
-            if (check == LessonOutline.SummaryCheck.FLAGGED && !group.explained && (nudge.open || nudge.asked)) {
+            if (group.explained && check != LessonOutline.SummaryCheck.CLOSE) TeacherNote(card.summaryNote, card.summaryNoteClip, player, voiceNote)
+            if (check == LessonOutline.SummaryCheck.FLAGGED && !group.explained) {
                 if (nudge.asked) {
                     Text("On your questions for the next lesson.", style = MaterialTheme.typography.bodySmall, color = muted)
-                } else Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Listen to her clip. Still unclear?", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                    nudge.ask?.let { TextButton(onClick = it) { Text("Add to my questions") } }
-                    TextButton(onClick = nudge.gotIt) { Text("Got it") }
+                }
+                AnimatedVisibility(nudge.open && !nudge.asked, exit = shrinkVertically() + fadeOut()) {
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(m.surfaceContainerHigh).padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text("Listen to your teacher's clip. Still unclear?", style = MaterialTheme.typography.bodyMedium)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = nudge.gotIt) { Text("Got it") }
+                            nudge.ask?.let { FilledTonalButton(onClick = it) { Text("Add to my questions", maxLines = 1) } }
+                        }
+                    }
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -567,10 +616,10 @@ private fun TeacherNote(note: String?, clipPath: String?, player: ClipPlayer, vo
     var fetching by remember(clipPath) { mutableStateOf(false) }
     var failed by remember(clipPath) { mutableStateOf(false) }
     Column(
-        Modifier.fillMaxWidth().background(m.secondaryContainer.copy(alpha = 0.5f), RoundedCornerShape(10.dp)).padding(10.dp),
+        Modifier.fillMaxWidth().background(m.secondaryContainer, RoundedCornerShape(10.dp)).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text("What she meant", style = MaterialTheme.typography.labelMedium, color = m.onSecondaryContainer)
+        Text("What your teacher meant", style = MaterialTheme.typography.labelMedium, color = m.onSecondaryContainer)
         if (!note.isNullOrBlank()) {
             Text(
                 note, style = MaterialTheme.typography.bodyMedium, color = m.onSecondaryContainer,
@@ -591,7 +640,11 @@ private fun TeacherNote(note: String?, clipPath: String?, player: ClipPlayer, vo
                     fetching = false
                     if (f == null) failed = true else { local = f.absolutePath; player.toggle(f.absolutePath) }
                 }
-            }) { Text(if (fetching) "Getting her voice note…" else (if (on) "■ " else "▶ ") + "Her voice note") }
+            }) {
+                // The label stays put while it downloads; a small spinner stands in for the ▶.
+                if (fetching) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp) else Text(if (on) "■" else "▶")
+                Text(" Note from your teacher")
+            }
             if (failed) Text("Couldn't get the voice note. Check the internet and try again.", style = MaterialTheme.typography.bodySmall, color = m.error)
         }
     }
@@ -694,7 +747,9 @@ private fun SketchRow(sketches: List<PhotoEntity>, lessonDir: File, onOpenSketch
  */
 @Composable
 private fun NextStepBar(onSetlist: Int, practice: (() -> Unit)?, send: (() -> Unit)?) {
-    Surface(tonalElevation = 3.dp, shadowElevation = 6.dp) {
+    Surface(tonalElevation = 3.dp, shadowElevation = 6.dp, color = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (send != null) OutlinedButton(onClick = send, modifier = Modifier.weight(1f)) { Text("Send to teacher") }
@@ -707,6 +762,7 @@ private fun NextStepBar(onSetlist: Int, practice: (() -> Unit)?, send: (() -> Un
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
+        }
         }
     }
 }

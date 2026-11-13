@@ -196,6 +196,23 @@
 
   // "Did you say this?": the teacher's answer about each card's summary.
   function answered(f: Feedback) { cards = cards.map((x) => (x.id === f.id ? f : x)); }
+  // After going through the ones she disagrees with, the rest in one pass.
+  let markingRest = $state(false);
+  let markRestError = $state('');
+  async function markRestYes() {
+    if (!lesson) return;
+    markingRest = true;
+    markRestError = '';
+    try {
+      for (const c of cards.filter((x) => !x.summary_check && x.summary)) {
+        answered(await api().answerSummary(c, lesson.student_id, 'said'));
+      }
+    } catch (e) {
+      markRestError = e instanceof Error ? e.message : String(e);
+    } finally {
+      markingRest = false;
+    }
+  }
   const summaryTally = $derived({
     said: cards.filter((c) => c.summary_check === 'said').length,
     close: cards.filter((c) => c.summary_check === 'close').length,
@@ -393,10 +410,12 @@
     {/if}
   </div>
   <p class="muted">{minutes(lesson.duration_ms)}{exercises.length ? ` · ${n(exercises.length, 'exercise')}` : ''} · {n(takes.length, 'take')} · {n(cards.length, 'card')}. Every save keeps the earlier version.</p>
-  {#if summaryTally.said + summaryTally.notSaid + summaryTally.open}
+  {#if summaryTally.said + summaryTally.close + summaryTally.notSaid + summaryTally.open}
     <p class="tally small">
       Summaries checked: {summaryTally.said + summaryTally.close + summaryTally.notSaid} of {summaryTally.said + summaryTally.close + summaryTally.notSaid + summaryTally.open}{summaryTally.close ? ` · ${summaryTally.close} close` : ''}{summaryTally.notSaid ? ` · ${summaryTally.notSaid} wrong` : ''}.
-      {#if summaryTally.open}<span class="muted">Each card asks "Did you say this?" Wrong takes the summary off the student's card.</span>{/if}
+      {#if summaryTally.open}<span class="muted">Each card asks "Did you say this?" Wrong takes the summary off the student's card.</span>
+        <button class="link small" onclick={markRestYes} disabled={markingRest}>{markingRest ? 'Marking…' : `Mark the other ${summaryTally.open} Yes`}</button>{/if}
+      {#if markRestError}<span class="error small" role="alert">{markRestError}</span>{/if}
     </p>
   {/if}
   {#if teachers.length > 1 || (!lesson.taught_by && lesson.teacher_name)}
