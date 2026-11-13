@@ -32,6 +32,7 @@ object CloudIds {
     fun of(localId: String): String = UUID.nameUUIDFromBytes("cuenote:$localId".toByteArray()).toString()
     fun take(localId: String) = of(localId)
     fun feedback(localId: String) = of(localId)
+    fun exercise(localId: String) = of(localId)
 }
 
 /** One stretch of the lesson to cut into a clip for replay. */
@@ -128,6 +129,8 @@ data class CueRequest(
         val transcript: String,
         @SerialName("link_confidence") val linkConfidence: Float,
         val demos: Int,
+        /** The warmup or song section the block is part of (cloud uuid), or null. */
+        @SerialName("exercise_id") val exerciseId: String? = null,
     )
 
     @Serializable
@@ -161,6 +164,7 @@ data class CueRequest(
                     transcript = wordsIn(fb, out.transcript),
                     linkConfidence = fb.linkConfidence,
                     demos = fb.demos.size,
+                    exerciseId = fb.exerciseId?.let(CloudIds::exercise),
                 )
             },
             transcript = out.transcript.filter { it.text.isNotBlank() }

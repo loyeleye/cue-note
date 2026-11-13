@@ -18,6 +18,7 @@ export interface Block {
   transcript: string;       // the teacher's words in this block, from whisper
   link_confidence: number | null;
   demos: number;            // how many sung demos the block contains
+  exercise_id?: string | null; // the warmup or song section it is part of (cloud uuid), or null
 }
 
 export interface Line {
@@ -42,6 +43,13 @@ export interface TakeRow {
   id: string;
   start_ms: number;
   end_ms: number;
+}
+
+/** A warmup or a section of a song: a run of tries and her feedback. */
+export interface ExerciseRow {
+  id: string;
+  start_ms: number;
+  kind: 'warmup' | 'song';
 }
 
 /** A card the teacher corrected before, used as a worked example. */
@@ -72,6 +80,7 @@ export function invalidRequest(r: unknown): string | null {
     if (ids.has(b.id)) return `block ${b.id} appears twice`;
     ids.add(b.id);
     if (b.take_id != null && (typeof b.take_id !== 'string' || !UUID.test(b.take_id))) return `block ${b.id}: take_id must be a uuid`;
+    if (b.exercise_id != null && (typeof b.exercise_id !== 'string' || !UUID.test(b.exercise_id))) return `block ${b.id}: exercise_id must be a uuid`;
     if (!Number.isFinite(b.span_start_ms) || !Number.isFinite(b.span_end_ms) || b.span_end_ms < b.span_start_ms) {
       return `block ${b.id}: bad span`;
     }
@@ -187,13 +196,23 @@ export function labelBlocks(blocks: Block[]): Map<string, Block> {
 
 /**
  * The lesson as the model reads it: takes and blocks in time order, each
- * block with every line said during it, both speakers.
+ * block with every line said during it, both speakers, under a heading for
+ * each warmup or song section, since her feedback often runs across tries.
  */
-export function lessonText(labels: Map<string, Block>, takes: TakeRow[], lines: Line[], only?: Set<string>): string {
+export function lessonText(labels: Map<string, Block>, takes: TakeRow[], lines: Line[], only?: Set<string>,
+                           exercises: ExerciseRow[] = []): string {
   const takeNo = new Map([...takes].sort((a, b) => a.start_ms - b.start_ms).map((t, i) => [t.id, i + 1]));
+  const exNo = new Map([...exercises].sort((a, b) => a.start_ms - b.start_ms).map((e, i) => [e.id, i + 1]));
   const out: string[] = [];
+  let lastEx: string | null | undefined;
   for (const [label, b] of labels) {
     if (only && !only.has(label)) continue;
+    const ex = b.exercise_id && exNo.has(b.exercise_id) ? b.exercise_id : null;
+    if (exercises.length && ex !== lastEx) {
+      const e = exercises.find((x) => x.id === ex);
+      out.push(e ? `== Exercise ${exNo.get(e.id)}: ${e.kind === 'song' ? 'singing the song' : 'a warmup'} ==` : '== Talk between exercises ==');
+      lastEx = ex;
+    }
     const take = b.take_id ? takes.find((t) => t.id === b.take_id) : undefined;
     const about = take
       ? `after take T${takeNo.get(take.id)} (the student sang ${clock(take.start_ms)}–${clock(take.end_ms)})`

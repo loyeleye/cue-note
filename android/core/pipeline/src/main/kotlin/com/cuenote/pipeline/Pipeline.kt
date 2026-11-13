@@ -20,7 +20,7 @@ import java.io.File
  *   features   loudness, pitch (YIN) and voice probability for every 32 ms
  *   segment    the five labels, then takes and feedback blocks
  *   transcribe speech to text, only where someone is talking
- *   link       feedback to takes, demos to phrases, photos and marks to cards
+ *   link       takes into exercises, feedback to takes, demos to phrases, photos and marks to cards
  *   timeline   the debug timeline page
  *
  * Cutting Opus clips and calling extract-cues come in M3.
@@ -63,6 +63,8 @@ class Pipeline(
         val feedback: List<FeedbackBlock>,
         val transcript: List<TranscriptLine>,
         val events: List<EventLink>,
+        /** Warmups and song sections, each grouping its takes and feedback. */
+        val exercises: List<Exercise> = emptyList(),
     )
 
     private val dir = lesson.pipelineDir
@@ -125,23 +127,25 @@ class Pipeline(
         }
         val transcript = json.decodeFromString(ListSerializer(TranscriptLine.serializer()), transcriptFile.readText())
 
+        val grouped = Exercises(cfg).group(structure.takes, structure.feedback, transcript, lesson.id)
         val linker = Linker(cfg).apply { demoPitch = FeaturePitch(features, channel = 1) }
-        val links = linker.link(structure.takes, structure.feedback, lesson.events)
+        val links = linker.link(grouped.takes, grouped.feedback, lesson.events)
         val output = Output(
             lessonId = lesson.id,
             durationMs = lesson.durationMs,
             vad = features.vadName,
             transcriber = transcriber?.name,
             segments = segments,
-            takes = structure.takes,
+            takes = grouped.takes,
             feedback = links.feedback,
             transcript = transcript,
             events = links.events,
+            exercises = grouped.exercises,
         )
         stage(Stage.LINK) {
             outputFile.writeText(json.encodeToString(Output.serializer(), output))
             val linked = output.feedback.count { it.takeId != null }
-            "$linked of ${output.feedback.size} feedback blocks linked, ${output.events.size} photos and marks"
+            "${output.exercises.size} exercises, $linked of ${output.feedback.size} feedback blocks linked, ${output.events.size} photos and marks"
         }
 
         // The timeline is cheap, so it is always rewritten (labels may have changed).

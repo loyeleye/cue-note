@@ -6,7 +6,7 @@
 <title>Lesson timeline</title>
 <style>
   :root { --bg:#fbfaf7; --fg:#1d1b18; --muted:#6c675f; --line:#e3dfd6; --panel:#fff;
-          --ss:#2f6fdb; --sp:#8fb3f0; --ts:#d9532b; --tsing:#b0369b; --piano:#3d9a5b; --truth:#111; }
+          --ss:#2f6fdb; --sp:#8fb3f0; --ts:#d9532b; --tsing:#b0369b; --piano:#3d9a5b; --truth:#111; --warm:#8a6d1f; --song:#5b4bb5; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     --bg:#16151a; --fg:#ecebe6; --muted:#a39f97; --line:#34323a; --panel:#1f1e24; --truth:#f2f2f2; } }
   body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
@@ -28,6 +28,8 @@
   .help { font-size:13px; color:var(--muted); }
   .t-student { color:var(--ss); } .t-teacher { color:var(--ts); }
   a.time { cursor:pointer; text-decoration:underline dotted; }
+  tr.ex td { background:var(--panel); border-top:2px solid var(--line); }
+  .kind { display:inline-block; white-space:nowrap; padding:1px 6px; border-radius:4px; color:#fff; font-size:12px; }
 </style>
 </head>
 <body>
@@ -40,6 +42,8 @@
     <span><i style="background:var(--ts)"></i>Teacher speaking</span>
     <span><i style="background:var(--tsing)"></i>Teacher singing</span>
     <span><i style="background:var(--piano)"></i>Piano only</span>
+    <span><i style="background:var(--warm)"></i>Warmup</span>
+    <span><i style="background:var(--song)"></i>Song</span>
   </div>
 </header>
 <div class="bar">
@@ -58,12 +62,14 @@
   <p id="labelHelp" class="help" hidden>
     Labelling: drag across the <b>Right answers</b> row to mark a span, then press <b>T</b> (take), <b>F</b> (feedback) or <b>D</b> (her demo).
     Click a feedback span, then a take span, to say which take it is about; click a feedback span and press <b>N</b> for "no take".
-    Click a span and press <b>Delete</b> to remove it. Drag a span's edge to move it. Click anywhere else to play from there.
+    Click a span and press <b>Delete</b> to remove it. Drag a span's edge to move it. Click anywhere else to play from there.<br>
+    Exercises: drag across the <b>Right exercises</b> row to mark one warmup or song section, from where she sets it up to where she moves on.
+    Click it and press <b>W</b> (warmup) or <b>S</b> (song) to say which.
   </p>
   <section id="scoreBox"></section>
   <h2 style="font-size:15px">Stages</h2>
   <table id="stages"></table>
-  <h2 style="font-size:15px">Takes and their feedback</h2>
+  <h2 style="font-size:15px">Exercises, their tries and her feedback</h2>
   <table id="cards"></table>
 </main>
 <script>
@@ -77,18 +83,22 @@ const COLORS = { student_sing: '--ss', student_speak: '--sp', teacher_speak: '--
 
 $('lid').textContent = D.lessonId;
 $('meta').textContent = `${clock(D.durationMs)} long · voice detector: ${D.vad} · speech to text: ${D.transcriber} · ` +
-  `${D.takes.length} takes · ${D.feedback.length} feedback blocks · ${D.feedback.filter(f => f.takeId).length} linked`;
+  `${(D.exercises || []).length} exercises · ${D.takes.length} takes · ${D.feedback.length} feedback blocks · ${D.feedback.filter(f => f.takeId).length} linked`;
+D.exercises ||= [];
+const exName = (e, i) => (e.kind === 'song' ? 'Song ' : 'Warmup ') + (i + 1);
 
 // ---------------- right answers (labels) ----------------
-let labels = D.labels || { lessonId: D.lessonId, takes: [], feedback: [], demos: [], notes: '' };
-let labelMode = false, selected = null, dragging = null, pendingSpan = null;
+let labels = D.labels || { lessonId: D.lessonId, takes: [], feedback: [], demos: [], exercises: [], notes: '' };
+labels.exercises ||= [];
+let labelMode = false, selected = null, dragging = null, pendingSpan = null, pendingEx = null;
 
 // ---------------- layout ----------------
 const LANES = [
-  ['ruler', 18], ['labels', 22], ['takes', 22], ['feedback', 22], ['truth', 30],
+  ['ruler', 18], ['labels', 22], ['exercises', 22], ['takes', 22], ['feedback', 22], ['truthEx', 22], ['truth', 30],
   ['student', 70], ['teacher', 70], ['transcript', 44], ['events', 18],
 ];
-const NAMES = { labels: 'What it heard', takes: 'Takes found', feedback: 'Feedback found', truth: 'Right answers',
+const NAMES = { labels: 'What it heard', exercises: 'Exercises found', takes: 'Takes found', feedback: 'Feedback found',
+  truthEx: 'Right exercises', truth: 'Right answers',
   student: 'Student mic', teacher: 'Teacher mic', transcript: 'Words', events: 'Marks, photos' };
 const GUTTER = 108;
 let pxPerSec = 12;
@@ -128,6 +138,7 @@ function draw() {
     ctx.fillStyle = css('--muted'); ctx.fillText(clock(s * 1000), x(s * 1000) + 2, 12);
   }
   for (const s of D.segments) span('labels', s.startMs, s.endMs, css(COLORS[s.label]));
+  D.exercises.forEach((e, i) => span('exercises', e.startMs, e.endMs, css(e.kind === 'song' ? '--song' : '--warm'), exName(e, i)));
   D.takes.forEach((t, i) => span('takes', t.startMs, t.endMs, css('--ss'), 'Take ' + (i + 1) + (t.withPiano ? ' ♪' : '')));
   const takeIndex = Object.fromEntries(D.takes.map((t, i) => [t.id, i]));
   D.feedback.forEach((f, i) => {
@@ -140,6 +151,10 @@ function draw() {
     }
   });
   // right answers
+  ctx.fillStyle = css('--line'); ctx.fillRect(GUTTER, laneTop.truthEx, W, laneH.truthEx);
+  labels.exercises.forEach((e, i) => span('truthEx', e.startMs, e.endMs, css(e.kind === 'song' ? '--song' : e.kind === 'warmup' ? '--warm' : '--muted'),
+    (e.kind === 'song' ? 'Song ' : e.kind === 'warmup' ? 'Warmup ' : 'Exercise ') + (i + 1) + (e.kind ? '' : ' (W / S?)'), selected && selected.kind === 'exercise' && selected.i === i));
+  if (pendingEx) span('truthEx', pendingEx[0], pendingEx[1], 'rgba(120,120,120,.5)', 'exercise');
   ctx.fillStyle = css('--line'); ctx.fillRect(GUTTER, laneTop.truth, W, laneH.truth);
   labels.takes.forEach((t, i) => span('truth', t.startMs, t.endMs, css('--ss'), 'Take ' + (i + 1), selected && selected.kind === 'take' && selected.i === i));
   labels.feedback.forEach((f, i) => span('truth', f.startMs, f.endMs, css('--ts'), f.take == null ? '—' : '→ ' + (f.take + 1), selected && selected.kind === 'feedback' && selected.i === i));
@@ -189,6 +204,8 @@ function playFrom(ms) {
   let k = chunkStarts.findLastIndex(s => s <= ms); if (k < 0) return;
   const startChunk = (k) => {
     audio = new Audio(D.chunks[k]);
+    // the phone may have shrunk the WAVs to .m4a since this page was drawn
+    audio.onerror = () => { if (audio.src.endsWith('.wav')) { const t = (playMs - chunkStarts[k]) / 1000; audio.src = audio.src.replace(/\.wav$/, '.m4a'); audio.currentTime = t; audio.play(); } };
     audio.currentTime = (playMs - chunkStarts[k]) / 1000;
     audio.onended = () => { if (k + 1 < D.chunks.length) { playMs = chunkStarts[k + 1]; startChunk(k + 1); } else stop(); };
     audio.ontimeupdate = () => { playMs = chunkStarts[k] + audio.currentTime * 1000; $('now').textContent = clock(playMs); draw(); };
@@ -206,7 +223,12 @@ wrap.addEventListener('scroll', draw);
 window.addEventListener('resize', resize);
 $('labelMode').onclick = () => { labelMode = !labelMode; $('labelMode').classList.toggle('on', labelMode); $('labelTools').hidden = !labelMode; $('labelHelp').hidden = !labelMode; };
 
-function hit(ms) {
+function hit(ms, lane) {
+  if (lane === 'truthEx') {
+    const arr = labels.exercises;
+    for (let i = 0; i < arr.length; i++) if (ms >= arr[i].startMs && ms <= arr[i].endMs) return { kind: 'exercise', i, arr };
+    return null;
+  }
   for (const kind of ['demo', 'feedback', 'take']) {
     const arr = kind === 'take' ? labels.takes : kind === 'feedback' ? labels.feedback : labels.demos;
     for (let i = 0; i < arr.length; i++) if (ms >= arr[i].startMs && ms <= arr[i].endMs) return { kind, i, arr };
@@ -217,24 +239,35 @@ function pos(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.le
 cv.addEventListener('pointerdown', e => {
   const [px, py] = pos(e), ms = msAt(px);
   const inTruth = py >= laneTop.truth && py <= laneTop.truth + laneH.truth;
-  if (!labelMode || !inTruth) { if (px > GUTTER) playFrom(ms); return; }
-  const h = hit(ms);
+  const inEx = py >= laneTop.truthEx && py <= laneTop.truthEx + laneH.truthEx;
+  if (!labelMode || !(inTruth || inEx)) { if (px > GUTTER) playFrom(ms); return; }
+  const h = hit(ms, inEx ? 'truthEx' : 'truth');
   if (h) {
     const s = h.arr[h.i], edge = 6 / pxPerSec * 1000;
     if (Math.abs(ms - s.startMs) < edge) { dragging = { h, side: 'startMs' }; }
     else if (Math.abs(ms - s.endMs) < edge) { dragging = { h, side: 'endMs' }; }
     else if (selected && selected.kind === 'feedback' && h.kind === 'take') { labels.feedback[selected.i].take = h.i; selected = null; }
     else selected = { kind: h.kind, i: h.i };
-  } else { pendingSpan = [ms, ms]; dragging = { pending: true }; selected = null; }
+  } else if (inEx) { pendingEx = [ms, ms]; dragging = { pendingEx: true }; selected = null; }
+  else { pendingSpan = [ms, ms]; dragging = { pending: true }; selected = null; }
   cv.setPointerCapture(e.pointerId); draw();
 });
 cv.addEventListener('pointermove', e => {
   if (!dragging) return; const ms = Math.round(msAt(pos(e)[0]));
-  if (dragging.pending) pendingSpan[1] = ms; else dragging.h.arr[dragging.h.i][dragging.side] = ms;
+  if (dragging.pending) pendingSpan[1] = ms; else if (dragging.pendingEx) pendingEx[1] = ms; else dragging.h.arr[dragging.h.i][dragging.side] = ms;
   draw();
 });
 cv.addEventListener('pointerup', () => {
   if (dragging && dragging.pending && pendingSpan) { pendingSpan.sort((a, b) => a - b); if (pendingSpan[1] - pendingSpan[0] < 200) pendingSpan = null; }
+  if (dragging && dragging.pendingEx && pendingEx) {   // an exercise is made as soon as it is drawn
+    pendingEx.sort((a, b) => a - b);
+    if (pendingEx[1] - pendingEx[0] >= 1000) {
+      labels.exercises.push({ startMs: Math.round(pendingEx[0]), endMs: Math.round(pendingEx[1]), kind: null });
+      labels.exercises.sort((a, b) => a.startMs - b.startMs);
+      selected = { kind: 'exercise', i: labels.exercises.findIndex(e => e.startMs === Math.round(pendingEx[0])) };
+    }
+    pendingEx = null;
+  }
   dragging = null; draw();
 });
 window.addEventListener('keydown', e => {
@@ -245,8 +278,10 @@ window.addEventListener('keydown', e => {
     if (k === 'f') labels.feedback.push({ ...s, take: null });
     if (k === 'd') labels.demos.push(s);
     labels.feedback.sort((a, b) => a.startMs - b.startMs); pendingSpan = null;
+  } else if (selected && selected.kind === 'exercise' && (k === 'w' || k === 's')) {
+    labels.exercises[selected.i].kind = k === 'w' ? 'warmup' : 'song';
   } else if (selected && (k === 'delete' || k === 'backspace')) {
-    const arr = selected.kind === 'take' ? labels.takes : selected.kind === 'feedback' ? labels.feedback : labels.demos;
+    const arr = selected.kind === 'take' ? labels.takes : selected.kind === 'feedback' ? labels.feedback : selected.kind === 'exercise' ? labels.exercises : labels.demos;
     arr.splice(selected.i, 1);
     if (selected.kind === 'take') for (const f of labels.feedback) { if (f.take === selected.i) f.take = null; else if (f.take > selected.i) f.take--; }
     selected = null;
@@ -255,9 +290,10 @@ window.addEventListener('keydown', e => {
   e.preventDefault(); draw();
 });
 $('copyFound').onclick = () => {
-  if (labels.takes.length && !confirm('Replace your right answers with what the pipeline found?')) return;
+  if ((labels.takes.length || labels.exercises.length) && !confirm('Replace your right answers with what the pipeline found?')) return;
   const idx = Object.fromEntries(D.takes.map((t, i) => [t.id, i]));
   labels = { lessonId: D.lessonId, notes: labels.notes || '',
+    exercises: D.exercises.map(e => ({ startMs: e.startMs, endMs: e.endMs, kind: e.kind })),
     takes: D.takes.map(t => ({ startMs: t.startMs, endMs: t.endMs })),
     feedback: D.feedback.map(f => ({ startMs: f.startMs, endMs: f.endMs, take: f.takeId ? idx[f.takeId] : null })),
     demos: D.feedback.flatMap(f => f.demos.map(d => ({ startMs: d.startMs, endMs: d.endMs }))) };
@@ -269,7 +305,7 @@ $('save').onclick = () => {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   a.download = 'labels.json'; a.click();
 };
-$('load').onchange = async e => { const f = e.target.files[0]; if (f) { labels = JSON.parse(await f.text()); labels.demos ||= []; draw(); } };
+$('load').onchange = async e => { const f = e.target.files[0]; if (f) { labels = JSON.parse(await f.text()); labels.demos ||= []; labels.exercises ||= []; draw(); } };
 
 // ---------------- tables ----------------
 function renderTables() {
@@ -280,6 +316,8 @@ function renderTables() {
       Takes found: <b>${pct(s.takeRecall)}</b> · Takes that were real: <b>${pct(s.takePrecision)}</b> ·
       Take edges off by ${(s.takeBoundaryErrorMs / 1000).toFixed(1)} s on average
       ${s.labelAccuracy != null ? ' · Moments labelled right: <b>' + pct(s.labelAccuracy) + '</b>' : ''}</p>
+      ${s.groupingAccuracy != null || s.exerciseRecall != null ? `<p class="score">Tries grouped right: <b>${s.groupingAccuracy != null ? pct(s.groupingAccuracy) : '–'}</b> ·
+      Exercises found whole: <b>${pct(s.exerciseRecall)}</b> · Feedback in the right exercise: <b>${s.exerciseLinkAccuracy != null ? pct(s.exerciseLinkAccuracy) : '–'}</b></p>` : ''}
       ${s.mistakes.length ? '<ul class="mistakes">' + s.mistakes.map(m => `<li>${m}</li>`).join('') + '</ul>' : ''}`;
   }
   $('stages').innerHTML = '<tr><th>Stage</th><th>Result</th><th>Took</th><th></th></tr>' + D.state.stages.map(s =>
@@ -288,16 +326,24 @@ function renderTables() {
     .map(l => `<div class="t-${l.speaker}">${l.speaker === 'teacher' ? 'Teacher' : 'Student'}: ${l.text}</div>`).join('');
   const time = ms => `<a class="time" onclick="playFrom(${ms})">${clock(ms)}</a>`;
   const rows = [];
-  const opening = D.feedback.filter(f => !f.takeId);
-  for (const f of opening) rows.push(`<tr><td>Not about a take</td><td>${time(f.startMs)}</td><td>${words(f.startMs, f.endMs) || '<span class="muted">(no words)</span>'}<div class="muted">${f.linkReason}</div></td></tr>`);
-  D.takes.forEach((t, i) => {
-    const fbs = D.feedback.filter(f => f.takeId === t.id);
-    rows.push(`<tr><td><b>Take ${i + 1}</b>${t.withPiano ? ' ♪' : ''}<div class="muted">${((t.endMs - t.startMs) / 1000).toFixed(1)} s</div></td><td>${time(t.startMs)}</td><td>` +
-      (fbs.map(f => `<div style="margin-bottom:6px">${words(f.startMs, f.endMs) || '<span class="muted">(no words)</span>'}` +
-        f.demos.map(d => `<div class="muted">Demo at ${time(d.startMs)}${d.takeId ? `, models ${clock(d.phraseStartMs)}–${clock(d.phraseEndMs)} of take ${(D.takes.findIndex(x => x.id === d.takeId)) + 1}` : ''}</div>`).join('') +
-        `<div class="muted">${f.linkReason}, confidence ${Math.round(f.linkConfidence * 100)}%</div></div>`).join('') || '<span class="muted">No feedback</span>') + '</td></tr>');
+  const takeNo = id => D.takes.findIndex(x => x.id === id) + 1;
+  const block = f => `<div style="margin-bottom:6px">${words(f.startMs, f.endMs) || '<span class="muted">(no words)</span>'}` +
+    f.demos.map(d => `<div class="muted">Demo at ${time(d.startMs)}${d.takeId ? `, models ${clock(d.phraseStartMs)}–${clock(d.phraseEndMs)} of take ${takeNo(d.takeId)}` : ''}</div>`).join('') +
+    `<div class="muted">${f.takeId ? 'About take ' + takeNo(f.takeId) + ' · ' : ''}${f.linkReason}${f.takeId ? ', confidence ' + Math.round(f.linkConfidence * 100) + '%' : ''}</div></div>`;
+  const takeRow = t => `<tr><td><b>Take ${takeNo(t.id)}</b>${t.withPiano ? ' ♪' : ''}<div class="muted">${((t.endMs - t.startMs) / 1000).toFixed(1)} s</div></td><td>${time(t.startMs)}</td><td class="muted">the student sings</td></tr>`;
+  const fbRow = f => `<tr><td class="muted">Feedback</td><td>${time(f.startMs)}</td><td>${block(f)}</td></tr>`;
+  // everything in time order, under the exercise it belongs to
+  const inOrder = items => items.sort((a, b) => a.startMs - b.startMs).map(x => x.takeIds ? '' : x.linkReason !== undefined ? fbRow(x) : takeRow(x));
+  for (const f of D.feedback.filter(f => !f.exerciseId)) rows.push(fbRow(f));
+  D.exercises.forEach((e, i) => {
+    const ts = D.takes.filter(t => t.exerciseId === e.id), fbs = D.feedback.filter(f => f.exerciseId === e.id);
+    rows.push(`<tr class="ex"><td><span class="kind" style="background:var(${e.kind === 'song' ? '--song' : '--warm'})">${exName(e, i)}</span></td>` +
+      `<td>${time(e.startMs)}</td><td><b>${ts.length} ${ts.length === 1 ? 'try' : 'tries'}, ${fbs.length} feedback</b> · ${clock(e.endMs - e.startMs)} long` +
+      `<div class="muted">Starts here because: ${e.reason}</div></td></tr>`);
+    rows.push(...inOrder([...ts, ...fbs]));
   });
-  $('cards').innerHTML = '<tr><th>Take</th><th>At</th><th>Feedback</th></tr>' + rows.join('');
+  if (!D.exercises.length) rows.push(...inOrder([...D.takes, ...D.feedback]));
+  $('cards').innerHTML = '<tr><th></th><th>At</th><th></th></tr>' + rows.join('');
 }
 renderTables();
 resize();

@@ -14,6 +14,7 @@ import com.cuenote.data.LessonDatabase
 import com.cuenote.data.PipelineStageEntity
 import com.cuenote.data.sketch.SketchRepository
 import com.cuenote.data.sketch.SketchWorker
+import com.cuenote.data.storage.CompressAudioWorker
 import com.cuenote.data.sync.LessonUploadWorker
 import com.cuenote.ml.ModelFiles
 import com.cuenote.ml.WhisperNative
@@ -92,6 +93,8 @@ class LessonPipelineWorker(context: Context, params: WorkerParameters) : Corouti
                 dao.setLessonState(lessonId, "processed")
                 // Next: clips, upload and cards, once there is a network.
                 LessonUploadWorker.enqueue(applicationContext, lessonId)
+                // Then, while charging, shrink the recording to a fraction of its size.
+                CompressAudioWorker.enqueue(applicationContext, lessonId)
                 Result.success()
             } catch (e: StoppedException) {
                 ResultImporter.importStages(dao, lessonId, pipeline.state())

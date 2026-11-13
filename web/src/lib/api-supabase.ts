@@ -5,7 +5,7 @@ import type { Api, Bucket, NewAnnotation, NewComment, NewPractice, PresentTeache
 import { EditConflict, scoreFormatOf } from './api';
 import type {
   PracticeSession, SharedTake, StudentQuestion,
-  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramSuggestion, Feedback, Lesson, PhotoMark,
+  Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramSuggestion, Exercise, Feedback, Lesson, PhotoMark,
   LessonViewRequest, PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
 
@@ -150,6 +150,10 @@ export const supabaseApi: Api = {
 
   async listTakes(lessonId) {
     return check(await supabase.from('take').select('*').eq('lesson_id', lessonId).order('start_ms')) as Take[];
+  },
+
+  async listExercises(lessonId) {
+    return check(await supabase.from('exercise').select('*').eq('lesson_id', lessonId).order('start_ms')) as Exercise[];
   },
 
   async listFeedback(lessonId) {

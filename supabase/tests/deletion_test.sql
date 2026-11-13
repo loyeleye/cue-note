@@ -7,7 +7,7 @@
 -- These tests cover a teacher the student lets see all their lessons; since
 -- 20261115000002 a new share starts limited to the lessons the teacher taught.
 alter table public.teacher_student_share alter column restricted_to_taught set default false;
--- and every teacher agreed to the others seeing their lessons (20261116000001).
+-- and every teacher agreed to the others seeing their lessons (20261117000001).
 alter table public.lesson_view_consent alter column status set default 'granted';
 
 -- Sam (student), Tia (Sam's teacher), Uma (not Sam's teacher)

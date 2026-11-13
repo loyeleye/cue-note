@@ -1,5 +1,5 @@
 -- A teacher with "see all" sees another teacher's lessons only once that
--- teacher agrees; and the read-only debug role (20261116000001).
+-- teacher agrees; and the read-only debug role (20261117000001).
 \set ON_ERROR_STOP on
 \set QUIET on
 

@@ -64,9 +64,9 @@ interface LessonDao {
         LessonEntity::class, SegmentEntity::class, TakeEntity::class, FeedbackEntity::class,
         TranscriptLineEntity::class, PipelineStageEntity::class, ClipEntity::class, CardEntity::class,
         PhotoEntity::class, PracticeSessionEntity::class, PracticeTakeEntity::class,
-        PracticeQuestionEntity::class,
+        PracticeQuestionEntity::class, ExerciseEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class LessonDatabase : RoomDatabase() {
@@ -82,7 +82,7 @@ abstract class LessonDatabase : RoomDatabase() {
         /** One database for the app and its background workers. */
         fun get(context: Context): LessonDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, LessonDatabase::class.java, "cuenote.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build().also { instance = it }
         }
 
@@ -115,6 +115,13 @@ abstract class LessonDatabase : RoomDatabase() {
         }
 
         /** M5 adds sharing practice takes and questions for the teacher; everything else is kept. */
+        /** Exercises: warmups and song sections grouping takes and feedback. */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_7_SQL.forEach(db::execSQL)
+            }
+        }
+
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_5_6_SQL.forEach(db::execSQL)
@@ -162,4 +169,16 @@ internal val MIGRATION_5_6_SQL = MIGRATION_5_6_ADDED_COLUMNS.flatMap { (table, c
     cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
 } + listOf(
     "CREATE TABLE IF NOT EXISTS `practice_question` (`id` TEXT NOT NULL, `cardId` TEXT, `lessonId` TEXT, `bar` INTEGER, `body` TEXT NOT NULL, `status` TEXT NOT NULL, `answer` TEXT, `answeredAt` INTEGER, `createdAt` INTEGER NOT NULL, `dirty` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+)
+
+/** Copied from schemas/com.cuenote.data.LessonDatabase/7.json (Room checks they match). */
+internal val MIGRATION_6_7_ADDED_COLUMNS = mapOf(
+    "take" to listOf("`exerciseId` TEXT"),
+    "feedback" to listOf("`exerciseId` TEXT"),
+)
+
+internal val MIGRATION_6_7_SQL = MIGRATION_6_7_ADDED_COLUMNS.flatMap { (table, cols) ->
+    cols.map { "ALTER TABLE `$table` ADD COLUMN $it" }
+} + listOf(
+    "CREATE TABLE IF NOT EXISTS `exercise` (`id` TEXT NOT NULL, `lessonId` TEXT NOT NULL, `startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `kind` TEXT NOT NULL, `reason` TEXT NOT NULL, PRIMARY KEY(`id`))",
 )

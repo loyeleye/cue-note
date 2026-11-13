@@ -35,13 +35,20 @@ object ClipEncoder {
     }
 
     /** Writes 48 kHz mono samples to [out] as an .m4a, replacing it. Returns the file size in bytes. */
-    fun encodeMono(mono: ShortArray, out: File, label: String): Long {
+    fun encodeMono(mono: ShortArray, out: File, label: String): Long = encodePcm(mono, 1, BIT_RATE, out, label)
+
+    /**
+     * Writes 48 kHz 16-bit samples ([channels] interleaved) to [out] as an AAC
+     * .m4a, replacing it. Returns the file size in bytes.
+     */
+    fun encodePcm(pcm: ShortArray, channels: Int, bitRate: Int, out: File, label: String): Long {
+        val mono = pcm
         require(mono.isNotEmpty()) { "empty clip $label" }
         val tmp = File(out.parentFile, out.name + ".part")
         tmp.delete()
-        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, RATE, 1).apply {
+        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, RATE, channels).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, BIT_RATE)
+            setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
             setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16_384)
         }
         val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
@@ -61,8 +68,9 @@ object ClipEncoder {
                     if (i >= 0) {
                         val buf = codec.getInputBuffer(i)!!
                         buf.clear()
-                        val n = minOf(buf.capacity() / 2, mono.size - fed)
-                        val pts = fed * 1_000_000L / RATE
+                        // whole frames only, so a buffer never splits left from right
+                        val n = minOf(buf.capacity() / 2 / channels * channels, mono.size - fed)
+                        val pts = fed / channels * 1_000_000L / RATE
                         if (n <= 0) {
                             codec.queueInputBuffer(i, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             inputDone = true

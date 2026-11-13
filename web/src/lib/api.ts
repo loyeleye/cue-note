@@ -3,7 +3,7 @@
 // and the demo one keeps made-up sample data in the browser. Screens never know
 // which one they have, so the demo exercises exactly the same screens.
 import type { LessonViewRequest,
-  Agenda, Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Feedback,
+  Agenda, Annotation, BarPosition, CardFields, CardVersion, Checkpoint, Comment, DiagramDecision, DiagramSuggestion, Exercise, Feedback,
   Lesson, PhotoMark,
   PracticeItem, Profile, Score, Share, Song, StorageRow, StudentSummary, Take, Teacher
 } from './types';
@@ -104,6 +104,8 @@ export interface Api {
   listLessons(studentId: string): Promise<Lesson[]>;
   getLesson(lessonId: string): Promise<Lesson | null>;
   listTakes(lessonId: string): Promise<Take[]>;
+  /** The lesson's warmups and song sections, in order; empty for lessons processed before exercises. */
+  listExercises(lessonId: string): Promise<Exercise[]>;
   listFeedback(lessonId: string): Promise<Feedback[]>;
   listPhotos(lessonId: string): Promise<PhotoMark[]>;
   /** Puts a sketch on another card of its lesson, or on none (null). */
