@@ -270,7 +270,7 @@ private fun ListenRow(s: WhoIsWhoState, onListen: () -> Unit) {
             Text("Let the app find out", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Student: say \"Hi, I'm ready to sing.\" Teacher: stay quiet for a moment.",
+                "Student: sing \"Do - Re - Mi.\" Teacher: stay quiet for a moment.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant,
             )

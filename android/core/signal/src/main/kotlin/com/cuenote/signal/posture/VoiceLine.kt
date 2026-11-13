@@ -27,8 +27,8 @@ enum class VoiceLine(val key: String, val text: String) {
 
     // The sound check, read aloud so nobody has to watch the screen.
     CHECK_INTRO("check_intro", "Let's check the mics. I'll tell you what to do at each step, and move on as soon as I've heard enough."),
-    CHECK_STUDENT("check_student", "Teacher, stay quiet for this one. Student, sing: Hi, I'm ready to sing."),
-    CHECK_TEACHER("check_teacher", "Now the teacher. Student, stay quiet. Teacher, say: Hello! Ready when you are."),
+    CHECK_STUDENT("check_student", "Teacher, stay quiet for this one. Student, sing: Do, Re, Mi."),
+    CHECK_TEACHER("check_teacher", "Now the teacher. Student, stay quiet. Teacher, speak or sing: Do, Re, Mi."),
     CHECK_BIG_NOTE("check_big_note", "Student, sing your biggest comfortable note, and hold it."),
     CHECK_PIANO("check_piano", "Now the piano. Student, stay quiet. Teacher, play an exercise at your usual volume."),
     CHECK_PIANO_SOFT("check_piano_soft", "Teacher, play it again. Student, sing along softly."),

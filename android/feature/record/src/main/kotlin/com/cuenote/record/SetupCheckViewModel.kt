@@ -44,11 +44,11 @@ enum class SetupStep(
     val need: StepEar.Need,
 ) {
     STUDENT_SPEAK(
-        "Hi, I'm ready", "Student", "Sing \"Hi, I'm ready to sing.\"", 12, Who.TEACHER,
+        "Student's Do Re Mi", "Student", "Sing \"Do - Re - Mi.\"", 12, Who.TEACHER,
         VoiceLine.CHECK_STUDENT, StepEar.Need(soundMs = 1_200, waitForPause = true),
     ),
     TEACHER_SPEAK(
-        "Teacher says hello", "Teacher", "Say \"Hello! Ready when you are.\"", 12, Who.STUDENT,
+        "Teacher's Do Re Mi", "Teacher", "Speak or sing \"Do - Re - Mi.\"", 12, Who.STUDENT,
         VoiceLine.CHECK_TEACHER, StepEar.Need(soundMs = 1_200, waitForPause = true),
     ),
     LOUD_NOTE(
