@@ -43,12 +43,13 @@ enum class VoiceLine(val key: String, val text: String) {
 
 /** The two recorded voices. Each has a full set of clips under assets/voice/<key>/. */
 enum class Voice(val key: String, val label: String) {
-    MALE("iapetus", "Male"),
+    // Listed in the order the chips show.
     FEMALE("erinome", "Female"),
+    MALE("iapetus", "Male"),
     ;
 
     companion object {
-        val DEFAULT = MALE
+        val DEFAULT = FEMALE
         fun fromKey(key: String?) = entries.firstOrNull { it.key == key } ?: DEFAULT
     }
 }

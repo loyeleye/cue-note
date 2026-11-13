@@ -148,8 +148,8 @@ adds a camera step after "Who's on which mic?":
    lesson. It runs in its own process, so a camera crash can't stop the
    recording.
 
-**The voice.** Every spoken line is a recorded clip in two voices, Male (Gemini
-voice Iapetus) and Female (Erinome), in `android/app/src/main/assets/voice/<voice>/`,
+**The voice.** Every spoken line is a recorded clip in two voices, Female (Gemini
+voice Erinome, the default) and Male (Iapetus), in `android/app/src/main/assets/voice/<voice>/`,
 listed with its words in `VoiceLine.kt`. The choice is on the sound check and the
 framing check, and applies everywhere. A line without a clip is read by the phone's
 best installed US English voice. To record new lines, add them to `VoiceLine.kt` and
