@@ -101,6 +101,15 @@ end $$;
 select public.accept_share((select id from public.teacher_student_share limit 1));
 
 -- ---------------------------------------------------------------- Tia after accepting
+-- Key moments (20261119000001) keep takes outside "Practice this" cards from
+-- teachers; this file tests other rules, so each teacher gets a full-lesson pass.
+reset role;
+insert into public.full_lesson_pass (lesson_id, student_id, teacher_id, asked_by, status, decided_at, ends_at)
+select l.id, l.student_id, s.teacher_id, 'student', 'active', now(), now() + interval '14 days'
+  from public.lesson l join public.teacher_student_share s on s.student_id = l.student_id and s.teacher_id is not null
+on conflict do nothing;
+set role authenticated;
+
 do $$ begin
   assert (select role from public.profile where id = auth.uid()) = 'teacher',
     'FAIL: accepting an invite did not make Tia a teacher';
