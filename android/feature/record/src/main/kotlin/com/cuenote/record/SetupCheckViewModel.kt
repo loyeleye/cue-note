@@ -206,27 +206,45 @@ class SetupCheckViewModel(private val app: Application) : AndroidViewModel(app) 
     private suspend fun listen(step: SetupStep): Boolean {
         recorder.resetWindow()
         _state.update { it.copy(phase = StepPhase.LISTENING, secondsLeft = step.seconds, syllables = 0, wrongMic = false) }
-        val ear = StepEar(step.need)
+        var ear = StepEar(step.need)
         // Before the student step settles the channels, either mic can be the student's.
-        val syllables = step.verb?.let { SyllableCounter(if (step == SetupStep.TEACHER_SPEAK) Channel.TEACHER else null) }
-        val hearing = viewModelScope.launch {
+        fun counter() = step.verb?.let { SyllableCounter(if (step == SetupStep.TEACHER_SPEAK) Channel.TEACHER else null) }
+        var syllables = counter()
+        fun hear() = viewModelScope.launch {
             liveLevels.filterNotNull().collect { block ->
                 ear.add(block)
-                if (syllables != null) {
-                    syllables.add(block)
+                syllables?.let { c ->
+                    c.add(block)
                     val s = _state.value
-                    if (s.syllables != syllables.heard || s.wrongMic != syllables.wrongMic) {
-                        _state.update { it.copy(syllables = syllables.heard, wrongMic = syllables.wrongMic) }
+                    if (s.syllables != c.heard || s.wrongMic != c.wrongMic) {
+                        _state.update { it.copy(syllables = c.heard, wrongMic = c.wrongMic) }
                     }
                 }
             }
         }
-        val start = android.os.SystemClock.elapsedRealtime()
-        val endAt = start + step.seconds * 1_000L
+        var hearing = hear()
+        var start = android.os.SystemClock.elapsedRealtime()
+        var endAt = start + step.seconds * 1_000L
+        var warned = false
         try {
             while (true) {
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (now >= endAt) break
+                if (syllables?.wrongMic == true && _state.value.spoken && !warned) {
+                    // Said once per step, then the step starts over so the voice isn't in the measurement.
+                    warned = true
+                    hearing.cancel()
+                    speaker.sayAndWait(VoiceLine.CHECK_WRONG_MIC)
+                    delay(AFTER_LINE_MS)
+                    recorder.resetWindow()
+                    ear = StepEar(step.need)
+                    syllables = counter()
+                    _state.update { it.copy(syllables = 0, wrongMic = false, secondsLeft = step.seconds) }
+                    hearing = hear()
+                    start = android.os.SystemClock.elapsedRealtime()
+                    endAt = start + step.seconds * 1_000L
+                    continue
+                }
                 val heardSoFar = now - start >= MIN_LISTEN_MS && ear.enough()
                 if (heardSoFar && passesSoFar(step)) break
                 val left = ((endAt - now + 999) / 1_000).toInt()
