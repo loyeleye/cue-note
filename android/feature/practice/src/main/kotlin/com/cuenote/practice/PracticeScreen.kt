@@ -115,6 +115,10 @@ fun PracticeScreen(
     onFraming: () -> Unit = {},
     onTimingCheck: () -> Unit,
     onBack: () -> Unit,
+    /** A step of today's suggested practice: a step bar on top, Skip and Next at the bottom. */
+    step: PlanStepUi? = null,
+    /** Heard, not sung: no takes today (a tired or resting voice). */
+    listenOnly: Boolean = false,
 ) {
     val row by repo.card(cardId).collectAsStateWithLifecycle(null)
     val takes by repo.takes(cardId).collectAsStateWithLifecycle(emptyList())
@@ -171,8 +175,9 @@ fun PracticeScreen(
     }
     // The screen stays on while singing.
     val view = LocalView.current
-    DisposableEffect(recording) {
-        view.keepScreenOn = recording
+    DisposableEffect(recording, step) {
+        // In a sitting of suggested practice the phone often sits on a music stand: keep it on throughout.
+        view.keepScreenOn = recording || step != null
         onDispose { view.keepScreenOn = false }
     }
 
@@ -231,11 +236,14 @@ fun PracticeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Practice") },
+                title = { Text(if (step != null) "Today's practice" else "Practice") },
                 navigationIcon = { TextButton(onClick = { if (recording) confirmLeave = true else onBack() }) { Text("Back") } },
+                actions = { if (step != null && !recording) TextButton(onClick = step.onEnd) { Text("End", color = MaterialTheme.colorScheme.onSurfaceVariant) } },
             )
         },
         bottomBar = {
+            if (listenOnly) step?.let { StepButtons(it) } else Column {
+            if (step != null && !recording) StepButtons(step, Modifier.padding(top = 8.dp))
             SingBar(
                 recording = recording,
                 startedAt = startedAt,
@@ -252,6 +260,7 @@ fun PracticeScreen(
                 onDone = { stop(keep = true) },
                 onStartOver = { val along = singingAlong; stop(keep = false) { start(if (along) accompaniment else null) } },
             )
+            }
         },
     ) { padding ->
         val r = row
@@ -264,7 +273,7 @@ fun PracticeScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item(key = "mast") { Masthead("Practice ", "time") }
+            if (step != null) item(key = "step") { StepHeader(step) } else item(key = "mast") { Masthead("Practice ", "time") }
             if (r == null) {
                 item(key = "gone") {
                     Text(
@@ -303,6 +312,7 @@ fun PracticeScreen(
                 )
             }
 
+            if (listenOnly) return@LazyColumn
             item(key = "listen") { ListeningRow(devices, latency, onTimingCheck) }
             if (posture != null) {
                 item(key = "posture") {

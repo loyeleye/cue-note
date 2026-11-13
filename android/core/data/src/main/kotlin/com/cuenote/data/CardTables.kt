@@ -120,6 +120,9 @@ interface CardDao {
     fun observeCounts(): Flow<List<CardCount>>
 
     @Query("select * from card where lessonId = :lessonId order by spanStartMs")
+    suspend fun cards(lessonId: String): List<CardEntity>
+
+    @Query("select * from card where lessonId = :lessonId order by spanStartMs")
     fun observeCards(lessonId: String): Flow<List<CardEntity>>
 
     @Query("select * from clip where lessonId = :lessonId order by startMs")
