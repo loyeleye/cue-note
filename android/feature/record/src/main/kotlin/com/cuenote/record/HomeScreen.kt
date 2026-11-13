@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Tune
@@ -123,6 +124,10 @@ fun HomeScreen(
     onNextLesson: () -> Unit = {},
     /** Today's suggested practice (the check-in), shown above the setlist when there are notes. */
     today: (@Composable () -> Unit)? = null,
+    /** Starts a lesson straight after consent, with no mic check; null hides the button. */
+    onQuickStart: (() -> Unit)? = null,
+    /** True for a lesson the teacher keeps on this phone. */
+    isLocalOnly: (String) -> Boolean = { false },
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val player = rememberClipPlayer()
@@ -159,7 +164,7 @@ fun HomeScreen(
             when (tab) {
                 0 -> homeTab(
                     lessons, recordingInProgress, setlist, studentName, teacherName, hasTeacher, player,
-                    modelStatus, onDownloadModels, onStartLesson, onReturnToRecording, onSetupCheck, onTeachers,
+                    modelStatus, onDownloadModels, onStartLesson, onQuickStart, onReturnToRecording, onSetupCheck, onTeachers,
                     onAllNotes = { tab = 1 },
                     cardCounts = cardCounts,
                     onOpen = onOpen,
@@ -169,7 +174,7 @@ fun HomeScreen(
                     onNextLesson = onNextLesson,
                 )
                 1 -> setlistTab(setlist, teacherName, player, onPractice, today)
-                else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen)
+                else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen, isLocalOnly)
             }
         }
     }
@@ -186,6 +191,7 @@ private fun LazyListScope.homeTab(
     modelStatus: String?,
     onDownloadModels: (() -> Unit)?,
     onStartLesson: () -> Unit,
+    onQuickStart: (() -> Unit)?,
     onReturnToRecording: () -> Unit,
     onSetupCheck: () -> Unit,
     onTeachers: () -> Unit,
@@ -230,7 +236,7 @@ private fun LazyListScope.homeTab(
     if (firstRun) {
         item(key = "steps") { FirstSteps(hasTeacher, onTeachers, onSetupCheck, onStartLesson) }
     } else if (!recordingInProgress) {
-        item(key = "start") { StartCard(onStartLesson, onSetupCheck) }
+        item(key = "start") { StartCard(onStartLesson, onQuickStart, onSetupCheck) }
     }
     if (nextLesson != null && !firstRun) {
         item(key = "next") { NextLessonRow(nextLesson, onNextLesson) }
@@ -372,6 +378,7 @@ private fun LazyListScope.lessonsTab(
     onExport: (LessonEntity) -> Unit,
     onDelete: (LessonEntity) -> Unit,
     onOpen: (LessonEntity) -> Unit,
+    isLocalOnly: (String) -> Boolean,
 ) {
     item(key = "mast") { Masthead("Your ", "lessons") }
     if (lessons.isEmpty()) {
@@ -379,7 +386,7 @@ private fun LazyListScope.lessonsTab(
             Text("Your lessons show up here after the first one.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
         }
     }
-    items(lessons, key = { it.id }) { LessonRow(it, cardCounts[it.id], teacherName(it.id), onExport, onDelete, onOpen) }
+    items(lessons, key = { it.id }) { LessonRow(it, cardCounts[it.id], teacherName(it.id), onExport, onDelete, onOpen, isLocalOnly(it.id)) }
 }
 
 @Composable
@@ -626,9 +633,16 @@ private fun Step(n: Int, title: String, sub: String?, done: Boolean, action: Str
 
 /** Start, with the soundcheck one tap away. */
 @Composable
-private fun StartCard(onStartLesson: () -> Unit, onSetupCheck: () -> Unit) {
+private fun StartCard(onStartLesson: () -> Unit, onQuickStart: (() -> Unit)?, onSetupCheck: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-        StartButton("Start a lesson", onStartLesson, Modifier.fillMaxWidth())
+        if (onQuickStart == null) StartButton("Start a lesson", onStartLesson, Modifier.fillMaxWidth())
+        else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            StartButton("Start a lesson", onStartLesson, Modifier.weight(1f))
+            // Straight to "both say yes" and recording: no mic check, using last time's mics.
+            androidx.compose.material3.OutlinedButton(onClick = onQuickStart, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
+                Text("Start without soundcheck", textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
+            }
+        }
         TicketRow(onClick = onSetupCheck) {
             Icon(Icons.Filled.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.weight(1f)) {
@@ -648,9 +662,11 @@ private fun LessonRow(
     onExport: (LessonEntity) -> Unit,
     onDelete: (LessonEntity) -> Unit,
     onOpen: (LessonEntity) -> Unit,
+    localOnly: Boolean = false,
 ) {
     var menu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmExport by remember { mutableStateOf(false) }
     val m = MaterialTheme.colorScheme
     TicketRow(onClick = { onOpen(l) }) {
         Column(Modifier.size(width = 44.dp, height = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -671,14 +687,32 @@ private fun LessonRow(
             if (l.gapCount > 0) {
                 Text("${l.gapCount} gaps where the audio dropped out", color = m.error, style = MaterialTheme.typography.bodySmall)
             }
+            if (localOnly) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Icon(Icons.Filled.Lock, contentDescription = null, tint = m.primary, modifier = Modifier.size(14.dp))
+                Text("Kept on this phone", color = m.primary, style = MaterialTheme.typography.bodySmall)
+            }
         }
         Box {
             TextButton(onClick = { menu = true }) { Text("⋯", modifier = Modifier.semantics { contentDescription = "More" }) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Copy to Downloads") }, onClick = { menu = false; onExport(l) })
+                DropdownMenuItem(text = { Text("Copy to Downloads") }, onClick = { menu = false; if (localOnly) confirmExport = true else onExport(l) })
                 DropdownMenuItem(text = { Text("Delete lesson") }, onClick = { menu = false; confirmDelete = true })
             }
         }
+    }
+    if (confirmExport) {
+        AlertDialog(
+            onDismissRequest = { confirmExport = false },
+            title = { Text("Copy this lesson to Downloads?") },
+            text = {
+                Text(
+                    "${teacher ?: "Your teacher"} asked that this lesson stays on this phone. A copy in Downloads has the full " +
+                        "recording, and other apps on the phone can read it. Where that copy goes is up to you.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { confirmExport = false; onExport(l) }) { Text("Copy it") } },
+            dismissButton = { TextButton(onClick = { confirmExport = false }) { Text("Cancel") } },
+        )
     }
     if (confirmDelete) {
         AlertDialog(
@@ -686,7 +720,8 @@ private fun LessonRow(
             title = { Text("Delete this lesson?") },
             text = {
                 Text(
-                    "The recording, notes, clips and sketch photos go from this phone and from your teacher's dashboard. " +
+                    if (localOnly) "The recording, notes, clips and sketch photos go from this phone, the only place they are. This can't be undone."
+                    else "The recording, notes, clips and sketch photos go from this phone and from your teacher's dashboard. " +
                         "This can't be undone.",
                 )
             },

@@ -1,5 +1,7 @@
 package com.cuenote.record
 
+import androidx.compose.material.icons.filled.Lock
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -76,7 +78,12 @@ import androidx.compose.ui.semantics.semantics
  * analysis and the screen can turn off; recording continues in the service.
  */
 @Composable
-fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
+fun RecordingScreen(
+    lessonDir: File,
+    onFinished: () -> Unit,
+    /** The teacher keeps this lesson on the phone: said on screen the whole time, so they can see it. */
+    keptOnPhone: Boolean = false,
+) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val state by RecordingSession.state.collectAsStateWithLifecycle()
@@ -137,6 +144,13 @@ fun RecordingScreen(lessonDir: File, onFinished: () -> Unit) {
                 fontWeight = FontWeight.Light,
                 style = TextStyle(fontFeatureSettings = "tnum"),
             )
+            if (keptOnPhone) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                androidx.compose.material3.Icon(
+                    androidx.compose.material.icons.Icons.Filled.Lock, contentDescription = null,
+                    tint = StageText.copy(alpha = 0.8f), modifier = Modifier.size(16.dp),
+                )
+                Text("Kept on this phone: no cloud, no AI", color = StageText.copy(alpha = 0.8f), style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+            }
             Text(rec?.micName ?: "Starting…", color = StageMuted)
             Spacer(Modifier.height(8.dp))
             Column(Modifier.widthIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

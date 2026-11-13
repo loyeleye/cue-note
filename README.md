@@ -61,6 +61,32 @@ select id from auth.users where email = 'you@example.com';
 migration that drops `private.debug_user`, `private.is_debug()`, `public.am_debug()`
 and the `*_debug_read` policies. The phone sends who taught each lesson when it uploads it.
 
+### Teachers who keep lessons on this phone
+
+Some teachers would rather their voice didn't go online. Under "Your teachers"
+the student can add one by name ("Teachers who keep lessons on this phone"),
+or pick "Someone else" before a lesson and turn on **Keep this lesson on this
+phone**; either way the first-lesson welcome also has the switch. No invite is
+sent and the name stays on the phone (`LessonTeacherStore.localOnlyTeachers`).
+
+A lesson with such a teacher records and is processed on the phone as usual
+(transcript, tries, the phone's best-guess notes, replay clips, sketches,
+posture), but Cue Note sends none of it anywhere: not the lesson row, takes,
+clips, words or sketch photos, and nothing goes to extract-cues or
+caption-sketch. Practice takes and questions about it stay on the phone, and
+no teacher sees it on the dashboard. The guard is per lesson
+(`LessonTeacherStore.isLocalOnly`) and is checked in every upload path
+(`LessonUploadWorker`, `PhotoUploadWorker`, `PracticeSyncWorker`,
+`LessonRepository.compareModels`), not just in the screens. The consent screen,
+the recording screen, the lesson (a "Kept on this phone" banner saying what's
+off) and the lesson list all say so, and Copy to Downloads asks first. Moving
+an uploaded lesson to such a teacher deletes its copy online after a confirm;
+moving it away sends nothing until the student taps Make my notes. App data is
+excluded from Android backup and device-to-device transfer.
+
+**Start without soundcheck**, next to Start a lesson, goes from both saying
+yes straight to recording, using last time's mics.
+
 A soundcheck ends by showing which mic it heard as the student's and which as
 the teacher's, with how sure it is (from how far apart the two voices were).
 A lesson started within two hours uses that answer instead of asking "Who's on

@@ -43,6 +43,8 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
 
     override suspend fun doWork(): Result {
         val lessonId = inputData.getString(KEY_LESSON) ?: return Result.failure()
+        // A local-only lesson's sketches stay on the phone, and no AI captions them.
+        if (com.cuenote.data.LessonTeacherStore(applicationContext).isLocalOnly(lessonId)) return Result.success()
         val client = AuthRepository.get().client ?: return Result.success()   // this build has no cloud
         val student = client.auth.currentUserOrNull()?.id ?: return Result.success()  // signed out: photos stay on the phone
         val db = LessonDatabase.get(applicationContext)

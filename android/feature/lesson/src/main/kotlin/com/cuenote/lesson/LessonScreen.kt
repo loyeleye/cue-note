@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BookmarkAdded
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -136,6 +137,14 @@ fun LessonScreen(
     onAsk: (suspend (CardEntity) -> Unit)? = null,
     /** Fetches a teacher's voice note to the phone; null when signed out. */
     voiceNote: (suspend (String) -> File?)? = null,
+    /**
+     * The teacher asked that this lesson stays on the phone: nothing of it
+     * goes to the cloud or an AI, so it shows the phone's own notes, and the
+     * parts that need the cloud are off.
+     */
+    localOnly: Boolean = false,
+    /** A local-only lesson's earlier copy online is still waiting to be deleted. */
+    deletingOnline: Boolean = false,
 ) {
     val dao = repo.pipelineDao!!
     val cardDao = repo.cardDao!!
@@ -162,11 +171,11 @@ fun LessonScreen(
 
     val suggestions by diagrams.observe(lesson.id).collectAsStateWithLifecycle(emptyList())
     val onDecide: suspend (DiagramSuggestion, String) -> Unit = { s, d -> diagrams.decide(lesson.id, s, d) }
-    LaunchedEffect(lesson.id) { runCatching { diagrams.refresh(lesson.id) } }
+    LaunchedEffect(lesson.id, localOnly) { if (!localOnly) runCatching { diagrams.refresh(lesson.id) } }
 
     // Her latest edits, each time the lesson is opened.
-    LaunchedEffect(lesson.id) {
-        if (cards.isNotEmpty() || lesson.pipelineState == "cards") runCatching { repo.refreshCards(lesson.id) }
+    LaunchedEffect(lesson.id, localOnly) {
+        if (!localOnly && (cards.isNotEmpty() || lesson.pipelineState == "cards")) runCatching { repo.refreshCards(lesson.id) }
     }
 
     val overrides by repo.setlistStore.overrides.collectAsStateWithLifecycle()
@@ -202,7 +211,7 @@ fun LessonScreen(
             },
         )
     }, bottomBar = {
-        if ((onPractice != null || onSendToTeacher != null) && (cards.isNotEmpty() || takes.isNotEmpty())) {
+        if (!localOnly && (onPractice != null || onSendToTeacher != null) && (cards.isNotEmpty() || takes.isNotEmpty())) {
             NextStepBar(onList.size, onList.firstOrNull()?.id?.let { id -> onPractice?.let { { it(id) } } }, onSendToTeacher)
         }
     }) { padding ->
@@ -215,7 +224,9 @@ fun LessonScreen(
                     lesson, takes, feedback, cards, outline.size, progress, cardProgress,
                     stages.any { it.stage == "upload" && it.status == "waiting" },
                     lastFailure = stages.filter { it.status == "failed" }.maxByOrNull { it.finishedAt }?.detail,
+                    localOnly = localOnly,
                 )
+                if (localOnly) KeptOnPhoneBanner(taughtBy, wasOnline = stages.any { it.stage == "upload" && it.status == "done" }, deletingOnline)
                 if (onChangeTeacher != null) Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (taughtBy != null) "Taught by $taughtBy" else "No teacher set for this lesson",
@@ -228,14 +239,17 @@ fun LessonScreen(
                 Spacer(Modifier.padding(4.dp))
                 val busy = progress?.state == WorkInfo.State.RUNNING || cardProgress?.state == WorkInfo.State.RUNNING
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (lesson.pipelineState == "processed" || lesson.pipelineState == "cards") {
+                    if (localOnly && (lesson.pipelineState == "processed" || lesson.pipelineState == "cards")) {
+                        // Only the replay clips are left to make, on the phone.
+                        if (clips.isEmpty()) Button(onClick = { repo.makeCards(lesson.id) }, enabled = !busy) { Text("Get the replays ready") }
+                    } else if (lesson.pipelineState == "processed" || lesson.pipelineState == "cards") {
                         Button(onClick = { repo.makeCards(lesson.id) }, enabled = !busy) {
                             Text(if (cards.isEmpty()) "Make my notes" else "Make my notes again")
                         }
                     } else {
                         Button(onClick = { repo.process(lesson.id) }, enabled = !busy) { Text("Make my notes now") }
                     }
-                    if (cards.isNotEmpty()) OutlinedButton(onClick = {
+                    if (cards.isNotEmpty() && !localOnly) OutlinedButton(onClick = {
                         scope.launch {
                             runCatching { diagrams.refresh(lesson.id) }
                             refreshNote = runCatching { repo.refreshCards(lesson.id) }
@@ -247,7 +261,7 @@ fun LessonScreen(
                 player.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
 
-            if (fullLesson != null && viewers.isNotEmpty() && cards.isNotEmpty()) {
+            if (!localOnly && fullLesson != null && viewers.isNotEmpty() && cards.isNotEmpty()) {
                 item(key = "full-lesson") { FullLessonSection(lesson.id, fullLesson, viewers) }
             }
 
@@ -259,7 +273,9 @@ fun LessonScreen(
             if (outline.isNotEmpty()) {
                 if (cards.isEmpty()) item {
                     Text(
-                        "Until your notes are made, each exercise shows the app's best guess at what your teacher said about your tries.",
+                        if (localOnly) "Each exercise shows the phone's best guess at what ${taughtBy ?: "your teacher"} said about your tries. " +
+                            "It's a guess, so check it against the replay."
+                        else "Until your notes are made, each exercise shows the app's best guess at what your teacher said about your tries.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -353,7 +369,7 @@ fun LessonScreen(
                 items(stages, key = { "s-" + it.stage }) { s ->
                     Text("${s.stage}: ${s.status} in ${(s.finishedAt - s.startedAt) / 1000} s. ${s.detail}", style = MaterialTheme.typography.bodySmall)
                 }
-                if (cards.isNotEmpty()) item(key = "compare") {
+                if (cards.isNotEmpty() && !localOnly) item(key = "compare") {
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     CompareSection(lesson.id, repo, cards)
                 }
@@ -374,6 +390,7 @@ private fun Status(
     needsSignIn: Boolean,
     /** Why the last try at a stage failed, from the pipeline log. */
     lastFailure: String? = null,
+    localOnly: Boolean = false,
 ) {
     val processing = p?.state == WorkInfo.State.RUNNING
     val carding = c?.state == WorkInfo.State.RUNNING
@@ -388,6 +405,8 @@ private fun Status(
         c?.state == WorkInfo.State.BLOCKED -> "Your notes will start in a moment."
         c?.state == WorkInfo.State.FAILED && c.error != "not signed in" ->
             "We couldn't make your notes this time (${c.error?.take(120) ?: "no reason given"}). Tap Make my notes to try again."
+        localOnly && (lesson.pipelineState == "processed" || lesson.pipelineState == "cards") ->
+            "Found ${plural(exerciseCount, "exercise")} and ${plural(takes.size, "try", "tries")}. The notes below are the phone's own."
         cards.isNotEmpty() -> {
             val n = cards.count { it.category != "chat" && it.cue.isNotBlank() }
             val edited = cards.count { it.editedByTeacher }
@@ -401,6 +420,42 @@ private fun Status(
     Text(text, style = MaterialTheme.typography.bodyLarge)
     if (processing) LinearProgressIndicator(progress = { (p?.percent ?: 0) / 100f }, modifier = Modifier.fillMaxWidth())
     if (carding) LinearProgressIndicator(progress = { (c?.percent ?: 0) / 100f }, modifier = Modifier.fillMaxWidth())
+}
+
+/**
+ * Says the lesson stays on the phone, as the teacher's choice rather than a
+ * gap: what still works, what's off, and that nothing went up.
+ */
+@Composable
+private fun KeptOnPhoneBanner(teacher: String?, wasOnline: Boolean, deletingOnline: Boolean) {
+    val m = MaterialTheme.colorScheme
+    val who = teacher ?: "Your teacher"
+    Row(
+        Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(14.dp)).background(m.secondaryContainer).padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(androidx.compose.material.icons.Icons.Filled.Lock, contentDescription = null, tint = m.onSecondaryContainer)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Kept on this phone", style = MaterialTheme.typography.titleSmall, color = m.onSecondaryContainer)
+            Text(
+                "$who asked that this lesson stays on your phone, so Cue Note doesn't send any of it online or to an AI.",
+                style = MaterialTheme.typography.bodyMedium, color = m.onSecondaryContainer,
+            )
+            Text(
+                "You still have the recording, your tries, the replays and notes the phone wrote itself. " +
+                    "Off for this lesson: AI notes, the teacher dashboard, sketch captions, practice from these notes, and sharing with your teachers.",
+                style = MaterialTheme.typography.bodySmall, color = m.onSecondaryContainer,
+            )
+            Text(
+                when {
+                    deletingOnline -> "This lesson went online before it was kept on this phone. That copy is being deleted, next time there's a connection."
+                    wasOnline -> "Its earlier copy online has been deleted. Nothing else has been uploaded."
+                    else -> "Nothing from this lesson has been uploaded."
+                } + " If this phone is lost, the lesson goes with it.",
+                style = MaterialTheme.typography.bodySmall, color = m.onSecondaryContainer,
+            )
+        }
+    }
 }
 
 @Composable

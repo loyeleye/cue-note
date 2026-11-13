@@ -135,6 +135,9 @@ interface CardDao {
 
     @Query("update clip set storagePath = :path where id = :id") suspend fun setUploaded(id: String, path: String)
 
+    /** The lesson's copy online is gone: no clip of it counts as uploaded. */
+    @Query("update clip set storagePath = null where lessonId = :lessonId") suspend fun forgetUploads(lessonId: String)
+
     @Query("delete from clip where lessonId = :lessonId") suspend fun clearClips(lessonId: String)
 
     @Query("select * from clip where id in (:ids)") suspend fun clipsById(ids: List<String>): List<ClipEntity>

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -73,6 +74,7 @@ import com.cuenote.audio.ChannelSwap
 import com.cuenote.data.ConsentStore
 import com.cuenote.data.InvitedTeacher
 import com.cuenote.data.LessonTeacher
+import com.cuenote.data.LocalOnly
 import com.cuenote.signal.MicVerdict
 import com.cuenote.ui.Masthead
 import com.cuenote.ui.NoteCard
@@ -114,6 +116,8 @@ fun ConsentScreen(
     mics: ChannelSwap.Checked?,
     onConsented: (Consented) -> Unit,
     onCancel: () -> Unit,
+    /** Teachers who keep their lessons on this phone, offered as chips. */
+    localOnlyTeachers: List<String> = emptyList(),
 ) {
     var names by remember(store) { mutableStateOf(store.firstSetup()?.let { it.studentName to it.teacherName }) }
     // Carried from the welcome to the who's-teaching page, when that follows.
@@ -133,7 +137,10 @@ fun ConsentScreen(
     val fallbackName = (lastName ?: names?.second)?.trim().orEmpty()
     var someoneElse by rememberSaveable(choices.isEmpty()) { mutableStateOf(choices.isEmpty() && fallbackName.isNotEmpty()) }
     var otherName by rememberSaveable { mutableStateOf(fallbackName) }
-    fun today(): LessonTeacher = if (someoneElse) LessonTeacher.named(otherName) else LessonTeacher(teacherId = picked)
+    // The typed teacher asked that the lesson stays on this phone. A saved local-only teacher starts with it on.
+    var localOnly by rememberSaveable { mutableStateOf(localOnlyTeachers.any { LocalOnly.sameName(it, fallbackName) }) }
+    fun today(): LessonTeacher =
+        if (someoneElse) LessonTeacher.named(otherName, localOnly) else LessonTeacher(teacherId = picked)
     fun done(teacher: LessonTeacher, posture: Boolean) =
         onConsented(Consented(System.currentTimeMillis(), teacher, posture, recheckMics))
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -144,10 +151,16 @@ fun ConsentScreen(
                 mics = mics,
                 recheckMics = recheckMics,
                 onRecheckMics = { recheckMics = it },
-                onBothIn = { student, teacher, posture ->
+                onBothIn = { student, teacher, posture, keepOnPhone ->
                     store.saveFirstSetup(student, teacher)
                     // Both just said yes. Only ask who's teaching when that's unclear.
                     when {
+                        // The teacher asked to keep it on the phone: it's the name just typed, not a dashboard teacher.
+                        keepOnPhone && choices.size > 1 -> {
+                            welcomePosture = posture; someoneElse = true; otherName = teacher; localOnly = true
+                            names = student to teacher
+                        }
+                        keepOnPhone -> done(LessonTeacher.named(teacher, localOnly = true), posture)
                         choices.size > 1 -> { welcomePosture = posture; names = student to teacher }
                         choices.size == 1 -> done(LessonTeacher(teacherId = picked), posture)
                         // No teacher on Cue Note yet: the name just typed is who's teaching.
@@ -163,9 +176,13 @@ fun ConsentScreen(
                 picked = picked.takeUnless { someoneElse },
                 someoneElse = someoneElse,
                 otherName = otherName,
-                onPick = { picked = it; someoneElse = false },
-                onSomeoneElse = { someoneElse = true },
+                onPick = { picked = it; someoneElse = false; localOnly = false },
+                onSomeoneElse = { someoneElse = true; localOnly = false },
                 onOtherName = { otherName = it.take(LessonTeacher.MAX_NAME) },
+                localOnly = localOnly,
+                onLocalOnly = { localOnly = it },
+                savedLocal = localOnlyTeachers,
+                onPickLocal = { someoneElse = true; otherName = it; localOnly = true },
                 mics = mics,
                 recheckMics = recheckMics,
                 onRecheckMics = { recheckMics = it },
@@ -197,6 +214,10 @@ private fun EveryLesson(
     onPick: (String?) -> Unit,
     onSomeoneElse: () -> Unit,
     onOtherName: (String) -> Unit,
+    localOnly: Boolean,
+    onLocalOnly: (Boolean) -> Unit,
+    savedLocal: List<String>,
+    onPickLocal: (String) -> Unit,
     mics: ChannelSwap.Checked?,
     recheckMics: Boolean,
     onRecheckMics: (Boolean) -> Unit,
@@ -221,10 +242,15 @@ private fun EveryLesson(
         else choices.firstOrNull { it.teacherId == picked }?.teacherName?.trim()?.takeIf { it.isNotEmpty() }
         Text("$student and ${today ?: "your teacher"}, nothing records until you both say yes.", style = MaterialTheme.typography.bodyLarge)
         Text("Who's teaching today?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-        TeacherPicker(choices, picked, someoneElse, otherName, onPick, onSomeoneElse, onOtherName)
+        TeacherPicker(
+            choices, picked, someoneElse, otherName, onPick, onSomeoneElse, onOtherName,
+            localOnly = localOnly, onLocalOnly = onLocalOnly, savedLocal = savedLocal, onPickLocal = onPickLocal,
+        )
+        val keptOnPhone = someoneElse && localOnly && otherName.isNotBlank()
+        if (keptOnPhone) KeptOnPhoneRow(student, otherName.trim())
         MicsRow(mics, recheckMics, onRecheckMics)
         PostureSwitch(posture) { posture = it }
-        Fold("What gets recorded?") { ConsentText() }
+        Fold("What gets recorded?") { if (keptOnPhone) LocalConsentText(student) else ConsentText() }
     }
 }
 
@@ -242,25 +268,86 @@ fun TeacherPicker(
     onPick: (String?) -> Unit,
     onSomeoneElse: () -> Unit,
     onOtherName: (String) -> Unit,
+    localOnly: Boolean = false,
+    onLocalOnly: ((Boolean) -> Unit)? = null,
+    savedLocal: List<String> = emptyList(),
+    onPickLocal: ((String) -> Unit)? = null,
 ) {
+    // A saved local-only teacher shows as their own chip, with a lock.
+    val localPicked = savedLocal.firstOrNull { someoneElse && localOnly && LocalOnly.sameName(it, otherName) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         choices.forEachIndexed { i, t ->
             PickChip(t.title, avatarColor(i + 1), !someoneElse && picked == t.teacherId) { onPick(t.teacherId) }
         }
-        PickChip("Someone else", avatarColor(choices.size + 1), someoneElse, initial = "+", onClick = onSomeoneElse)
+        if (onPickLocal != null) savedLocal.forEachIndexed { i, name ->
+            PickChip(name, avatarColor(choices.size + 1 + i), localPicked == name, locked = true) { onPickLocal(name) }
+        }
+        val nextColor = choices.size + 1 + (if (onPickLocal != null) savedLocal.size else 0)
+        PickChip("Someone else", avatarColor(nextColor), someoneElse && localPicked == null, initial = "+", onClick = onSomeoneElse)
         PickChip("Not sure", null, !someoneElse && picked == null) { onPick(null) }
     }
-    AnimatedVisibility(someoneElse) {
-        OutlinedTextField(
-            otherName,
-            onOtherName,
-            label = { Text("Teacher's name") },
-            supportingText = { Text("Just a name on this lesson's notes. They don't get access.") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
-            modifier = Modifier.fillMaxWidth(),
-        )
+    AnimatedVisibility(someoneElse && localPicked == null) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                otherName,
+                onOtherName,
+                label = { Text("Teacher's name") },
+                supportingText = { Text("Just a name on this lesson's notes. They don't get access.") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (onLocalOnly != null) KeepOnPhoneSwitch(localOnly, onLocalOnly)
+        }
     }
+}
+
+/**
+ * For a teacher who'd rather their voice didn't go online: the lesson stays
+ * on this phone, with no cloud, no AI and no dashboard.
+ */
+@Composable
+fun KeepOnPhoneSwitch(on: Boolean, onChange: (Boolean) -> Unit) {
+    val m = MaterialTheme.colorScheme
+    TicketRow(Modifier.toggleable(value = on, role = Role.Switch, onValueChange = onChange)) {
+        Icon(Icons.Filled.Lock, contentDescription = null, tint = m.primary)
+        Column(Modifier.weight(1f)) {
+            Text("Keep this lesson on this phone", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (on) "No cloud, no AI, no dashboard. The phone still makes its own notes."
+                else "For a teacher who'd rather their voice didn't go online.",
+                style = MaterialTheme.typography.bodySmall,
+                color = m.onSurfaceVariant,
+            )
+        }
+        Switch(checked = on, onCheckedChange = null)
+    }
+}
+
+/** Said before recording when the teacher keeps the lesson on the phone, so both can see it. */
+@Composable
+private fun KeptOnPhoneRow(student: String, teacher: String) {
+    val m = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(m.secondaryContainer).padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(Icons.Filled.Lock, contentDescription = null, tint = m.onSecondaryContainer)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("This lesson stays on $student's phone", style = MaterialTheme.typography.titleSmall, color = m.onSecondaryContainer)
+            Text(
+                "Cue Note won't send $teacher's voice, words or sketches to its servers or to an AI. " +
+                    "The phone still turns the lesson into notes by itself.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = m.onSecondaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LocalConsentText(student: String) {
+    Text(ConsentStore.localText(student), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** Who's on which mic, from a soundcheck just now, with a way to check again before recording. */
@@ -321,7 +408,7 @@ private fun TeacherWelcome(
     mics: ChannelSwap.Checked?,
     recheckMics: Boolean,
     onRecheckMics: (Boolean) -> Unit,
-    onBothIn: (student: String, teacher: String, posture: Boolean) -> Unit,
+    onBothIn: (student: String, teacher: String, posture: Boolean, keepOnPhone: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
     var step by rememberSaveable { mutableIntStateOf(0) }
@@ -343,7 +430,7 @@ private fun TeacherWelcome(
         Step.PERKS -> PerksPage(s, onNext = { go(Step.AGREE) }, onSkip = { go(Step.AGREE) }, onBack = { go(Step.HELLO) })
         Step.AGREE -> AgreePage(
             s, t, mics, recheckMics, onRecheckMics,
-            onBothIn = { posture -> onBothIn(s, t, posture) }, onCancel = onCancel, onBack = { go(Step.PERKS) },
+            onBothIn = { posture, keep -> onBothIn(s, t, posture, keep) }, onCancel = onCancel, onBack = { go(Step.PERKS) },
         )
     }
 }
@@ -460,17 +547,18 @@ private fun AgreePage(
     mics: ChannelSwap.Checked?,
     recheckMics: Boolean,
     onRecheckMics: (Boolean) -> Unit,
-    onBothIn: (posture: Boolean) -> Unit, onCancel: () -> Unit, onBack: () -> Unit) {
+    onBothIn: (posture: Boolean, keepOnPhone: Boolean) -> Unit, onCancel: () -> Unit, onBack: () -> Unit) {
     var studentIn by rememberSaveable { mutableStateOf(false) }
     var teacherIn by rememberSaveable { mutableStateOf(false) }
     var posture by rememberSaveable { mutableStateOf(false) }
     var details by rememberSaveable { mutableStateOf(false) }
+    var keepOnPhone by rememberSaveable { mutableStateOf(false) }
     val m = MaterialTheme.colorScheme
     Page(bottom = {
         Dots(Step.AGREE)
         StartButton(
             if (posture) "Let's make music, with posture" else "Let's make music",
-            onClick = { onBothIn(posture) },
+            onClick = { onBothIn(posture, keepOnPhone) },
             enabled = studentIn && teacherIn,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -479,13 +567,21 @@ private fun AgreePage(
         TopRow(onBack = onBack, label = null)
         Masthead("You teach. ", "Cue Note takes the notes.", staff = false, modifier = Modifier.semantics { heading() })
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Promise("$student's phone records the lesson and keeps the full recording.")
-            Promise("Afterwards your feedback becomes cue cards, in your own words, with a clip of you saying it.")
-            Promise("You see every card on your dashboard, and your edits always win.")
-            Promise("Nothing records unless you both say yes, every time.")
+            if (keepOnPhone) {
+                Promise("$student's phone records the lesson and keeps it. Cue Note doesn't send your voice, words or sketches to its servers or to an AI.")
+                Promise("The phone turns the lesson into text and notes by itself, with a clip of you saying each one.")
+                Promise("There's no dashboard for these lessons. Talk the notes over together instead.")
+                Promise("Nothing records unless you both say yes, every time.")
+            } else {
+                Promise("$student's phone records the lesson and keeps the full recording.")
+                Promise("Afterwards your feedback becomes cue cards, in your own words, with a clip of you saying it.")
+                Promise("You see every card on your dashboard, and your edits always win.")
+                Promise("Nothing records unless you both say yes, every time.")
+            }
         }
+        KeepOnPhoneSwitch(keepOnPhone) { keepOnPhone = it }
         Column {
-            Text(
+            if (!keepOnPhone) Text(
                 "Cards are drafted with the help of AI. Your lessons aren't used to train it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = m.onSurfaceVariant,
@@ -500,7 +596,7 @@ private fun AgreePage(
                     .heightIn(min = 48.dp)
                     .padding(vertical = 14.dp),
             )
-            AnimatedVisibility(details) { ConsentText() }
+            AnimatedVisibility(details) { if (keepOnPhone) LocalConsentText(student) else ConsentText() }
         }
         InRow(student, avatarColor(0), studentIn) { studentIn = it }
         InRow(teacher, avatarColor(1), teacherIn) { teacherIn = it }
@@ -623,7 +719,7 @@ private fun ConsentText() {
 }
 
 @Composable
-private fun PickChip(name: String, color: Color?, selected: Boolean, initial: String? = null, onClick: () -> Unit) {
+private fun PickChip(name: String, color: Color?, selected: Boolean, initial: String? = null, locked: Boolean = false, onClick: () -> Unit) {
     val m = MaterialTheme.colorScheme
     Row(
         Modifier
@@ -640,6 +736,13 @@ private fun PickChip(name: String, color: Color?, selected: Boolean, initial: St
         Avatar(initial ?: if (color == null) "?" else name, color ?: m.outline)
         Spacer(Modifier.width(8.dp))
         Text(name, style = MaterialTheme.typography.labelLarge, color = if (selected) m.onPrimaryContainer else m.onSurface)
+        if (locked) {
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                Icons.Filled.Lock, contentDescription = "Keeps lessons on this phone",
+                tint = if (selected) m.onPrimaryContainer else m.onSurfaceVariant, modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 
