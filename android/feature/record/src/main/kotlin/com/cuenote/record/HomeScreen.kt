@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -236,7 +241,8 @@ private fun LazyListScope.homeTab(
                 EmptySetlist(false, last?.takeIf { it.pipelineState == "processing" || it.pipelineState == "recorded" } != null, last?.let { teacherName(it.id) })
             }
         } else {
-            item(key = "practice") { PracticeRow(setlist.size, onAllNotes) }
+            item(key = "fromh") { SectionHead("From your teacher", "All ${setlist.size}", onAllNotes) }
+            item(key = "from") { FromYourTeacher(setlist, teacherName, onAllNotes) }
         }
     }
     if (last != null && last.pipelineState != "recording") {
@@ -245,19 +251,90 @@ private fun LazyListScope.homeTab(
     }
 }
 
-/** One row on Home that opens the Practice tab. */
+/** How many of the teacher's notes Home previews before "All n". */
+private const val HOME_NOTES = 3
+
+/**
+ * A preview of the setlist on Home: the newest few notes in the teacher's
+ * words, nothing the app wrote. A tap opens the Practice tab, so a sitting
+ * still starts with the gentle start and the warm-up, never a cold drill.
+ * At a large font size the cards stack instead of scrolling sideways.
+ */
 @Composable
-private fun PracticeRow(notes: Int, onOpen: () -> Unit) {
-    TicketRow(onClick = onOpen) {
-        Icon(Icons.Filled.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Column(Modifier.weight(1f)) {
-            Text("Today's practice", style = MaterialTheme.typography.titleSmall)
-            Text(
-                if (notes == 1) "1 note on your setlist" else "$notes notes on your setlist",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
-            )
+private fun FromYourTeacher(setlist: List<SetlistRow>, teacherName: (String) -> String?, onOpen: () -> Unit) {
+    val shown = setlist.take(HOME_NOTES)
+    if (LocalDensity.current.fontScale >= 1.5f) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            shown.take(2).forEachIndexed { i, r -> PreviewCard(r, i, setlist.size, teacherName, onOpen, Modifier.fillMaxWidth()) }
+            TicketRow(onClick = onOpen) {
+                Text("All ${setlist.size} in Practice", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            }
         }
-        Text("Practice", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+        return
+    }
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        itemsIndexed(shown, key = { _, r -> r.card.id }) { i, r ->
+            PreviewCard(r, i, setlist.size, teacherName, onOpen, Modifier.fillParentMaxWidth(0.82f))
+        }
+        item(key = "all") { AllNotesTile(setlist.size, onOpen, Modifier.fillParentMaxWidth(0.5f)) }
+    }
+}
+
+@Composable
+private fun PreviewCard(r: SetlistRow, index: Int, total: Int, teacherName: (String) -> String?, onOpen: () -> Unit, modifier: Modifier) {
+    val c = r.card
+    val topic = Topic.of(c.category)
+    val colors = topic.colors()
+    val label = topic?.label ?: c.category?.replaceFirstChar { it.uppercase() } ?: "Note"
+    val bars = when {
+        c.barStart != null && c.barEnd != null && c.barEnd != c.barStart -> "bars ${c.barStart}–${c.barEnd}"
+        c.barStart != null -> "bar ${c.barStart}"
+        else -> null
+    }
+    val words = c.herWords.ifBlank { c.cue }
+    val teacher = teacherName(c.lessonId) ?: "Your teacher"
+    Column(
+        modifier
+            .heightIn(min = 148.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.container)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+            .clickable(onClickLabel = "Open your practice", onClick = onOpen)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Note ${index + 1} of $total, $label, from $teacher: $words"
+            }
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Eyebrow(listOfNotNull(label, bars).joinToString(" · "), colors.content)
+        Text(
+            "“$words”",
+            fontFamily = Fraunces, fontSize = 17.sp, lineHeight = 23.sp, color = colors.content,
+            maxLines = 3, overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            listOfNotNull(teacher, shortDate(r.recordedAt)).joinToString(" · ") + if (c.editedByTeacher) " · checked" else "",
+            color = colors.content.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun AllNotesTile(total: Int, onOpen: () -> Unit, modifier: Modifier) {
+    val m = MaterialTheme.colorScheme
+    Column(
+        modifier
+            .heightIn(min = 148.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, m.outlineVariant, RoundedCornerShape(16.dp))
+            .clickable(onClickLabel = "Open your practice", onClick = onOpen)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = m.primary)
+        Spacer(Modifier.height(8.dp))
+        Text("All $total in Practice", color = m.primary, style = MaterialTheme.typography.titleSmall)
     }
 }
 
