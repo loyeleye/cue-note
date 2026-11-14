@@ -14,6 +14,8 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.storage.storage
 import io.ktor.client.statement.bodyAsText
@@ -282,6 +284,29 @@ class CloudSync(private val auth: AuthRepository) {
             .decodeList<ClipRow>().mapNotNull { it.clipPath }
         if (notes.isNotEmpty()) client.storage.from("clips").delete(notes)
         client.from("lesson").delete { filter { eq("id", lessonId) } }
+    }
+
+    @Serializable
+    private data class PartParams(val lesson: String, @SerialName("from_ms") val fromMs: Long, @SerialName("to_ms") val toMs: Long, val whole: Boolean)
+
+    /**
+     * Deletes part of a lesson online (see the remove_lesson_part migration):
+     * its rows first, which leaves tombstones for the cards, then the clips
+     * they named. A lesson that never went up has nothing to delete.
+     */
+    suspend fun removeLessonPart(lessonId: String, fromMs: Long, toMs: Long, whole: Boolean) {
+        val exists = client.from("lesson").select(Columns.list("id")) { filter { eq("id", lessonId) } }
+            .decodeList<IdRow>().isNotEmpty()
+        if (!exists) return
+        val body = client.postgrest.rpc("remove_lesson_part", PartParams(lessonId, fromMs, toMs, whole)).data
+        // A set of text comes back as a JSON array of strings (or, from older servers, of one-field objects).
+        val paths = runCatching { json.parseToJsonElement(body) }.getOrNull()
+            .let { it as? kotlinx.serialization.json.JsonArray }.orEmpty()
+            .mapNotNull { e ->
+                (e as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+                    ?: (e as? kotlinx.serialization.json.JsonObject)?.values?.firstOrNull()?.jsonPrimitive?.content
+            }.distinct()
+        if (paths.isNotEmpty()) paths.chunked(500).forEach { client.storage.from("clips").delete(it) }
     }
 
     @Serializable

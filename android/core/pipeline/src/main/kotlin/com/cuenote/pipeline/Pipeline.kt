@@ -130,7 +130,8 @@ class Pipeline(
         val grouped = Exercises(cfg).group(structure.takes, structure.feedback, transcript, lesson.id)
         val linker = Linker(cfg).apply { demoPitch = FeaturePitch(features, channel = 1) }
         val links = linker.link(grouped.takes, grouped.feedback, lesson.events)
-        val output = Output(
+        // Parts the student deleted stay deleted, however the lesson is processed again.
+        val output = Removals.apply(Output(
             lessonId = lesson.id,
             durationMs = lesson.durationMs,
             vad = features.vadName,
@@ -141,7 +142,7 @@ class Pipeline(
             transcript = transcript,
             events = links.events,
             exercises = grouped.exercises,
-        )
+        ), committedRemovals(lesson))
         stage(Stage.LINK) {
             outputFile.writeText(json.encodeToString(Output.serializer(), output))
             val linked = output.feedback.count { it.takeId != null }
@@ -192,8 +193,13 @@ class Pipeline(
             File(lesson.pipelineDir, "config.json").takeIf { it.isFile }
                 ?.let { json.decodeFromString(PipelineConfig.serializer(), it.readText()) } ?: PipelineConfig()
 
+        /** The pipeline's output, less any parts of the lesson the student deleted. */
         fun readOutput(lesson: LessonFolder): Output? =
             File(lesson.pipelineDir, "output.json").takeIf { it.isFile }
                 ?.let { json.decodeFromString(Output.serializer(), it.readText()) }
+                ?.let { Removals.apply(it, committedRemovals(lesson)) }
+
+        /** Deletions past their undo window; pending ones don't change the output yet. */
+        fun committedRemovals(lesson: LessonFolder) = Removals.read(lesson.dir).filter { it.committed }
     }
 }

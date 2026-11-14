@@ -92,6 +92,11 @@ import com.cuenote.data.CardEntity
 import com.cuenote.data.FeedbackEntity
 import com.cuenote.data.LessonEntity
 import com.cuenote.data.LessonOutline
+import com.cuenote.data.LessonParts
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import com.cuenote.data.LessonOutline.SummaryCheck as S
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -149,10 +154,19 @@ fun LessonScreen(
     val dao = repo.pipelineDao!!
     val cardDao = repo.cardDao!!
     val stages by dao.observeStages(lesson.id).collectAsStateWithLifecycle(emptyList())
-    val takes by dao.observeTakes(lesson.id).collectAsStateWithLifecycle(emptyList())
-    val feedback by dao.observeFeedback(lesson.id).collectAsStateWithLifecycle(emptyList())
-    val exercises by dao.observeExercises(lesson.id).collectAsStateWithLifecycle(emptyList())
-    val cards by cardDao.observeCards(lesson.id).collectAsStateWithLifecycle(emptyList())
+    val allTakes by dao.observeTakes(lesson.id).collectAsStateWithLifecycle(emptyList())
+    val allFeedback by dao.observeFeedback(lesson.id).collectAsStateWithLifecycle(emptyList())
+    val allExercises by dao.observeExercises(lesson.id).collectAsStateWithLifecycle(emptyList())
+    val allCards by cardDao.observeCards(lesson.id).collectAsStateWithLifecycle(emptyList())
+    // Parts the student deleted go at once; the phone deletes their files once Undo has passed.
+    val removals by repo.removals(lesson.id).collectAsStateWithLifecycle()
+    val parts = remember(allExercises, allTakes, allFeedback, allCards, removals) {
+        LessonParts.without(LessonParts.Parts(allExercises, allTakes, allFeedback, allCards), removals.filterNot { it.localDone })
+    }
+    val takes = parts.takes
+    val feedback = parts.feedback
+    val exercises = parts.exercises
+    val cards = parts.cards
     val clips by cardDao.observeClips(lesson.id).collectAsStateWithLifecycle(emptyList())
     val progress by repo.progress(lesson.id).collectAsStateWithLifecycle(null)
     val cardProgress by repo.cardProgress(lesson.id).collectAsStateWithLifecycle(null)
@@ -163,6 +177,16 @@ fun LessonScreen(
     var showTalk by rememberSaveable { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
     var openMore by rememberSaveable { mutableStateOf(setOf<String>()) }
+    val snackbar = remember { SnackbarHostState() }
+    var deleteAsk by remember { mutableStateOf<DeleteAsk?>(null) }
+    /** Shows "Deleted …" with Undo for as long as Undo is offered. */
+    fun offerUndo(label: String, done: List<com.cuenote.pipeline.Removal>) = scope.launch {
+        val r = snackbar.showSnackbar("Deleted $label", actionLabel = "Undo", withDismissAction = true, duration = SnackbarDuration.Long)
+        if (r == SnackbarResult.ActionPerformed) {
+            val back = done.map { repo.undoRemoval(lesson.id, it.id) }
+            if (!back.all { it }) snackbar.showSnackbar("Too late to undo: it's already deleted.")
+        }
+    }
 
     val photos by sketches.observe(lesson.id).collectAsStateWithLifecycle(emptyList())
     val lessonDir = File(lesson.dirPath)
@@ -217,7 +241,7 @@ fun LessonScreen(
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
             },
         )
-    }, bottomBar = {
+    }, snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
         // Kept on the phone: practice from the phone's notes, but nothing goes to a teacher from here.
         val send = if (localOnly) null else onSendToTeacher
         if ((onPractice != null || send != null) && (cards.isNotEmpty() || takes.isNotEmpty())) {
@@ -309,7 +333,11 @@ fun LessonScreen(
                 }
                 for (sec in outline) {
                     val key = sec.exercise?.id ?: "loose"
-                    item(key = "ex-$key") { ExerciseHeader(sec, clipFile, player, first = sec === outline.first()) }
+                    item(key = "ex-$key") {
+                        ExerciseHeader(sec, clipFile, player, first = sec === outline.first()) {
+                            ExerciseMenu(sec, last = sec === outline.last()) { deleteAsk = it }
+                        }
+                    }
                     // The try she said was right, to compare against the one each point is about.
                     val liked = sec.takes.firstOrNull { it.id in sec.starred }
                     val likedTry = liked?.let { Clip(clipFile[CloudIds.take(it.id)], "Try ${sec.tryNo(it.id)} ★, your teacher liked it", null) }
@@ -392,6 +420,36 @@ fun LessonScreen(
                 }
             }
         }
+    }
+
+    // Anything of it online goes too; the dialogs say so only when something went up.
+    val online = !localOnly && stages.any { it.stage == "upload" && it.status == "done" }
+    when (val ask = deleteAsk) {
+        is DeleteAsk.Exercise -> DeleteExerciseDialog(
+            ask, later = outline.filter { it.startMs > ask.section.startMs }, online = online,
+            onCancel = { deleteAsk = null },
+            onDelete = {
+                deleteAsk = null
+                val e = ask.section.exercise ?: return@DeleteExerciseDialog
+                scope.launch {
+                    val r = repo.removeExercise(lesson.id, e, ask.section.name, ask.toEnd)
+                    offerUndo(if (ask.toEnd) "${ask.section.name} and everything after" else ask.section.name, listOf(r))
+                }
+            },
+        )
+        is DeleteAsk.Tries -> DeleteTriesDialog(
+            ask.section, clipFile, player, online = online,
+            onCancel = { deleteAsk = null },
+            onDelete = { picked ->
+                deleteAsk = null
+                player.stop()
+                scope.launch {
+                    val done = picked.map { (n, t) -> repo.removeTake(lesson.id, t, "Try $n of ${ask.section.name}") }
+                    offerUndo(if (picked.size == 1) "try ${picked.single().first} of ${ask.section.name}" else "${picked.size} tries from ${ask.section.name}", done)
+                }
+            },
+        )
+        null -> {}
     }
 }
 
@@ -507,10 +565,16 @@ private fun PlayButton(file: String?, player: ClipPlayer, label: String) = PlayB
 
 /** An exercise's name, what kind it is, and a button for each try (★ the one she said was right). */
 @Composable
-private fun ExerciseHeader(sec: LessonOutline.Section, clipFile: Map<String, String>, player: ClipPlayer, first: Boolean) {
+private fun ExerciseHeader(
+    sec: LessonOutline.Section, clipFile: Map<String, String>, player: ClipPlayer, first: Boolean,
+    menu: @Composable () -> Unit = {},
+) {
     Column(Modifier.fillMaxWidth().padding(top = if (first) 8.dp else 18.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (!first) HorizontalDivider(Modifier.padding(bottom = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
-        Text(sec.name, style = MaterialTheme.typography.headlineSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(sec.name, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            menu()
+        }
         val kind = when (sec.kind) { "song" -> "Song"; "warmup" -> "Warmup"; else -> null }
         val bits = listOfNotNull(
             kind?.takeIf { sec.exercise?.title != null },

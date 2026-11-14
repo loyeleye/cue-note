@@ -54,6 +54,16 @@ object CompressedAudio {
         }
     }
 
+    /** Forgets one chunk's line, once that chunk is back to a WAV. */
+    fun removeEntry(audioDir: File, name: String) {
+        val all = readIndex(audioDir) - name
+        val tmp = File(audioDir, "$INDEX.part")
+        tmp.writeText(all.values.sortedBy { it.name }.joinToString("") { "${it.name}\t${it.frames}\t${it.lag}\n" })
+        check(tmp.renameTo(File(audioDir, INDEX)) || run { File(audioDir, INDEX).delete(); tmp.renameTo(File(audioDir, INDEX)) }) {
+            "could not save the audio index"
+        }
+    }
+
     /** The original's frames out of a decoded chunk: skip the encoder's delay, pad or cut to length. */
     fun trim(decoded: ShortArray, frames: Long, lag: Int): ShortArray {
         val out = ShortArray((frames * 2).toInt())

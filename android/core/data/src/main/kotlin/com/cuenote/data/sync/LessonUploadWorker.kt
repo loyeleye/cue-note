@@ -19,6 +19,8 @@ import androidx.work.workDataOf
 import com.cuenote.data.AuthRepository
 import com.cuenote.data.ClipEntity
 import com.cuenote.data.LessonDatabase
+import com.cuenote.data.LessonParts
+import com.cuenote.data.LessonRemovals
 import com.cuenote.data.LessonTeacherStore
 import com.cuenote.data.LocalOnly
 import com.cuenote.data.PipelineStageEntity
@@ -117,6 +119,8 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         try {
             cloud.putLesson(student, lesson, teachers.get(lessonId))
             teachers.markPending(lessonId, false) // the upload carried the latest pick
+            // Parts the student deleted while signed out or offline go from the cloud first.
+            RemovalWorker.deleteOnline(applicationContext, lessonId, File(lesson.dirPath))
             // Clips a teacher deleted, or whose audio they removed, stay off the cloud.
             val removed = cloud.removedClipIds(lessonId)
             clips.forEachIndexed { i, c ->
@@ -145,7 +149,7 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         try {
             if (teachers.isLocalOnly(lessonId)) throw LocalOnly.Refused(lessonId)
             val r = cloud.extractCues(CueRequest.from(lessonId, out) { pathOf[it] })
-            cardsDao.replaceCards(lessonId, cloud.cards(lessonId))
+            cardsDao.replaceCards(lessonId, LessonParts.dropDeletedCards(cloud.cards(lessonId), LessonRemovals.read(File(lesson.dirPath))))
             stages.setLessonState(lessonId, "cards")
             val cost = r.costUsd?.let { " for $%.3f".format(it) } ?: ""
             val kept = if (r.keptTeacher > 0) ", kept ${r.keptTeacher} your teacher had edited" else ""
