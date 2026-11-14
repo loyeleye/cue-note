@@ -72,22 +72,44 @@ class LessonTeacherStore(context: Context) {
         set(v) = prefs.edit().putString(LAST_NAME, v).apply()
 
     /**
-     * Teachers who keep their lessons on this phone, by name: added under
-     * "Your teachers", or remembered from a lesson. Kept on the phone only;
-     * they get no invite and no account.
+     * Teachers saved by name only, with no email: added under "Your teachers",
+     * or remembered from a lesson. Kept on the phone only; they get no invite,
+     * no account and no feedback from the app. Picking one before a lesson
+     * puts their name on it, so their lessons can be grouped together.
      */
+    val namedTeachers: List<String>
+        get() = LocalOnly.tidyList(read(NAMED_TEACHERS) + read(LOCAL_TEACHERS))
+
+    /** The saved teachers who also keep their lessons on this phone (a subset of [namedTeachers]). */
     var localOnlyTeachers: List<String>
-        get() = prefs.getString(LOCAL_TEACHERS, null)?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
-        set(v) = prefs.edit().putString(LOCAL_TEACHERS, LocalOnly.tidyList(v).joinToString("\n")).apply()
+        get() = read(LOCAL_TEACHERS)
+        private set(v) = write(LOCAL_TEACHERS, v)
 
-    fun addLocalOnlyTeacher(name: String) { localOnlyTeachers = localOnlyTeachers + name }
+    /** Saves a teacher by name. [localOnly] marks them as keeping lessons on the phone; null leaves that as it was. */
+    fun addNamedTeacher(name: String, localOnly: Boolean? = null) {
+        if (LessonTeacher.tidy(name) == null) return
+        write(NAMED_TEACHERS, read(NAMED_TEACHERS) + name)
+        if (localOnly != null) setTeacherLocalOnly(name, localOnly)
+    }
 
-    fun removeLocalOnlyTeacher(name: String) {
-        localOnlyTeachers = localOnlyTeachers.filterNot { LocalOnly.sameName(it, name) }
+    fun addLocalOnlyTeacher(name: String) = addNamedTeacher(name, localOnly = true)
+
+    /** Whether new lessons with this saved teacher stay on the phone. Lessons already recorded keep their own setting. */
+    fun setTeacherLocalOnly(name: String, on: Boolean) {
+        val rest = localOnlyTeachers.filterNot { LocalOnly.sameName(it, name) }
+        localOnlyTeachers = if (on) rest + name else rest
+    }
+
+    fun removeNamedTeacher(name: String) {
+        write(NAMED_TEACHERS, read(NAMED_TEACHERS).filterNot { LocalOnly.sameName(it, name) })
+        setTeacherLocalOnly(name, false)
     }
 
     /** True when [name] is one of the saved local-only teachers. */
     fun isLocalOnlyTeacher(name: String?): Boolean = name != null && localOnlyTeachers.any { LocalOnly.sameName(it, name) }
+
+    private fun read(key: String): List<String> = prefs.getString(key, null)?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+    private fun write(key: String, names: List<String>) = prefs.edit().putString(key, LocalOnly.tidyList(names).joinToString("\n")).apply()
 
     /** Lessons whose teacher changed after they went up, still to be sent. */
     fun pendingSync(): Set<String> = prefs.getStringSet(PENDING, emptySet()).orEmpty()
@@ -102,6 +124,7 @@ class LessonTeacherStore(context: Context) {
         const val LAST_NAME = "__last_name"
         const val PENDING = "__pending_sync"
         const val LOCAL_TEACHERS = "__local_only_teachers"
+        const val NAMED_TEACHERS = "__named_teachers"
         const val NAME = "name:"
         const val LOCAL = "local:"
     }
@@ -150,4 +173,22 @@ object LocalOnly {
 
     /** Thrown by anything that would send a local-only lesson off the phone. */
     class Refused(lessonId: String) : IllegalStateException("Lesson $lessonId is kept on this phone; it isn't sent anywhere")
+}
+
+/** Lessons grouped by who taught them, for the Lessons tab. */
+object LessonGroups {
+    const val NO_TEACHER = "No teacher"
+
+    fun same(a: String?, b: String?) = a != null && b != null && a.trim().equals(b.trim(), ignoreCase = true)
+
+    /** Each teacher once, in the order of their newest lesson; lessons with none last, as [NO_TEACHER]. */
+    fun of(names: List<String?>): List<String> {
+        val out = mutableListOf<String>()
+        for (n in names) {
+            val t = n?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+            if (out.none { same(it, t) }) out += t
+        }
+        if (names.any { it.isNullOrBlank() }) out += NO_TEACHER
+        return out
+    }
 }

@@ -53,4 +53,9 @@ class LocalOnlyTest {
         assertTrue(text.contains("stays on Sam's phone"))
         assertTrue(text.contains("doesn't send any of it to its servers or to an AI"))
     }
+
+    @Test fun lessonsGroupByTeacherNameOnce() {
+        assertEquals(listOf("Ben", "Marigold", LessonGroups.NO_TEACHER), LessonGroups.of(listOf("Ben", null, "Marigold", " ben ", "")))
+        assertEquals(listOf("Ben"), LessonGroups.of(listOf("Ben", "BEN")))
+    }
 }

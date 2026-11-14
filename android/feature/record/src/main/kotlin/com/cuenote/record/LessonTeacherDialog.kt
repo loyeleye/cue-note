@@ -33,7 +33,8 @@ fun LessonTeacherDialog(
     current: LessonTeacher,
     teachers: List<InvitedTeacher>,
     lastName: String?,
-    /** Teachers who keep their lessons on this phone. */
+    /** Teachers saved by name only, and the ones of them who keep lessons on this phone. */
+    saved: List<String> = emptyList(),
     savedLocal: List<String> = emptyList(),
     onSave: (LessonTeacher) -> Unit,
     onDismiss: () -> Unit,
@@ -94,8 +95,9 @@ fun LessonTeacherDialog(
                     onOtherName = { otherName = it.take(LessonTeacher.MAX_NAME) },
                     localOnly = localOnly,
                     onLocalOnly = { localOnly = it },
+                    saved = saved,
                     savedLocal = savedLocal,
-                    onPickLocal = { someoneElse = true; otherName = it; localOnly = true },
+                    onPickSaved = { n -> someoneElse = true; otherName = n; localOnly = savedLocal.any { LocalOnly.sameName(it, n) } },
                 )
             }
         },

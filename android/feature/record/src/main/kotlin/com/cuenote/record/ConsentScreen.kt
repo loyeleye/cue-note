@@ -116,7 +116,9 @@ fun ConsentScreen(
     mics: ChannelSwap.Checked?,
     onConsented: (Consented) -> Unit,
     onCancel: () -> Unit,
-    /** Teachers who keep their lessons on this phone, offered as chips. */
+    /** Teachers saved by name only, offered as chips. */
+    namedTeachers: List<String> = emptyList(),
+    /** The saved ones who keep their lessons on this phone. */
     localOnlyTeachers: List<String> = emptyList(),
 ) {
     var names by remember(store) { mutableStateOf(store.firstSetup()?.let { it.studentName to it.teacherName }) }
@@ -181,8 +183,9 @@ fun ConsentScreen(
                 onOtherName = { otherName = it.take(LessonTeacher.MAX_NAME) },
                 localOnly = localOnly,
                 onLocalOnly = { localOnly = it },
+                saved = namedTeachers,
                 savedLocal = localOnlyTeachers,
-                onPickLocal = { someoneElse = true; otherName = it; localOnly = true },
+                onPickSaved = { n -> someoneElse = true; otherName = n; localOnly = localOnlyTeachers.any { LocalOnly.sameName(it, n) } },
                 mics = mics,
                 recheckMics = recheckMics,
                 onRecheckMics = { recheckMics = it },
@@ -216,8 +219,9 @@ private fun EveryLesson(
     onOtherName: (String) -> Unit,
     localOnly: Boolean,
     onLocalOnly: (Boolean) -> Unit,
+    saved: List<String>,
     savedLocal: List<String>,
-    onPickLocal: (String) -> Unit,
+    onPickSaved: (String) -> Unit,
     mics: ChannelSwap.Checked?,
     recheckMics: Boolean,
     onRecheckMics: (Boolean) -> Unit,
@@ -244,7 +248,7 @@ private fun EveryLesson(
         Text("Who's teaching today?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
         TeacherPicker(
             choices, picked, someoneElse, otherName, onPick, onSomeoneElse, onOtherName,
-            localOnly = localOnly, onLocalOnly = onLocalOnly, savedLocal = savedLocal, onPickLocal = onPickLocal,
+            localOnly = localOnly, onLocalOnly = onLocalOnly, saved = saved, savedLocal = savedLocal, onPickSaved = onPickSaved,
         )
         val keptOnPhone = someoneElse && localOnly && otherName.isNotBlank()
         if (keptOnPhone) KeptOnPhoneRow(student, otherName.trim())
@@ -270,23 +274,26 @@ fun TeacherPicker(
     onOtherName: (String) -> Unit,
     localOnly: Boolean = false,
     onLocalOnly: ((Boolean) -> Unit)? = null,
+    /** Teachers saved by name, with no email, each as their own chip. */
+    saved: List<String> = emptyList(),
+    /** The saved ones who keep lessons on this phone: their chips carry a lock. */
     savedLocal: List<String> = emptyList(),
-    onPickLocal: ((String) -> Unit)? = null,
+    onPickSaved: ((String) -> Unit)? = null,
 ) {
-    // A saved local-only teacher shows as their own chip, with a lock.
-    val localPicked = savedLocal.firstOrNull { someoneElse && localOnly && LocalOnly.sameName(it, otherName) }
+    val isLocal: (String) -> Boolean = { n -> savedLocal.any { LocalOnly.sameName(it, n) } }
+    val savedPicked = saved.firstOrNull { someoneElse && LocalOnly.sameName(it, otherName) && localOnly == isLocal(it) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         choices.forEachIndexed { i, t ->
             PickChip(t.title, avatarColor(i + 1), !someoneElse && picked == t.teacherId) { onPick(t.teacherId) }
         }
-        if (onPickLocal != null) savedLocal.forEachIndexed { i, name ->
-            PickChip(name, avatarColor(choices.size + 1 + i), localPicked == name, locked = true) { onPickLocal(name) }
+        if (onPickSaved != null) saved.forEachIndexed { i, name ->
+            PickChip(name, avatarColor(choices.size + 1 + i), savedPicked == name, locked = isLocal(name)) { onPickSaved(name) }
         }
-        val nextColor = choices.size + 1 + (if (onPickLocal != null) savedLocal.size else 0)
-        PickChip("Someone else", avatarColor(nextColor), someoneElse && localPicked == null, initial = "+", onClick = onSomeoneElse)
+        val nextColor = choices.size + 1 + (if (onPickSaved != null) saved.size else 0)
+        PickChip("Someone else", avatarColor(nextColor), someoneElse && savedPicked == null, initial = "+", onClick = onSomeoneElse)
         PickChip("Not sure", null, !someoneElse && picked == null) { onPick(null) }
     }
-    AnimatedVisibility(someoneElse && localPicked == null) {
+    AnimatedVisibility(someoneElse && savedPicked == null) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 otherName,

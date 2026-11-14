@@ -211,27 +211,33 @@ private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit
 }
 
 /**
- * Teachers who keep their lessons on this phone. Picking one before a lesson
- * keeps that lesson off Cue Note's servers and away from AI: no invite, no
- * dashboard, and their name stays on the phone too.
+ * Teachers saved by name only, with no email: no invite, no account and no
+ * feedback from the app. Their name goes on the lessons they teach, so the
+ * lessons can be grouped by teacher. Each can also keep their lessons on this
+ * phone, away from Cue Note's servers and AI.
  */
 @Composable
 private fun LocalOnlyTeachers(store: com.cuenote.data.LessonTeacherStore) {
-    var names by remember { mutableStateOf(store.localOnlyTeachers) }
+    var names by remember { mutableStateOf(store.namedTeachers) }
+    var local by remember { mutableStateOf(store.localOnlyTeachers) }
     var name by rememberSaveable { mutableStateOf("") }
+    var keepNew by rememberSaveable { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf<String?>(null) }
     val m = MaterialTheme.colorScheme
+    fun reload() { names = store.namedTeachers; local = store.localOnlyTeachers }
+    fun isLocal(n: String) = local.any { com.cuenote.data.LocalOnly.sameName(it, n) }
     fun add() {
         if (com.cuenote.data.LessonTeacher.tidy(name) == null) return
-        store.addLocalOnlyTeacher(name); names = store.localOnlyTeachers; name = ""
+        store.addNamedTeacher(name, keepNew); reload(); name = ""; keepNew = false
     }
     Spacer(Modifier.padding(12.dp))
-    Text("Teachers who keep lessons on this phone", style = MaterialTheme.typography.titleMedium)
+    Text("Teachers without an email", style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.padding(2.dp))
     Text(
-        "For a teacher who'd rather their voice didn't go online. Their lessons record and get the phone's own notes, " +
-            "but nothing from them goes to Cue Note's servers or to an AI, and they don't use the dashboard. " +
-            "No invite is sent; their name stays on this phone.",
+        "Save a teacher by name to keep their lessons together. They get no invite and nothing from the app, " +
+            "and their name stays on this phone. Turn on \"Keep lessons on this phone\" for a teacher who'd rather " +
+            "their voice didn't go online: their lessons still get the phone's own notes, but nothing from them goes " +
+            "to Cue Note's servers or to an AI.",
         style = MaterialTheme.typography.bodyMedium,
         color = m.onSurfaceVariant,
     )
@@ -239,16 +245,25 @@ private fun LocalOnlyTeachers(store: com.cuenote.data.LessonTeacherStore) {
     names.forEach { n ->
         androidx.compose.runtime.key(n) {
             Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.Icon(
-                        androidx.compose.material.icons.Icons.Filled.Lock, contentDescription = null, tint = m.primary,
-                        modifier = Modifier.padding(end = 10.dp),
-                    )
-                    Column(Modifier.weight(1f)) {
-                        Text(n, style = MaterialTheme.typography.titleSmall)
-                        Text("Lessons stay on this phone", style = MaterialTheme.typography.bodySmall, color = m.primary)
+                Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(n, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { confirmRemove = n }) { Text("Remove") }
                     }
-                    TextButton(onClick = { confirmRemove = n }) { Text("Remove") }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.Filled.Lock, contentDescription = null,
+                            tint = if (isLocal(n)) m.primary else m.onSurfaceVariant, modifier = Modifier.padding(end = 10.dp),
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text("Keep lessons on this phone", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                if (isLocal(n)) "On for new lessons: no cloud, no AI, no dashboard." else "Off: lessons make notes as usual.",
+                                style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = isLocal(n), onCheckedChange = { on -> store.setTeacherLocalOnly(n, on); reload() })
+                    }
                 }
             }
         }
@@ -261,9 +276,12 @@ private fun LocalOnlyTeachers(store: com.cuenote.data.LessonTeacherStore) {
         keyboardActions = KeyboardActions(onDone = { add() }),
         modifier = Modifier.fillMaxWidth(),
     )
-    Spacer(Modifier.padding(4.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text("Keep their lessons on this phone", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(checked = keepNew, onCheckedChange = { keepNew = it })
+    }
     OutlinedButton(enabled = name.isNotBlank(), onClick = { add() }, modifier = Modifier.fillMaxWidth()) {
-        Text("Add a teacher who keeps lessons on this phone")
+        Text("Save teacher")
     }
     confirmRemove?.let { n ->
         AlertDialog(
@@ -271,12 +289,12 @@ private fun LocalOnlyTeachers(store: com.cuenote.data.LessonTeacherStore) {
             title = { Text("Remove $n?") },
             text = {
                 Text(
-                    "$n won't be offered before a lesson any more. Lessons already marked as theirs stay on this phone; " +
-                        "change one from the lesson itself.",
+                    "$n won't be offered before a lesson any more. Their lessons keep their name" +
+                        (if (isLocal(n)) " and stay on this phone" else "") + "; change one from the lesson itself.",
                 )
             },
             confirmButton = {
-                TextButton(onClick = { store.removeLocalOnlyTeacher(n); names = store.localOnlyTeachers; confirmRemove = null }) { Text("Remove") }
+                TextButton(onClick = { store.removeNamedTeacher(n); reload(); confirmRemove = null }) { Text("Remove") }
             },
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Keep") } },
         )
