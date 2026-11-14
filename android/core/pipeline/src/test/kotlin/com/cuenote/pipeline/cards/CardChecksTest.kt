@@ -27,4 +27,12 @@ class CardChecksTest {
         assertEquals("Practice it slowly, then you've practiced it.", CardChecks.summary("Practise it   slowly, then you've practised it."))
         assertTrue(CardChecks.summary("A sentence here. ".repeat(40)).length <= 301)
     }
+
+    @Test fun `a cue must use her words, and a copied example needs half of them`() {
+        assertTrue(CardChecks.grounded("Find the vibration", "We can find it, it's vibrating in your fingers."))
+        assertTrue(CardChecks.grounded("Sing it again", "Okay."))
+        assertFalse(CardChecks.grounded("Sing with a sense of longing", "Oh, the..."))
+        assertFalse(CardChecks.grounded("Land high notes from above, don't reach", "Great is a low for you, so high is there."))
+        assertTrue(CardChecks.grounded("Land high notes from above, don't reach", "You land into those high notes instead of reaching."))
+    }
 }

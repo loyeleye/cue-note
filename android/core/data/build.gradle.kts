@@ -42,6 +42,9 @@ dependencies {
     api(project(":core:pipeline"))
     api(project(":core:ml-android"))
     api(project(":core:sketch"))
+    // The card writer on the phone: llama.cpp, or Gemini Nano where the phone offers it to apps.
+    implementation(project(":core:llm-android"))
+    implementation(libs.mlkit.genai.prompt)
     implementation(libs.androidx.work.runtime)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.core.ktx)
