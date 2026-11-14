@@ -74,7 +74,25 @@ data class CardEntity(
     val summaryNote: String? = null,
     /** Her voice note saying what she meant: a cloud path under clips/<student>/teacher-notes/. */
     val summaryNoteClip: String? = null,
-)
+    /**
+     * Who wrote the card: [SOURCE_CLOUD] (extract-cues and the teacher's edits),
+     * [SOURCE_PHONE] (the phone's best guess, for a lesson kept on the phone) or
+     * [SOURCE_PHONE_WRITER] (the card writer that runs on the phone). Only cloud
+     * cards ever come from, or go to, the cloud.
+     */
+    @ColumnInfo(defaultValue = "cloud") val source: String = SOURCE_CLOUD,
+    /** The student put the cue in their own words, on the phone; the phone's notes leave it alone after that. */
+    @ColumnInfo(defaultValue = "0") val editedOnPhone: Boolean = false,
+) {
+    /** Made on this phone and kept here, never in the cloud. */
+    val onPhone get() = source != SOURCE_CLOUD
+
+    companion object {
+        const val SOURCE_CLOUD = "cloud"
+        const val SOURCE_PHONE = "phone"
+        const val SOURCE_PHONE_WRITER = "phone_writer"
+    }
+}
 
 /** How many cards a lesson has, and how many she marked to practice. */
 data class CardCount(val lessonId: String, val cards: Int, val practice: Int)
@@ -91,13 +109,16 @@ data class SetlistRow(
 
 @Dao
 interface CardDao {
-    /** Every card with a cue, newest lesson first; the setlist is picked from these. */
+    /**
+     * Every card with a cue, and every one of the phone's own notes (which may
+     * have only her words), newest lesson first; the setlist is picked from these.
+     */
     @Query(
         """select card.*, lesson.recordedAt as recordedAt,
            (select file from clip where clip.id = card.id) as wordsFile,
            (select file from clip where clip.id = card.takeId) as takeFile
            from card join lesson on lesson.id = card.lessonId
-           where card.cue != ''
+           where card.cue != '' or card.source != 'cloud'
            order by lesson.recordedAt desc, card.spanStartMs""",
     )
     fun observeWithLessons(): Flow<List<SetlistRow>>
@@ -147,6 +168,30 @@ interface CardDao {
     @Query("delete from card where lessonId = :lessonId") suspend fun clearCards(lessonId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertCards(c: List<CardEntity>)
+
+    /** Adds cards that aren't there yet; one already there (the student's words, say) is kept. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertNewCards(c: List<CardEntity>)
+
+    @Query("select * from card where id = :id") suspend fun card(id: String): CardEntity?
+
+    /** The student's own words for one of the phone's notes ('' takes them off). Never touches a card from the cloud. */
+    @Query("update card set cue = :cue, editedOnPhone = (:cue != '') where id = :id and source != 'cloud'")
+    suspend fun setOwnWords(id: String, cue: String)
+
+    /** The phone's notes for a lesson that the student hasn't rewritten. */
+    @Query("delete from card where lessonId = :lessonId and source != 'cloud' and editedOnPhone = 0")
+    suspend fun deleteUntouchedPhoneCards(lessonId: String)
+
+    /**
+     * Writes the phone's notes for a lesson again: the ones the student put in
+     * their own words stay as they are, the rest are replaced by [fresh].
+     * Cards from the cloud are never touched.
+     */
+    @Transaction
+    suspend fun replacePhoneCards(lessonId: String, fresh: List<CardEntity>) {
+        deleteUntouchedPhoneCards(lessonId)
+        insertNewCards(fresh)
+    }
 
     /** Replaces a lesson's cards with what the cloud has now. */
     @Transaction

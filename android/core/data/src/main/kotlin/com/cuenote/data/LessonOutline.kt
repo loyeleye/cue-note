@@ -114,11 +114,10 @@ object LessonOutline {
         val guessing = cards.isEmpty()
 
         // The tries she praised: an encouragement card on a take, or (before cards) a short "yes, that was it".
-        val starred = if (!guessing) {
-            notes.filter { it.category == "encouragement" }.mapNotNull { c -> c.takeId?.let { takeByCloud[it]?.id } }.toSet()
-        } else {
-            feedback.filter { it.takeId != null && praise(it.words) }.mapNotNull { it.takeId }.toSet()
-        }
+        // With only the phone's own notes (a lesson kept on the phone), no card writer judged praise, so the short "yes" counts.
+        val fromCards = notes.filter { it.category == "encouragement" }.mapNotNull { c -> c.takeId?.let { takeByCloud[it]?.id } }.toSet()
+        val fromWords = if (cards.none { !it.onPhone }) feedback.filter { it.takeId != null && praise(it.words) }.mapNotNull { it.takeId }.toSet() else emptySet()
+        val starred = fromCards + fromWords
 
         fun make(e: ExerciseEntity?, name: String, kind: String?, start: Long, ts: List<TakeEntity>, cs: List<CardEntity>, fbs: List<FeedbackEntity>) =
             section(e, name, kind, start, ts, cs, fbs, guessing, starred)
@@ -145,7 +144,11 @@ object LessonOutline {
     ): Section {
         val groups = group(cards)
         // Praise marks a try; it isn't a point to drill unless the writer thought so.
-        val (said, rest) = groups.partition { it.card.cue.isNotBlank() && !(it.card.category == "encouragement" && (it.weight ?: 0f) < 0.5f) }
+        // The phone's own notes have her words but may have no cue yet; they are points all the same.
+        val (said, rest) = groups.partition {
+            (it.card.cue.isNotBlank() || it.card.source == CardEntity.SOURCE_PHONE) &&
+                !(it.card.category == "encouragement" && (it.weight ?: 0f) < 0.5f)
+        }
         val ranked = said.sortedWith(
             compareByDescending<CueGroup> { it.weight ?: 0.5f }
                 .thenByDescending { it.practice }

@@ -173,6 +173,13 @@ fun LessonScreen(
     val onDecide: suspend (DiagramSuggestion, String) -> Unit = { s, d -> diagrams.decide(lesson.id, s, d) }
     LaunchedEffect(lesson.id, localOnly) { if (!localOnly) runCatching { diagrams.refresh(lesson.id) } }
 
+    // A lesson kept on the phone: its notes are the phone's own, written once the lesson is processed.
+    LaunchedEffect(lesson.id, localOnly, lesson.pipelineState, feedback.size) {
+        if (localOnly && feedback.isNotEmpty() && (lesson.pipelineState == "processed" || lesson.pipelineState == "cards")) {
+            runCatching { repo.writePhoneNotes(lesson.id) }
+        }
+    }
+
     // Her latest edits, each time the lesson is opened.
     LaunchedEffect(lesson.id, localOnly) {
         if (!localOnly && (cards.isNotEmpty() || lesson.pipelineState == "cards")) runCatching { repo.refreshCards(lesson.id) }
@@ -211,8 +218,10 @@ fun LessonScreen(
             },
         )
     }, bottomBar = {
-        if (!localOnly && (onPractice != null || onSendToTeacher != null) && (cards.isNotEmpty() || takes.isNotEmpty())) {
-            NextStepBar(onList.size, onList.firstOrNull()?.id?.let { id -> onPractice?.let { { it(id) } } }, onSendToTeacher)
+        // Kept on the phone: practice from the phone's notes, but nothing goes to a teacher from here.
+        val send = if (localOnly) null else onSendToTeacher
+        if ((onPractice != null || send != null) && (cards.isNotEmpty() || takes.isNotEmpty())) {
+            NextStepBar(onList.size, onList.firstOrNull()?.id?.let { id -> onPractice?.let { { it(id) } } }, send)
         }
     }) { padding ->
         LazyColumn(
@@ -271,6 +280,13 @@ fun LessonScreen(
             }
 
             if (outline.isNotEmpty()) {
+                if (cards.isNotEmpty() && cards.all { it.onPhone }) item {
+                    Text(
+                        "These are the phone's notes on what ${taughtBy ?: "your teacher"} said about your tries, in their own words and kept on this phone. " +
+                            "The phone picked them, so check each against the lesson clip. Bookmark one to practice it, and add your own words to remember it by.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (cards.isEmpty()) item {
                     Text(
                         if (localOnly) "Each exercise shows the phone's best guess at what ${taughtBy ?: "your teacher"} said about your tries. " +
@@ -311,6 +327,7 @@ fun LessonScreen(
                             suggestionsBy[c.id].orEmpty(), onDecide,
                             SetlistStore.isOn(c, overrides),
                             voiceNote = voiceNote,
+                            ownWords = if (c.onPhone) { text -> scope.launch { repo.setOwnWords(c.id, text) } } else null,
                             nudge = Nudge(
                                 open = c.id !in nudged, asked = c.id in asked,
                                 ask = onAsk?.let { ask -> { scope.launch { runCatching { ask(c) }.onSuccess { doneNudge(c.id, true) } } } },
@@ -442,8 +459,8 @@ private fun KeptOnPhoneBanner(teacher: String?, wasOnline: Boolean, deletingOnli
                 style = MaterialTheme.typography.bodyMedium, color = m.onSecondaryContainer,
             )
             Text(
-                "You still have the recording, your tries, the replays and notes the phone wrote itself. " +
-                    "Off for this lesson: AI notes, the teacher dashboard, sketch captions, practice from these notes, and sharing with your teachers.",
+                "You still have the recording, your tries, the replays and the phone's own notes, which you can practice from. " +
+                    "Off for this lesson: AI notes, the teacher dashboard, sketch captions, and sharing with your teachers.",
                 style = MaterialTheme.typography.bodySmall, color = m.onSecondaryContainer,
             )
             Text(
@@ -549,9 +566,12 @@ private fun CueCard(
     onSetlist: Boolean,
     voiceNote: (suspend (String) -> File?)?,
     nudge: Nudge,
+    /** For one of the phone's own notes: saves the student's own words for it. Null for cards from the cloud. */
+    ownWords: ((String) -> Unit)? = null,
     onSetlistChange: (Boolean) -> Unit,
 ) {
     val card = group.card
+    var editing by rememberSaveable(card.id + "-edit") { mutableStateOf(false) }
     var showOld by rememberSaveable(card.id + "-old") { mutableStateOf(false) }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     var showAll by rememberSaveable(card.id) { mutableStateOf(false) }
@@ -572,7 +592,10 @@ private fun CueCard(
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(card.cue.ifBlank { "A note from your teacher" }, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(
+                    card.cue.ifBlank { if (card.onPhone) "What your teacher said" else "A note from your teacher" },
+                    style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
+                )
                 when (check) {
                     LessonOutline.SummaryCheck.CLOSE -> Tag("App: close", m.surfaceVariant, m.onSurfaceVariant, bold = true)
                     LessonOutline.SummaryCheck.FLAGGED, LessonOutline.SummaryCheck.CORRECTED -> Tag("App misheard", m.surfaceVariant, m.onSurfaceVariant, bold = true)
@@ -587,6 +610,8 @@ private fun CueCard(
                     )
                 }
             }
+            if (card.onPhone) PhoneNoteLine(card, onEdit = ownWords?.let { { editing = true } })
+            if (editing && ownWords != null) OwnWordsDialog(card, onDismiss = { editing = false }) { ownWords(it); editing = false }
             // Two sources, never mixed: the teacher's words first, then the app's, smaller and labeled.
             val old = card.summaryRejected?.takeIf { it.isNotBlank() }
             if (check == S.FLAGGED || check == S.CLOSE) {
@@ -771,6 +796,59 @@ private fun GuessCard(guess: LessonOutline.Guess, modifier: Modifier, her: Clip,
             }
         }
     }
+}
+
+/**
+ * Under one of the phone's own notes: where it came from, the student's own
+ * words when they wrote some, and the button to write or change them.
+ */
+@Composable
+private fun PhoneNoteLine(card: CardEntity, onEdit: (() -> Unit)?) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon(Icons.Filled.Lock, contentDescription = null, tint = muted, modifier = Modifier.size(14.dp))
+        Text(
+            when {
+                card.editedOnPhone -> "Your words · kept on this phone"
+                card.source == CardEntity.SOURCE_PHONE_WRITER -> "Written on this phone · not checked by your teacher"
+                else -> "The phone's notes · kept on this phone"
+            },
+            style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.weight(1f),
+        )
+        onEdit?.let {
+            TextButton(onClick = it, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                Text(if (card.editedOnPhone) "Edit your words" else "Add your words", maxLines = 1)
+            }
+        }
+    }
+}
+
+/** A short line in the student's own words, to remember the point by. It stays on the phone. */
+@Composable
+private fun OwnWordsDialog(card: CardEntity, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var text by rememberSaveable(card.id + "-words") { mutableStateOf(if (card.editedOnPhone) card.cue else "") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("In your own words") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("“${card.herWords}”", style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic), maxLines = 4, overflow = TextOverflow.Ellipsis)
+                androidx.compose.material3.OutlinedTextField(
+                    value = text, onValueChange = { text = it.take(com.cuenote.data.PhoneNotes.MAX_OWN_WORDS) },
+                    placeholder = { Text("Drop the jaw on the high notes") },
+                    supportingText = { Text("A few words to remember it by. Kept on this phone.") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Save") } },
+        dismissButton = {
+            Row {
+                if (card.editedOnPhone) TextButton(onClick = { onSave("") }) { Text("Remove") }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        },
+    )
 }
 
 private fun tryLabel(n: Int?, starred: Boolean) = (if (n != null) "Hear try $n" else "Hear the try") + if (starred) " ★" else ""
