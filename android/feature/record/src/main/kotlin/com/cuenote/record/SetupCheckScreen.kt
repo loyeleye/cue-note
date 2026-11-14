@@ -95,12 +95,20 @@ import com.cuenote.ui.rememberReducedMotion
  * After the first Start it runs by itself; only a miss waits for a tap.
  */
 @Composable
-fun SetupCheckScreen(onDone: () -> Unit, vm: SetupCheckViewModel = viewModel()) {
+fun SetupCheckScreen(
+    onDone: () -> Unit,
+    vm: SetupCheckViewModel = viewModel(),
+    /** The top-left arrow; the same as [onDone] unless a lesson waits after the check. */
+    onBack: () -> Unit = onDone,
+    /** The button at the end of the check. */
+    doneLabel: String = "Back to the lesson",
+) {
     val s by vm.state.collectAsStateWithLifecycle()
     // Kept as a State: the bars read it every frame without recomposing the screen.
     val live = vm.liveLevels.collectAsStateWithLifecycle()
     SetupCheckContent(
         s, live, onDone,
+        onBack = onBack, doneLabel = doneLabel,
         onStart = vm::runStep, onRetry = vm::retry, onSkipPiano = vm::skipPiano,
         onQuietCheck = vm::setQuietCheck, onSwitchChannels = vm::switchChannelsManually,
         onSpoken = vm::setSpoken, onVoice = vm::setVoice,
@@ -120,6 +128,8 @@ fun SetupCheckContent(
     onSwitchChannels: () -> Unit,
     onSpoken: (Boolean) -> Unit = {},
     onVoice: (Voice) -> Unit = {},
+    onBack: () -> Unit = onDone,
+    doneLabel: String = "Back to the lesson",
 ) {
     val m = MaterialTheme.colorScheme
     val total = SetupStep.entries.size
@@ -135,7 +145,7 @@ fun SetupCheckContent(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
             Spacer(Modifier.weight(1f))
             Text(
                 if (s.done) "All $total done" else "Step ${s.step.ordinal + 1} of $total",
@@ -186,7 +196,7 @@ fun SetupCheckContent(
         DoneRow(s)
 
         if (s.done) {
-            WrapCard(s.verdict, onDone)
+            WrapCard(s.verdict, onDone, doneLabel)
         } else {
             val reduced = rememberReducedMotion()
             if (reduced) {
@@ -227,9 +237,6 @@ fun SetupCheckContent(
                 onClick = onSwitchChannels,
                 enabled = s.phase == StepPhase.IDLE || s.phase == StepPhase.FAILED || s.done,
             ) { Text("Switch student and teacher channels") }
-        }
-        if (!s.done) {
-            TextButton(onClick = onDone) { Text("Skip the check for today") }
         }
         Spacer(Modifier.height(8.dp))
     }
@@ -481,7 +488,7 @@ private fun roleColor(step: SetupStep): Color =
 
 /** The end of the check, with which mic it judged to be whose. */
 @Composable
-private fun WrapCard(verdict: MicVerdict?, onDone: () -> Unit) {
+private fun WrapCard(verdict: MicVerdict?, onDone: () -> Unit, doneLabel: String) {
     val x = Cue.extras
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(x.nowCard).padding(16.dp),
@@ -523,7 +530,7 @@ private fun WrapCard(verdict: MicVerdict?, onDone: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        StartButton("Back to the lesson", onDone, Modifier.fillMaxWidth())
+        StartButton(doneLabel, onDone, Modifier.fillMaxWidth())
     }
 }
 

@@ -179,7 +179,7 @@ private fun AppNav(app: CueNoteApp) {
     val pendingLesson = remember { mutableStateOf<PendingLesson?>(null) }
     // Bumped when a lesson's teacher changes, so names shown for it are read again.
     var teacherVersion by remember { mutableIntStateOf(0) }
-    // "Start without soundcheck": straight from both saying yes to recording, on last time's mics.
+    // "No" to the sound check question: straight from both saying yes to recording, on last time's mics.
     var quickStart by remember { mutableStateOf(false) }
 
     fun startLesson(posture: PostureSetup?) {
@@ -210,8 +210,11 @@ private fun AppNav(app: CueNoteApp) {
                 teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId, teacherVersion) },
                 recordingInProgress = recState is RecordingState.Recording,
                 signedInEmail = email,
-                onStartLesson = { withPermission { quickStart = false; nav.navigate("consent") } },
-                onQuickStart = { withPermission { quickStart = true; nav.navigate("consent") } },
+                // Start asks "Would you like to do a sound check?", unless one just ran.
+                // No: on last time's mics (or the fresh soundcheck's, which consent picks up).
+                onStartLesson = { withPermission { quickStart = ChannelSwap.recentSoundcheck(app) == null; nav.navigate("consent") } },
+                onSoundcheckThenStart = { withPermission { nav.navigate("setup-lesson") } },
+                askSoundcheck = { ChannelSwap.recentSoundcheck(app) == null },
                 isLocalOnly = { lessonId -> teacherVersion.let { app.lessonTeachers.isLocalOnly(lessonId) } },
                 onReturnToRecording = {
                     (recState as? RecordingState.Recording)?.let { nav.navigate("recording/${it.lessonId}") }
@@ -394,6 +397,14 @@ private fun AppNav(app: CueNoteApp) {
         }
         composable("timing") { TimingCheckScreen(app.practice, onDone = { nav.popBackStack() }) }
         composable("setup") { SetupCheckScreen(onDone = { nav.popBackStack() }) }
+        // "Yes" to the sound check question: the check, then on to the lesson.
+        composable("setup-lesson") {
+            SetupCheckScreen(
+                onDone = { quickStart = false; nav.navigate("consent") { popUpTo("home") } },
+                onBack = { nav.popBackStack() },
+                doneLabel = "On to the lesson",
+            )
+        }
         composable("consent") {
             // The student's teachers, for "Who's teaching today?". Offline or
             // signed out, only "Someone else" (a typed name) and "Not sure" are offered.
