@@ -231,9 +231,16 @@ private fun EveryLesson(
 ) {
     var posture by rememberSaveable { mutableStateOf(initialPosture) }
     Page(bottom = {
+        // Keeping it on the phone needs a name: without one the lesson would have no teacher, and so no promise to keep.
+        val needsName = someoneElse && localOnly && otherName.isBlank()
+        if (needsName) Text(
+            "Add the teacher's name to keep this lesson on this phone.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+        )
         StartButton(
             if (posture) "We're both in. Record, with posture" else "We're both in. Let's record",
             onClick = { onConsented(posture) },
+            enabled = !needsName,
             modifier = Modifier.fillMaxWidth(),
         )
         TextButton(onClick = onCancel) { Text("Not today") }
@@ -250,11 +257,14 @@ private fun EveryLesson(
             choices, picked, someoneElse, otherName, onPick, onSomeoneElse, onOtherName,
             localOnly = localOnly, onLocalOnly = onLocalOnly, saved = saved, savedLocal = savedLocal, onPickSaved = onPickSaved,
         )
-        val keptOnPhone = someoneElse && localOnly && otherName.isNotBlank()
-        if (keptOnPhone) KeptOnPhoneRow(student, otherName.trim())
+        // Switches as soon as the toggle does, name typed or not, so both can read what this lesson means.
+        val keptOnPhone = someoneElse && localOnly
+        if (keptOnPhone) KeptOnPhoneRow(student, otherName.trim().ifEmpty { "your teacher" })
         MicsRow(mics, recheckMics, onRecheckMics)
         PostureSwitch(posture) { posture = it }
-        Fold("What gets recorded?") { if (keptOnPhone) LocalConsentText(student) else ConsentText() }
+        Fold(if (keptOnPhone) "What gets recorded, and where it stays" else "What gets recorded?") {
+            if (keptOnPhone) LocalConsentText(student) else ConsentText()
+        }
     }
 }
 
@@ -594,7 +604,11 @@ private fun AgreePage(
                 color = m.onSurfaceVariant,
             )
             Text(
-                if (details) "Hide how it works" else "How it works",
+                when {
+                    details -> "Hide how it works"
+                    keepOnPhone -> "How it works on this phone"
+                    else -> "How it works"
+                },
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = m.primary,
                 modifier = Modifier
