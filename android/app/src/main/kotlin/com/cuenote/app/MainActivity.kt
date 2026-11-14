@@ -312,6 +312,9 @@ private fun AppNav(app: CueNoteApp) {
                 lessonId = id,
                 onFixCorners = { nav.navigate("corners/$id/$photoId") },
                 onBack = { nav.popBackStack() },
+                teacherName = teacherNameFor(app, myTeachers, firstSetup?.teacherName, id, teacherVersion),
+                // A lesson kept on this phone never shares a photo, even of the student.
+                canShare = sharing && !app.lessonTeachers.isLocalOnly(id),
             )
         }
         composable("corners/{lesson}/{photo}") { entry ->

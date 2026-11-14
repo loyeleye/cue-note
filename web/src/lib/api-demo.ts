@@ -6,7 +6,7 @@ import { EditConflict, scoreFormatOf } from './api';
 import type { FullLessonPass, PlanSetting, CardFields, CardVersion, DiagramSuggestion, Feedback, Profile, StorageRow, Teacher } from './types';
 import { CARD_FIELDS, passState } from './types';
 import {
-  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoPasses, demoPlanSittings, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, demoExercises, initialDemoState, type DemoState
+  DEMO_COTEACHER, DEMO_TEACHER, MELODIES, demoAgenda, demoPasses, demoPlanSittings, demoScoreSvg, demoSuggestions, demoSketchSvg, demoSketchPhotoSvg, demoMePhotoSvg, demoExercises, initialDemoState, type DemoState
 } from './demo-data';
 import { wavFor } from './tone';
 
@@ -653,7 +653,7 @@ export const demoApi: Api = {
     }
     if (path === 'demo-score:caro' || path.startsWith('demo-sketch:')) {
       if (!toneUrls.has(path)) {
-        const svg = path === 'demo-score:caro' ? demoScoreSvg() : path.endsWith(':photo') ? demoSketchPhotoSvg() : demoSketchSvg();
+        const svg = path === 'demo-score:caro' ? demoScoreSvg() : path.endsWith(':photo') ? demoSketchPhotoSvg() : path === 'demo-sketch:me' ? demoMePhotoSvg() : demoSketchSvg();
         toneUrls.set(path, svgUrl(svg));
       }
       return toneUrls.get(path)!;

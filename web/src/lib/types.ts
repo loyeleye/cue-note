@@ -254,6 +254,14 @@ export interface PhotoMark {
   auto_feedback_id?: string | null;
   /** Who put it on its current card. */
   link_source?: 'auto' | 'student' | 'teacher';
+  /**
+   * 'sketch' (the teacher's drawing) or 'me' (a photo the student took of
+   * themself, e.g. a mouth shape). A 'me' photo is here only if the student
+   * shared it; it has no clean copy and no AI caption.
+   */
+  kind?: 'sketch' | 'me';
+  /** The student's own line on what to notice in a 'me' photo. */
+  note?: string | null;
 }
 
 /** Where a side stands on a suggested diagram. */

@@ -31,8 +31,10 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Sends a lesson's photos to the cloud once the lesson and its cards are
- * there, asks caption-sketch for a caption for each new one, and brings back
- * any move she made on the dashboard.
+ * there, asks caption-sketch for a caption for each new sketch, and brings
+ * back any move she made on the dashboard. A photo of me goes up only when
+ * the student shares it, with no clean copy and no caption; when they stop
+ * sharing it, or delete it, its cloud copy is taken down.
  *
  * Files: photos/<student>/<lesson>/<photo id>.jpg (the original) and
  * <photo id>.clean.jpg (straightened and whitened), in the private photos
@@ -43,16 +45,35 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
 
     override suspend fun doWork(): Result {
         val lessonId = inputData.getString(KEY_LESSON) ?: return Result.failure()
-        // A local-only lesson's sketches stay on the phone, and no AI captions them.
-        if (com.cuenote.data.LessonTeacherStore(applicationContext).isLocalOnly(lessonId)) return Result.success()
-        val client = AuthRepository.get().client ?: return Result.success()   // this build has no cloud
-        val student = client.auth.currentUserOrNull()?.id ?: return Result.success()  // signed out: photos stay on the phone
         val db = LessonDatabase.get(applicationContext)
         val lesson = db.lessons().get(lessonId) ?: return Result.success()
         val dao = db.photos()
         val dir = File(lesson.dirPath)
+        // A local-only lesson's photos stay on the phone, and no AI captions them; a deleted one has no other copy.
+        if (com.cuenote.data.LessonTeacherStore(applicationContext).isLocalOnly(lessonId)) {
+            for (p in dao.forLesson(lessonId)) if (p.deleted) SketchRepository.removeLocal(dao, dir, p)
+            return Result.success()
+        }
+        val client = AuthRepository.get().client
+        if (client == null) {
+            // this build has no cloud, so a deleted photo has no copy anywhere else
+            for (p in dao.forLesson(lessonId)) if (p.deleted) SketchRepository.removeLocal(dao, dir, p)
+            return Result.success()
+        }
+        // signed out: photos stay on the phone, and deleted ones wait to take their cloud copy down
+        val student = client.auth.currentUserOrNull()?.id ?: return Result.success()
 
         return try {
+            // Take-downs first, and without waiting for the lesson: a photo of me
+            // made private again (or deleted) leaves the cloud as soon as it can.
+            val bucket = client.storage.from("photos")
+            for (p in dao.forLesson(lessonId)) {
+                if (isStopped) return Result.retry()
+                if (p.goesToCloud || !(p.needsUpload || p.deleted)) continue
+                takeDown(client, student, p)
+                settleTakeDown(dao, dir, p)
+            }
+
             // The lesson row comes first (the cards' upload makes it); until then, wait.
             val inCloud = client.from("lesson").select(Columns.list("id")) { filter { eq("id", lessonId) } }
                 .decodeList<IdRow>().isNotEmpty()
@@ -63,9 +84,11 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
             pull(client, dao, lessonId)
 
             var waitingForCards = false
-            val bucket = client.storage.from("photos")
-            for (p in dao.forLesson(lessonId)) {
+            for (listed in dao.forLesson(lessonId)) {
                 if (isStopped) return Result.retry()
+                // read again right before sending: a share switched off a moment ago wins
+                val p = dao.get(listed.id) ?: continue
+                if (!p.goesToCloud) continue
                 val cardId = p.feedbackId?.let(CloudIds::feedback)
                 if (cardId != null && cardId !in cloudCards) waitingForCards = true
                 if (!p.needsUpload && (cardId == null || cardId in cloudCards)) continue
@@ -74,7 +97,7 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
                 val original = File(dir, "photos/${p.fileName}")
                 if (!original.isFile) continue
                 bucket.upload("$base.jpg", original.readBytes()) { upsert = true }
-                val clean = p.cleanFileName?.let { File(dir, "photos/clean/$it") }?.takeIf { it.isFile }
+                val clean = if (p.isMe) null else p.cleanFileName?.let { File(dir, "photos/clean/$it") }?.takeIf { it.isFile }
                 if (clean != null) bucket.upload("$base.clean.jpg", clean.readBytes()) { upsert = true }
 
                 client.from("photo_mark").upsert(
@@ -87,18 +110,45 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
                         linkSource = p.linkSource,
                         imagePath = "$base.jpg",
                         cleanedPath = clean?.let { "$base.clean.jpg" },
-                        corners = p.corners?.let { Json.parseToJsonElement(it) },
-                        pageConfidence = p.pageConfidence,
+                        corners = if (p.isMe) null else p.corners?.let { Json.parseToJsonElement(it) },
+                        pageConfidence = if (p.isMe) 0f else p.pageConfidence,
+                        kind = p.kind,
+                        note = if (p.isMe) p.note else null,
                     ),
                 )
-                if (cardId == null || cardId in cloudCards) dao.uploaded(p.id)
+                // switched to private (or deleted) while it was going up: take it straight back down
+                val now = dao.get(p.id)
+                if (now == null || !now.goesToCloud) {
+                    takeDown(client, student, p)
+                    if (now != null) settleTakeDown(dao, dir, now)
+                    continue
+                }
+                if ((cardId == null || cardId in cloudCards) && now == p) dao.uploaded(p.id)
 
-                if (p.caption == null) caption(client, dao, p)
+                // a photo of me is never sent for an AI caption
+                if (!p.isMe && p.caption == null) caption(client, dao, p)
             }
             if (waitingForCards) giveUpLater() else Result.success()
         } catch (e: Exception) {
             Log.w("PhotoUpload", "upload failed for $lessonId", e)
             if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
+        }
+    }
+
+    /** Removes a photo's row and files from the cloud; removing what isn't there is fine. */
+    private suspend fun takeDown(client: io.github.jan.supabase.SupabaseClient, student: String, p: PhotoEntity) {
+        val base = "$student/${p.lessonId}/${p.id}"
+        // the row first, so the dashboard stops pointing at the files
+        client.from("photo_mark").delete { filter { eq("id", p.id) } }
+        client.storage.from("photos").delete(listOf("$base.jpg", "$base.clean.jpg"))
+    }
+
+    /** After a take-down: a deleted photo goes from the phone too; otherwise the cloud is in step, unless it changed meanwhile. */
+    private suspend fun settleTakeDown(dao: PhotoDao, dir: File, before: PhotoEntity) {
+        val now = dao.get(before.id) ?: return
+        when {
+            now.deleted -> SketchRepository.removeLocal(dao, dir, now)
+            now == before -> dao.uploaded(now.id)
         }
     }
 
@@ -130,6 +180,8 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
         @SerialName("cleaned_path") val cleanedPath: String?,
         val corners: JsonElement?,
         @SerialName("page_confidence") val pageConfidence: Float,
+        val kind: String,
+        val note: String?,
     )
 
     @Serializable

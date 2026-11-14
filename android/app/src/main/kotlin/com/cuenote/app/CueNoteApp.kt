@@ -57,7 +57,7 @@ class CueNoteApp : Application() {
         com.cuenote.pipeline.audio.LessonFolder.decoder = com.cuenote.data.storage.AacChunkDecoder
         val db = LessonDatabase.get(this)
         lessons = LessonRepository(this, db.lessons(), db.pipeline(), db.cards(), db.photos(), db.practice())
-        practice = PracticeRepository(this, db.practice(), db.cards())
+        practice = PracticeRepository(this, db.practice(), db.cards(), db.photos())
         plans = com.cuenote.data.PracticePlans(
             db.practice(), db.cards(), db.pipeline(), com.cuenote.data.PlanSettingsStore.get(this),
             onEnded = { com.cuenote.data.sync.PracticeSyncWorker.enqueue(this) },

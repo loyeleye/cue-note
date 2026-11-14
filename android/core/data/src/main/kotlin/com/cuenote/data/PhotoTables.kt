@@ -1,5 +1,6 @@
 package com.cuenote.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Insert
@@ -9,7 +10,10 @@ import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
 /**
- * A photo taken during a lesson, usually of her sketch. Mirrors the cloud
+ * A photo taken during a lesson: a sketch of the teacher's, or a photo of the
+ * student themself ([kind] "me"), say of the mouth shape the teacher asked for.
+ * A photo of me is kept as taken (no clean-up, no AI caption) and stays on the
+ * phone unless the student [shared] it. Mirrors the cloud
  * `photo_mark` table; [id] is the same uuid on the phone and in the cloud.
  *
  * Which card it belongs to starts as the pipeline's guess by time
@@ -42,11 +46,25 @@ data class PhotoEntity(
     val captionConfidence: Float? = null,
     /** True when something changed that the cloud has not seen yet. */
     val needsUpload: Boolean = true,
+    /** "sketch" or "me". */
+    @ColumnInfo(defaultValue = "sketch") val kind: String = KIND_SKETCH,
+    /** A photo of me the student chose to share with their teacher. Sketches are always shared. */
+    @ColumnInfo(defaultValue = "0") val shared: Boolean = false,
+    /** The student's own line on what to notice in a photo of me. */
+    val note: String? = null,
+    /** Deleted by the student: hidden now, gone once any cloud copy is removed. */
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 ) {
+    val isMe: Boolean get() = kind == KIND_ME
+    /** Whether the cloud should have this photo: every sketch, and a photo of me only when shared. */
+    val goesToCloud: Boolean get() = !deleted && (!isMe || shared)
+
     companion object {
         const val LINK_AUTO = "auto"
         const val LINK_STUDENT = "student"
         const val LINK_TEACHER = "teacher"
+        const val KIND_SKETCH = "sketch"
+        const val KIND_ME = "me"
 
         /** The photo's id: the same every time for the same lesson and file. */
         fun idFor(lessonId: String, fileName: String): String =
@@ -56,8 +74,28 @@ data class PhotoEntity(
 
 @Dao
 interface PhotoDao {
-    @Query("select * from photo where lessonId = :lessonId order by takenAtMs")
+    @Query("select * from photo where lessonId = :lessonId and deleted = 0 order by takenAtMs")
     fun observe(lessonId: String): Flow<List<PhotoEntity>>
+
+    /** Photos of me on the cards with these local feedback ids, for practice. */
+    @Query("select * from photo where feedbackId in (:feedbackIds) and kind = 'me' and deleted = 0 order by takenAtMs")
+    fun observeMeOn(feedbackIds: List<String>): Flow<List<PhotoEntity>>
+
+    /** Sketch or me. Changing it means the cloud has to catch up (upload, or take it down). */
+    @Query("update photo set kind = :kind, shared = 0, needsUpload = 1 where id = :id")
+    suspend fun setKind(id: String, kind: String)
+
+    @Query("update photo set shared = :shared, needsUpload = 1 where id = :id")
+    suspend fun setShared(id: String, shared: Boolean)
+
+    @Query("update photo set note = :note, needsUpload = 1 where id = :id")
+    suspend fun setNote(id: String, note: String?)
+
+    @Query("update photo set deleted = 1, needsUpload = 1 where id = :id")
+    suspend fun markDeleted(id: String)
+
+    @Query("delete from photo where id = :id")
+    suspend fun remove(id: String)
 
     @Query("select * from photo where lessonId = :lessonId order by takenAtMs")
     suspend fun forLesson(lessonId: String): List<PhotoEntity>

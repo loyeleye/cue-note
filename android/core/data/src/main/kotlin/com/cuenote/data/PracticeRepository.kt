@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 /**
@@ -42,6 +43,7 @@ class PracticeRepository(
     private val context: Context,
     private val dao: PracticeDao,
     private val cards: CardDao,
+    private val photos: PhotoDao? = null,
 ) {
     /** Practice takes live beside the lessons: practice/<take id>.wav. */
     private val root: File get() = File(context.getExternalFilesDir(null), "practice")
@@ -51,6 +53,19 @@ class PracticeRepository(
     fun card(cardId: String): Flow<SetlistRow?> = cards.observeRow(cardId)
 
     fun takes(cardId: String): Flow<List<PracticeTakeEntity>> = dao.observeTakes(cardId)
+
+    /** A photo of me from the lesson, on this card: how it looked when the teacher asked for it. */
+    data class MePhoto(val id: String, val file: File, val takenAtMs: Long, val note: String?)
+
+    /** The photos of me on [card], oldest first; empty for a card the phone didn't make. */
+    fun mePhotos(card: CardEntity?): Flow<List<MePhoto>> {
+        val local = card?.localId ?: return kotlinx.coroutines.flow.flowOf(emptyList())
+        val dao = photos ?: return kotlinx.coroutines.flow.flowOf(emptyList())
+        val dir = File(File(context.getExternalFilesDir(null), "lessons"), card.lessonId)
+        return dao.observeMeOn(listOf(local)).map { list ->
+            list.map { MePhoto(it.id, File(dir, "photos/${it.fileName}"), it.takenAtMs, it.note) }.filter { it.file.isFile }
+        }
+    }
 
     /** A fresh file for the next take. */
     fun newTakeFile(): File = File(root, "${UUID.randomUUID()}.wav")

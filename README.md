@@ -549,6 +549,32 @@ the `caption-sketch` edge function with the words said around the photo
 terms and how well the sketch matches what she said; it never adds advice.
 It needs the `ANTHROPIC_API_KEY` secret (and optionally `CUE_MODEL`).
 
+## Photos of me
+
+Not every lesson photo is a sketch. The shutter has a **Sketch / Me** switch
+above the button; it remembers the choice for the rest of the lesson. **Me**
+is for a photo of yourself, say the open mouth the teacher asked for. It
+opens the front camera with a faint oval for the face, and the photo is
+flipped in its pixels so it matches a mirror. A flip button turns to the back
+camera for a side view someone else takes. It's saved as `photos/me_<ms>.jpg`
+and the line in `events.tsv` gets a fourth column, `me` (older lines have none
+and are sketches).
+
+A photo of me is kept as taken: no clean-up, no corners, no AI caption, and
+`caption-sketch` refuses one. It joins its card by time like a sketch and
+shows on the card with a "Me" label (a lock while it's on the phone only).
+It's **private by default**: it stays on the phone until the student turns on
+**Share with <teacher>** on the photo. Turning that off, or deleting the
+photo, takes the cloud copy down (row, then files) before the phone settles.
+The upload reads each photo again right before sending it, and checks again
+afterwards, so switching sharing off mid-upload still wins. A shared photo
+shows on the dashboard as "<student>'s photo", with the student's own
+**What to notice** line; the teacher can move it to another card and change
+nothing else. **Change to sketch** (asks first) and **Change to photo of me**
+fix a photo taken with the switch the wrong way. While practicing a point,
+its photos of me show beside the teacher's words and stay on screen during a
+take, so you can match the shape.
+
 ## M6 gate
 
 Most photos land on the right card without a manual fix: compare

@@ -97,9 +97,9 @@ object RecordingSession {
     }
 
     /** Call when the shutter is pressed, with the time from [elapsedMs] at that moment. */
-    fun photo(atMs: Long, fileName: String) {
+    fun photo(atMs: Long, fileName: String, kind: String = LessonEvent.Photo.SKETCH) {
         if (_state.value !is RecordingState.Recording) return
-        log(LessonEvent.Photo(atMs, fileName))
+        log(LessonEvent.Photo(atMs, fileName, kind))
         update { it.copy(photos = it.photos + 1) }
     }
 

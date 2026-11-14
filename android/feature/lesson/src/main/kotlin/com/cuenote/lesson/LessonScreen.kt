@@ -266,7 +266,7 @@ fun LessonScreen(
             }
 
             if (photos.isNotEmpty()) {
-                item { SectionTitle("Your teacher's sketches") }
+                item { SectionTitle(if (photos.any { it.isMe }) "Photos from the lesson" else "Your teacher's sketches") }
                 item { SketchStrip(photos, lessonDir, feedback) { onOpenSketch(it.id) } }
             }
 
@@ -899,7 +899,7 @@ private fun clock(ms: Long) = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)
 
 private fun plural(n: Int, one: String, many: String = one + "s") = "$n ${if (n == 1) one else many}"
 
-/** Her sketches on this card, as thumbnails; tap one to open it. */
+/** The photos on this card (sketches and photos of me), as labeled thumbnails; tap one to open it. */
 @Composable
 private fun SketchRow(sketches: List<PhotoEntity>, lessonDir: File, onOpenSketch: (String) -> Unit) {
     if (sketches.isEmpty()) return

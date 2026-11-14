@@ -111,9 +111,11 @@ fun RecordingScreen(
 
     // The in-app shutter needs the camera permission the first time.
     var shutterOpen by rememberSaveable { mutableStateOf(false) }
+    // Sketch or Me: the shutter remembers the last choice for the rest of the lesson.
+    var photoKind by rememberSaveable { mutableStateOf(com.cuenote.signal.LessonEvent.Photo.SKETCH) }
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) shutterOpen = true
-        else Toast.makeText(context, "Cue Note needs the camera to photograph your teacher's sketches.", Toast.LENGTH_LONG).show()
+        else Toast.makeText(context, "Cue Note needs the camera for photos of sketches and of you.", Toast.LENGTH_LONG).show()
     }
 
     val rec = state as? RecordingState.Recording
@@ -209,7 +211,9 @@ fun RecordingScreen(
         ShutterOverlay(
             photosDir = File(lessonDir, "photos"),
             nowMs = RecordingSession::elapsedMs,
-            onTaken = { at, name -> RecordingSession.photo(at, name) },
+            kind = photoKind,
+            onKind = { photoKind = it },
+            onTaken = { at, name, kind -> RecordingSession.photo(at, name, kind) },
             onClose = { shutterOpen = false },
             // posture's camera steps aside while the shutter has it
             onCameraOpening = { PostureService.pauseFor(context, "photo") },

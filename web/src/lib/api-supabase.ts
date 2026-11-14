@@ -29,7 +29,7 @@ function safeName(name: string): string {
 
 
 const SUGGESTION_COLUMNS = 'id, feedback_id, diagram_id, confidence, source, teacher_status, student_status, created_at';
-const PHOTO_COLUMNS = 'id, lesson_id, taken_at_ms, feedback_id, caption, confidence, image_path, cleaned_path, auto_feedback_id, link_source';
+const PHOTO_COLUMNS = 'id, lesson_id, taken_at_ms, feedback_id, caption, confidence, image_path, cleaned_path, auto_feedback_id, link_source, kind, note';
 /**
  * The debug view: one stand-in share per student who has a lesson or a
  * teacher, so the dashboard shows them as a teacher with full access would
