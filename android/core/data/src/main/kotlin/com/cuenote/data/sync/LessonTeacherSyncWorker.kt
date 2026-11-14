@@ -88,6 +88,8 @@ class LessonTeacherSyncWorker(context: Context, params: WorkerParameters) : Coro
             db.cards().forgetUploads(lessonId)
             db.photos().forgetCloud(lessonId)
             if (db.lessons().get(lessonId)?.pipelineState == "cards") db.pipeline().setLessonState(lessonId, "processed")
+            // In their place, the phone's own notes, so the lesson can still be practiced from.
+            com.cuenote.data.writePhoneNotes(db.pipeline(), db.cards(), lessonId)
           }
         }
     }

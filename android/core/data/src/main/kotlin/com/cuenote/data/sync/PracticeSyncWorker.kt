@@ -182,7 +182,9 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
         val since = System.currentTimeMillis() - PracticeLog.SYNC_DAYS * 86_400_000L
         val sessions = dao.sessionsSince(since)
         if (sessions.isEmpty()) return
-        val takes = dao.takesInSessions(sessions.map { it.id })
+        // Practice on a lesson kept on the phone stays on the phone, even as a line in the log.
+        val teachers = com.cuenote.data.LessonTeacherStore(applicationContext)
+        val takes = dao.takesInSessions(sessions.map { it.id }).filter { !teachers.isLocalOnly(it.lessonId) }
         val summary = PracticeLog.summarize(
             sessions.map { LoggedSession(it.id, it.startedAt, it.endedAt) },
             takes.map { LoggedTake(it.cardId, it.sessionId, it.recordedAt, it.durationMs) },
@@ -287,6 +289,11 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
         val plans = PracticePlans(dao, LessonDatabase.get(applicationContext).cards(), null)
         val ready = dao.plansToSync()
         if (ready.isNotEmpty()) {
+            // Notes from lessons kept on the phone don't go up, not even as an id.
+            val teachers = com.cuenote.data.LessonTeacherStore(applicationContext)
+            val cardDao = LessonDatabase.get(applicationContext).cards()
+            val keptOnPhone = ready.flatMap { plans.skippedCards(it) }.distinct()
+                .filter { id -> cardDao.card(id)?.let { it.onPhone || teachers.isLocalOnly(it.lessonId) } == true }.toSet()
             val rows = ready.map { p ->
                 val ended = p.endedAt ?: p.updatedAt
                 PlanRow(
@@ -295,7 +302,7 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
                     voice = p.voice.lowercase(),
                     minutes = (((ended - p.startedAt) / 60_000).toInt()).coerceIn(0, 120),
                     steps = plans.steps(p).size.coerceAtMost(20), done = p.done.coerceAtMost(20),
-                    skipped = plans.skippedCards(p),
+                    skipped = plans.skippedCards(p).filter { it !in keptOnPhone },
                 )
             }
             client.from("practice_plan_log").upsert(rows) { onConflict = "id" }

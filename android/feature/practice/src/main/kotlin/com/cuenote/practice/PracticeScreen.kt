@@ -472,6 +472,14 @@ private fun Note(r: SetlistRow, teacher: String?, player: ClipPlayer, mePhotos: 
         if (c.cue.isNotBlank() && c.cue != words) {
             Text(c.cue, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (c.onPhone) Text(
+            when {
+                c.editedOnPhone -> "The phone's note, with your words. Kept on this phone."
+                c.source == com.cuenote.data.CardEntity.SOURCE_PHONE_WRITER -> "Written on this phone. Your teacher hasn't checked it."
+                else -> "The phone's note. Kept on this phone."
+            },
+            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         for (m in mePhotos) MeReference(m)
         if (r.wordsFile != null || r.takeFile != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -121,7 +121,10 @@ class LessonRepository(
         if (isLocalOnly(id)) return@withContext
         val cloud = CloudSync(AuthRepository.get())
         if (cloud.studentId() == null) return@withContext
-        cardDao?.replaceCards(id, cloud.cards(id))
+        val fresh = cloud.cards(id)
+        // A lesson that was kept on the phone until now has only the phone's notes: keep them until the cloud has cards.
+        val phoneOnly = cardDao?.cards(id)?.let { have -> have.isNotEmpty() && have.all { it.onPhone } } == true
+        if (fresh.isNotEmpty() || !phoneOnly) cardDao?.replaceCards(id, fresh)
         refreshExerciseTitles(id, cloud)
         forgetRemovedClips(id, cloud)
     }
@@ -143,6 +146,23 @@ class LessonRepository(
         if (removed.isEmpty()) return
         dao.clipsById(removed).forEach { File(it.file).delete() }
         dao.deleteClips(removed)
+    }
+
+    /**
+     * For a lesson kept on the phone: writes the phone's own notes as cards
+     * (see [PhoneNotes]), so they can go on the setlist. Notes the student put
+     * in their own words stay. Does nothing for any other lesson.
+     */
+    suspend fun writePhoneNotes(id: String) = withContext(Dispatchers.IO) {
+        if (!isLocalOnly(id)) return@withContext
+        val pd = pipelineDao ?: return@withContext
+        val cd = cardDao ?: return@withContext
+        writePhoneNotes(pd, cd, id)
+    }
+
+    /** The student's own words for one of the phone's notes; blank takes them off. */
+    suspend fun setOwnWords(cardId: String, text: String) = withContext(Dispatchers.IO) {
+        cardDao?.setOwnWords(cardId, PhoneNotes.ownWords(text))
     }
 
     /** True once the speech models are on the phone. */
@@ -205,4 +225,12 @@ class LessonRepository(
         }
         files.size
     }
+}
+
+/** The phone's own notes for [lessonId], written from what the pipeline found (see [PhoneNotes]). */
+suspend fun writePhoneNotes(pipeline: PipelineDao, cards: CardDao, lessonId: String) {
+    // Cards from the cloud are left alone; a lesson that has them doesn't need the phone's.
+    if (cards.cards(lessonId).any { !it.onPhone }) return
+    val fresh = PhoneNotes.fromGuesses(lessonId, pipeline.exercises(lessonId), pipeline.takes(lessonId), pipeline.feedback(lessonId))
+    cards.replacePhoneCards(lessonId, fresh)
 }

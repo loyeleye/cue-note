@@ -103,6 +103,8 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         // Checked again here: the teacher may have been changed while the clips were cut.
         if (student == null || teachers.isLocalOnly(lessonId)) {
             stages.upsertStage(record("upload", "skipped", System.currentTimeMillis(), KEPT_ON_PHONE))
+            // The phone's own notes, so the lesson can be practiced from.
+            com.cuenote.data.writePhoneNotes(stages, cardsDao, lessonId)
             stages.setLessonState(lessonId, "processed")
             return@withContext Result.success()
         }

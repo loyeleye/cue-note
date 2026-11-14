@@ -91,6 +91,19 @@ an uploaded lesson to such a teacher deletes its copy online after a confirm;
 moving it away sends nothing until the student taps Make my notes. App data is
 excluded from Android backup and device-to-device transfer.
 
+**Practicing a lesson kept on the phone.** With no card writer, the phone's
+best guesses (the sentences of the teacher's that carry each point, at most
+two per exercise) become notes of their own, kept on the phone
+(`PhoneNotes`, `card.source = 'phone'`). They have the teacher's words and no
+cue or summary. The student bookmarks one to put it on the setlist, and can
+add their own words to remember it by ("Add your words"), which the phone
+never writes over. Practice takes, suggested practice and the setlist then
+work as for any lesson. None of it goes up: not the takes, not the sitting
+in the practice log, not even a note's id in a skipped step. The notes use
+the ids the cloud would give the same blocks, so if the lesson is later moved
+to a teacher on Cue Note and made into cards, its practice takes stay with
+the cards; until then, the phone's notes stay.
+
 **Start without soundcheck**, next to Start a lesson, goes from both saying
 yes straight to recording, using last time's mics.
 
