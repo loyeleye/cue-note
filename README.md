@@ -104,6 +104,37 @@ the ids the cloud would give the same blocks, so if the lesson is later moved
 to a teacher on Cue Note and made into cards, its practice takes stay with
 the cards; until then, the phone's notes stay.
 
+**Notes written on the phone.** A lesson kept on the phone can also get
+cues and summaries without the cloud: **Write notes on this phone** on the
+lesson runs a small model on the phone itself. It's off until the student
+taps it, since the teacher was told the lesson gets no AI. It uses Gemini
+Nano when the phone lets apps use it (ML Kit's Prompt API, checked when it
+runs; Google lists the Pixel 9 and 10). Otherwise it downloads the vetted
+open model once, over Wi-Fi (`PhoneWriter.VETTED`, about 2 GB, pinned to a
+Hugging Face revision and checked against its SHA-256), and runs it with
+llama.cpp (`:core:llm-android`, its own library so its ggml never meets
+whisper.cpp's). It writes only while the phone charges, and stops when it's
+unplugged or warm (`PhoneCardWorker`). Each feedback block is one short call
+(`PhoneCards` in `:core:pipeline`), held to a JSON schema by a grammar, and the
+answer gets the cloud's checks (`CardChecks`): her words must be hers, else
+her closest sentence; a cue over 8 words is asked for again and dropped if it
+stays long; American spelling. The cards say "Written on this phone · not
+checked by your teacher", and notes in the student's own words stay.
+
+**Vetting a model for it.** On a laptop, against lessons that were run
+through Compare AI models before export (`pipeline/model-compare.json`, with
+Opus's cards), from `android/`:
+
+```
+core/llm-android/host-build.sh      # once: builds the same llama.cpp library for the laptop
+./gradlew :core:pipeline:run --args="vet ~/lessons --gguf ~/models/Llama-3.2-3B-Instruct-Q4_K_M.gguf --out vet-llama.md"
+```
+
+The report gives seconds per card, how often the answer wasn't JSON, how often
+a quote had to be replaced or a cue was too long, and, block by block, the
+phone's cue beside Opus's with how often chat and the category agree.
+`--endpoint http://127.0.0.1:8080` runs against llama-server instead.
+
 **Start without soundcheck**, next to Start a lesson, goes from both saying
 yes straight to recording, using last time's mics.
 

@@ -17,6 +17,9 @@ import kotlin.system.exitProcess
  *       Runs every lesson that has a labels.json and prints the scores.
  *   synth <folder> [seed] [rounds]
  *       Writes a synthetic lesson with its right answers.
+ *   vet <folder of lessons | lesson | sample.json> (--gguf <model.gguf> | --endpoint <llama-server url>) [--name <model>] [--out report.md]
+ *       Runs the phone's card writer over lessons with a model comparison
+ *       and sets each card beside Opus's (see cards/Vet.kt).
  */
 fun main(args: Array<String>) {
     // lessons the phone has shrunk to .m4a
@@ -48,6 +51,7 @@ fun main(args: Array<String>) {
             val labels = SyntheticLesson(seed, rounds).write(dir)
             println("Wrote ${dir.absolutePath}: ${labels.takes.size} takes, ${labels.feedback.size} feedback blocks")
         }
+        "vet" -> vet(rest)
         "diag" -> Diagnostics.print(LessonFolder(File(expand(rest.firstOrNull() ?: usage()))))
         else -> usage()
     }
@@ -78,10 +82,38 @@ private fun printScore(s: Score) {
     s.mistakes.take(12).forEach { println("    - $it") }
 }
 
+private fun vet(rest: List<String>) {
+    fun opt(k: String) = rest.indexOf(k).takeIf { it >= 0 }?.let { rest.getOrNull(it + 1) }
+    val target = File(expand(rest.firstOrNull() ?: usage()))
+    val endpoint = opt("--endpoint") ?: "http://127.0.0.1:8080"
+    // --gguf runs llama.cpp in this process, through the same JNI library the phone uses.
+    val gguf = opt("--gguf")?.let { File(expand(it)) }
+    val name = opt("--name") ?: gguf?.nameWithoutExtension ?: "local"
+    val lessons = when {
+        target.isFile && target.name.endsWith(".json") -> listOf(com.cuenote.pipeline.cards.Vet.loadFixture(target))
+        File(target, "pipeline").isDirectory -> listOfNotNull(com.cuenote.pipeline.cards.Vet.load(target))
+        else -> target.listFiles()?.filter { File(it, "pipeline").isDirectory }?.sortedBy { it.name }.orEmpty()
+            .mapNotNull { com.cuenote.pipeline.cards.Vet.load(it) }
+    }
+    if (lessons.isEmpty()) { println("No processed lessons under $target"); exitProcess(1) }
+    println("${lessons.size} lessons, ${lessons.sumOf { it.blocks.size }} blocks, ${lessons.sumOf { it.reference.size }} with Opus's card")
+    val model: com.cuenote.pipeline.cards.CardModel = if (gguf != null) {
+        com.cuenote.pipeline.cards.LlamaNative.load(File(System.getProperty("cuenote.llmDir") ?: "core/llm-android/build/host"))
+        com.cuenote.pipeline.cards.LlamaCardModel(gguf, name, threads = Runtime.getRuntime().availableProcessors().coerceAtMost(8))
+    } else com.cuenote.pipeline.cards.ServerCardModel(endpoint, name)
+    val rows = model.use { m -> com.cuenote.pipeline.cards.Vet.run(m, lessons, ::println) }
+    val summary = com.cuenote.pipeline.cards.Vet.summarize(name, rows)
+    val report = com.cuenote.pipeline.cards.Vet.report(listOf(summary), mapOf(name to rows))
+    val out = File(expand(opt("--out") ?: "vet-$name.md"))
+    out.writeText(report)
+    println(report.lineSequence().take(4).joinToString("\n"))
+    println("Report: ${out.absolutePath}")
+}
+
 private fun pct(v: Double) = "${(v * 100).toInt()}%"
 private fun expand(p: String) = if (p.startsWith("~/")) System.getProperty("user.home") + p.substring(1) else p
 private fun usage(): Nothing {
-    println("usage: process <lesson> [--again] [--whisper <model file>] | golden <folder> | synth <folder> [seed] [rounds]")
+    println("usage: process <lesson> [--again] [--whisper <model file>] | golden <folder> | synth <folder> [seed] [rounds] | vet <lessons> --endpoint <url> --name <model>")
     exitProcess(2)
 }
 

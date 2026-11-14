@@ -160,6 +160,23 @@ class LessonRepository(
         writePhoneNotes(pd, cd, id)
     }
 
+    /**
+     * For a lesson kept on the phone: has the note writer on the phone write
+     * its cards, the next time the phone charges (downloading the writer
+     * first, on Wi-Fi, if it isn't here). Nothing leaves the phone.
+     */
+    fun writeCardsOnPhone(id: String) {
+        if (isLocalOnly(id)) com.cuenote.data.writer.PhoneCardWorker.enqueue(context, id)
+    }
+
+    fun phoneCardProgress(id: String) = com.cuenote.data.writer.PhoneCardWorker.progress(context, id)
+
+    /** "available" when Gemini Nano is open to apps on this phone, "download" when it can be fetched, else null. */
+    suspend fun nanoStatus() = com.cuenote.data.writer.PhoneWriter.nanoStatus()
+
+    /** True once the vetted note writer is on this phone. */
+    fun hasPhoneWriter() = com.cuenote.data.writer.PhoneWriter.hasWeights(context)
+
     /** The student's own words for one of the phone's notes; blank takes them off. */
     suspend fun setOwnWords(cardId: String, text: String) = withContext(Dispatchers.IO) {
         cardDao?.setOwnWords(cardId, PhoneNotes.ownWords(text))
@@ -229,8 +246,8 @@ class LessonRepository(
 
 /** The phone's own notes for [lessonId], written from what the pipeline found (see [PhoneNotes]). */
 suspend fun writePhoneNotes(pipeline: PipelineDao, cards: CardDao, lessonId: String) {
-    // Cards from the cloud are left alone; a lesson that has them doesn't need the phone's.
-    if (cards.cards(lessonId).any { !it.onPhone }) return
+    // Cards from the cloud, or from the writer on the phone, are left alone; a lesson that has them doesn't need the guesses.
+    if (cards.cards(lessonId).any { !it.onPhone || it.source == CardEntity.SOURCE_PHONE_WRITER }) return
     val fresh = PhoneNotes.fromGuesses(lessonId, pipeline.exercises(lessonId), pipeline.takes(lessonId), pipeline.feedback(lessonId))
     cards.replacePhoneCards(lessonId, fresh)
 }

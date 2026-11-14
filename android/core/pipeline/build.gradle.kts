@@ -28,6 +28,7 @@ application {
     applicationDefaultJvmArgs = listOf(
         "-Xmx3g",
         "-Dcuenote.nativeDir=${project(":core:ml").layout.projectDirectory.dir("build/host").asFile.absolutePath}",
+        "-Dcuenote.llmDir=${rootProject.layout.projectDirectory.dir("core/llm-android/build/host").asFile.absolutePath}",
     )
 }
 tasks.named<JavaExec>("run") {

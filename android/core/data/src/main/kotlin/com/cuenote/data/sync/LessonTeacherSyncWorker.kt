@@ -67,7 +67,8 @@ class LessonTeacherSyncWorker(context: Context, params: WorkerParameters) : Coro
             when (what) {
                 LocalOnly.Change.NONE, LocalOnly.Change.NOW_SHAREABLE -> return
                 LocalOnly.Change.DELETE_ONLINE -> forgetCloudCopy(context, lessonId)
-                LocalOnly.Change.SEND -> Unit
+                // No longer kept on the phone: its cards come from the cloud, not the phone's writer.
+                LocalOnly.Change.SEND -> com.cuenote.data.writer.PhoneCardWorker.cancel(context, lessonId)
             }
             store.markPending(lessonId, true)
             val request = OneTimeWorkRequestBuilder<LessonTeacherSyncWorker>()
