@@ -18,8 +18,10 @@ camerax = "1.4.2"
 mediapipe = "0.10.29"
 firebaseBom = "33.16.0"
 googleServices = "4.4.3"
+mlkitGenaiPrompt = "1.0.0-beta2"
 
 [libraries]
+mlkit-genai-prompt = { module = "com.google.mlkit:genai-prompt", version.ref = "mlkitGenaiPrompt" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "lifecycle" }

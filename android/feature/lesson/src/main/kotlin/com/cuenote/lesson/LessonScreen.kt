@@ -292,6 +292,9 @@ fun LessonScreen(
                     }) { Text("Refresh") }
                 }
                 refreshNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                if (localOnly && (lesson.pipelineState == "processed" || lesson.pipelineState == "cards") && feedback.isNotEmpty()) {
+                    PhoneWriterRow(lesson.id, repo, taughtBy, written = cards.any { it.source == CardEntity.SOURCE_PHONE_WRITER })
+                }
                 player.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
 
@@ -711,7 +714,7 @@ private fun CueCard(
                         when (check) {
                             S.CONFIRMED -> "App summary · your teacher checked it ✓"
                             S.CLOSE -> "App summary · your teacher says it's close"
-                            else -> "App summary · not checked yet"
+                            else -> if (card.source == CardEntity.SOURCE_PHONE_WRITER) "Summary written on this phone · not checked yet" else "App summary · not checked yet"
                         },
                         teacher = false,
                     )
@@ -867,6 +870,42 @@ private fun GuessCard(guess: LessonOutline.Guess, modifier: Modifier, her: Clip,
             }
             AnimatedVisibility(showAll, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 Text(guess.feedback.words.trim(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/**
+ * For a lesson kept on the phone: the note writer that runs on this phone.
+ * Off until the student asks, since the teacher was told "no AI": it writes
+ * cues and summaries the way the cloud does, but nothing leaves the phone.
+ * It downloads once on Wi-Fi (unless Gemini Nano is here) and writes while
+ * the phone charges.
+ */
+@Composable
+private fun PhoneWriterRow(lessonId: String, repo: LessonRepository, teacher: String?, written: Boolean) {
+    val p by repo.phoneCardProgress(lessonId).collectAsStateWithLifecycle(null)
+    var nano by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { nano = runCatching { repo.nanoStatus() }.getOrNull() }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val running = p?.state == WorkInfo.State.RUNNING
+    val waiting = p?.state == WorkInfo.State.ENQUEUED || p?.state == WorkInfo.State.BLOCKED
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val status = when {
+            p?.downloading == true && running -> "Downloading the note writer… ${p?.percent}%"
+            p?.downloading == true -> "The note writer (about 2 GB) downloads on Wi-Fi."
+            running -> "Writing on this phone… ${p?.done ?: 0} of ${p?.total ?: 0}"
+            waiting -> "The phone will write the notes the next time it charges."
+            p?.state == WorkInfo.State.FAILED -> "The note writer couldn't run this time."
+            written -> "These notes were written on this phone. ${teacher ?: "Your teacher"} hasn't checked them, so check each against the lesson clip."
+            else -> "The phone can write a short cue and a summary for each point itself, the way your other notes are made, without anything leaving the phone. " +
+                (if (nano == "available") "It uses Gemini Nano, already on this phone." else "It downloads a 2 GB note writer once, on Wi-Fi, and writes while the phone charges.") +
+                " ${teacher ?: "Your teacher"} was told this lesson gets no AI, so check with them first."
+        }
+        Text(status, style = MaterialTheme.typography.bodySmall, color = muted)
+        if (!running && !waiting) {
+            OutlinedButton(onClick = { repo.writeCardsOnPhone(lessonId) }) {
+                Text(if (written) "Write them again on this phone" else "Write notes on this phone")
             }
         }
     }
