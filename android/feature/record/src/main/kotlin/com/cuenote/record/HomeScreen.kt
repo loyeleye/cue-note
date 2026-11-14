@@ -124,8 +124,13 @@ fun HomeScreen(
     onNextLesson: () -> Unit = {},
     /** Today's suggested practice (the check-in), shown above the setlist when there are notes. */
     today: (@Composable () -> Unit)? = null,
-    /** Starts a lesson straight after consent, with no mic check; null hides the button. */
-    onQuickStart: (() -> Unit)? = null,
+    /**
+     * "Yes" to "Would you like to do a sound check?": the soundcheck, then the
+     * lesson. null starts straight away, without asking.
+     */
+    onSoundcheckThenStart: (() -> Unit)? = null,
+    /** False when a soundcheck just ran, so Start goes straight on without asking. */
+    askSoundcheck: () -> Boolean = { true },
     /** True for a lesson the teacher keeps on this phone. */
     isLocalOnly: (String) -> Boolean = { false },
 ) {
@@ -133,6 +138,18 @@ fun HomeScreen(
     // Lessons tab: show one teacher's lessons only; null shows all.
     var teacherFilter by rememberSaveable { mutableStateOf<String?>(null) }
     val player = rememberClipPlayer()
+    // Start asks once, up front, whether to soundcheck first (unless one just ran).
+    var asking by remember { mutableStateOf(false) }
+    val start: () -> Unit = {
+        if (onSoundcheckThenStart != null && askSoundcheck()) asking = true else onStartLesson()
+    }
+    if (asking && onSoundcheckThenStart != null) {
+        SoundcheckQuestion(
+            onYes = { asking = false; onSoundcheckThenStart() },
+            onNo = { asking = false; onStartLesson() },
+            onDismiss = { asking = false },
+        )
+    }
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
@@ -166,7 +183,7 @@ fun HomeScreen(
             when (tab) {
                 0 -> homeTab(
                     lessons, recordingInProgress, setlist, studentName, teacherName, hasTeacher, player,
-                    modelStatus, onDownloadModels, onStartLesson, onQuickStart, onReturnToRecording, onSetupCheck, onTeachers,
+                    modelStatus, onDownloadModels, start, onReturnToRecording, onSetupCheck, onTeachers,
                     onAllNotes = { tab = 1 },
                     cardCounts = cardCounts,
                     onOpen = onOpen,
@@ -193,7 +210,6 @@ private fun LazyListScope.homeTab(
     modelStatus: String?,
     onDownloadModels: (() -> Unit)?,
     onStartLesson: () -> Unit,
-    onQuickStart: (() -> Unit)?,
     onReturnToRecording: () -> Unit,
     onSetupCheck: () -> Unit,
     onTeachers: () -> Unit,
@@ -238,7 +254,7 @@ private fun LazyListScope.homeTab(
     if (firstRun) {
         item(key = "steps") { FirstSteps(hasTeacher, onTeachers, onSetupCheck, onStartLesson) }
     } else if (!recordingInProgress) {
-        item(key = "start") { StartCard(onStartLesson, onQuickStart, onSetupCheck) }
+        item(key = "start") { StartCard(onStartLesson, onSetupCheck) }
     }
     if (nextLesson != null && !firstRun) {
         item(key = "next") { NextLessonRow(nextLesson, onNextLesson) }
@@ -642,18 +658,11 @@ private fun Step(n: Int, title: String, sub: String?, done: Boolean, action: Str
     }
 }
 
-/** Start, with the soundcheck one tap away. */
+/** Start, with the soundcheck one tap away (and asked about on Start). */
 @Composable
-private fun StartCard(onStartLesson: () -> Unit, onQuickStart: (() -> Unit)?, onSetupCheck: () -> Unit) {
+private fun StartCard(onStartLesson: () -> Unit, onSetupCheck: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-        if (onQuickStart == null) StartButton("Start a lesson", onStartLesson, Modifier.fillMaxWidth())
-        else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            StartButton("Start a lesson", onStartLesson, Modifier.weight(1f))
-            // Straight to "both say yes" and recording: no mic check, using last time's mics.
-            androidx.compose.material3.OutlinedButton(onClick = onQuickStart, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
-                Text("Start without soundcheck", textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
-            }
-        }
+        StartButton("Start a lesson", onStartLesson, Modifier.fillMaxWidth())
         TicketRow(onClick = onSetupCheck) {
             Icon(Icons.Filled.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.weight(1f)) {
@@ -663,6 +672,34 @@ private fun StartCard(onStartLesson: () -> Unit, onQuickStart: (() -> Unit)?, on
             Text("Run", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
         }
     }
+}
+
+/**
+ * "Would you like to do a sound check?", asked when Start is tapped. Both
+ * answers are full-width buttons, so either is an easy tap.
+ */
+@Composable
+internal fun SoundcheckQuestion(onYes: () -> Unit, onNo: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Would you like to do a sound check?") },
+        text = {
+            Text(
+                "A one-minute warm-up that checks who's on which mic. Worth it in a new room or with new mics. " +
+                    "Without it, the lesson uses the mics from last time.",
+            )
+        },
+        confirmButton = {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.Button(onClick = onYes, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                    Text("Yes, sound check first")
+                }
+                androidx.compose.material3.OutlinedButton(onClick = onNo, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                    Text("No, start the lesson")
+                }
+            }
+        },
+    )
 }
 
 @Composable
