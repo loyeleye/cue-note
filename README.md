@@ -135,6 +135,20 @@ a quote had to be replaced or a cue was too long, and, block by block, the
 phone's cue beside Opus's with how often chat and the category agree.
 `--endpoint http://127.0.0.1:8080` runs against llama-server instead.
 
+A cue that shares none of its own words with what was said is dropped, and
+the card keeps her words only. Small models sometimes copy the prompt's
+example cue onto a block about something else, or add advice she didn't give.
+
+First vetting (November 2026, one 26-minute lesson, 17 blocks, 4 laptop cores,
+no Opus cards to compare with, so read block by block against the transcript):
+Llama 3.2 3B wrote the most cues that were hers ("Imagine you don't have a
+bottom jaw", "Make lips like u sound") with the fewest quotes replaced (11%),
+at about 19 s a card; the check dropped the three it made up. Qwen2.5 3B was a
+little faster (17 s) but replaced 35% of quotes and wrote a few cues she never
+said, and its license is non-commercial. Gemma 3 4B was slowest (24 s) and
+copied the example cue most often (35% dropped). So the phone downloads
+Llama 3.2 3B. Vet again when there are lessons with Opus's cards.
+
 **Start without soundcheck**, next to Start a lesson, goes from both saying
 yes straight to recording, using last time's mics.
 

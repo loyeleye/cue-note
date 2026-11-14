@@ -123,7 +123,7 @@ object Vet {
 
     data class Summary(
         val model: String, val cards: Int, val secondsPerCard: Double, val p90Seconds: Double,
-        val unreadable: Double, val repaired: Double, val cueCut: Double,
+        val unreadable: Double, val repaired: Double, val cueCut: Double, val ungrounded: Double,
         val compared: Int, val chatAgrees: Double?, val categoryAgrees: Double?, val cueOverlap: Double?,
     )
 
@@ -136,7 +136,7 @@ object Vet {
             model = model, cards = rows.size,
             secondsPerCard = secs.average().takeIf { !it.isNaN() } ?: 0.0,
             p90Seconds = secs.getOrNull(((secs.size - 1) * 0.9).toInt()) ?: 0.0,
-            unreadable = share({ it.card.unreadable }), repaired = share({ it.card.repaired }), cueCut = share({ it.card.cueCut }),
+            unreadable = share({ it.card.unreadable }), repaired = share({ it.card.repaired }), cueCut = share({ it.card.cueCut }), ungrounded = share({ it.card.ungrounded }),
             compared = withRef.size,
             chatAgrees = withRef.takeIf { it.isNotEmpty() }?.let { share({ r -> (r.ref!!.category == "chat") == (r.card.category == "chat") }, it) },
             categoryAgrees = withRef.takeIf { it.isNotEmpty() }?.let { share({ r -> r.ref!!.category == r.card.category }, it) },
@@ -148,11 +148,11 @@ object Vet {
         fun pct(v: Double?) = v?.let { "${(it * 100).toInt()}%" } ?: "–"
         appendLine("# On-phone card writer: vetting")
         appendLine()
-        appendLine("| Model | Cards | s/card (p90) | Not JSON | Quote repaired | Cue over 8 words | vs Opus: blocks | chat agrees | category agrees | cue words shared |")
-        appendLine("|---|---|---|---|---|---|---|---|---|---|")
+        appendLine("| Model | Cards | s/card (p90) | Not JSON | Quote repaired | Cue over 8 words | Cue not from her words | vs Opus: blocks | chat agrees | category agrees | cue words shared |")
+        appendLine("|---|---|---|---|---|---|---|---|---|---|---|")
         for (s in summaries) appendLine(
             "| ${s.model} | ${s.cards} | ${"%.1f".format(s.secondsPerCard)} (${"%.1f".format(s.p90Seconds)}) | ${pct(s.unreadable)} | ${pct(s.repaired)} | " +
-                "${pct(s.cueCut)} | ${s.compared} | ${pct(s.chatAgrees)} | ${pct(s.categoryAgrees)} | ${pct(s.cueOverlap)} |",
+                "${pct(s.cueCut)} | ${pct(s.ungrounded)} | ${s.compared} | ${pct(s.chatAgrees)} | ${pct(s.categoryAgrees)} | ${pct(s.cueOverlap)} |",
         )
         for ((model, rs) in rows) {
             appendLine()
@@ -162,7 +162,7 @@ object Vet {
             appendLine("|---|---|---|---|---|")
             for (r in rs) {
                 fun cell(s: String) = s.replace("|", "\\|").replace("\n", " ").take(160)
-                val flags = listOfNotNull("repaired".takeIf { r.card.repaired }, "cut".takeIf { r.card.cueCut }, "not JSON".takeIf { r.card.unreadable })
+                val flags = listOfNotNull("repaired".takeIf { r.card.repaired }, "cut".takeIf { r.card.cueCut }, "not JSON".takeIf { r.card.unreadable }, "not from her words, dropped".takeIf { r.card.ungrounded })
                 appendLine("| ${r.block.localId.substringAfterLast('-')} | ${cell(r.card.herWords)} | ${cell(r.card.cue)}${if (flags.isEmpty()) "" else " (${flags.joinToString()})"} | ${cell(r.ref?.cue ?: "–")} | ${r.card.category ?: "–"} / ${r.ref?.category ?: "–"} |")
             }
         }

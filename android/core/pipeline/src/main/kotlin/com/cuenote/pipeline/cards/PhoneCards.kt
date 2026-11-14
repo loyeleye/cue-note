@@ -66,6 +66,8 @@ data class PhoneCard(
     val retried: Boolean = false,
     /** The answer wasn't usable JSON: the card is her words only. */
     val unreadable: Boolean = false,
+    /** The cue had nothing to do with what was said (often one of the prompt's examples), so it was dropped. */
+    val ungrounded: Boolean = false,
     val ms: Long = 0,
 )
 
@@ -138,7 +140,7 @@ If one of the earlier cues in this exercise is the same instruction, reuse it wo
     /**
      * The model's answer, checked as extract-cues checks the cloud's: her
      * words must be hers, a cue at most 8 words, chat has no cue, summary in
-     * American spelling. An answer that isn't JSON leaves her words only.
+     * American spelling, and a cue must come from what was said. An answer that isn't JSON leaves her words only.
      */
     fun check(b: PhoneBlock, answer: String, ms: Long = 0): PhoneCard {
         val obj = runCatching {
@@ -156,15 +158,18 @@ If one of the earlier cues in this exercise is the same instruction, reuse it wo
         val rawCue = str("cue")
         val quote = CardChecks.verbatim(str("her_words"), b.words)
         val weight = obj["weight"]?.jsonPrimitive?.doubleOrNull?.toFloat()?.coerceIn(0f, 1f)
+        val said = (b.lines.map { it.second } + b.words).joinToString(" ")
+        val ungrounded = !chat && rawCue.isNotBlank() && !CardChecks.grounded(rawCue, said)
         return PhoneCard(
             localId = b.localId,
-            cue = if (chat) "" else CardChecks.cue(rawCue),
+            cue = if (chat || ungrounded) "" else CardChecks.cue(rawCue),
             herWords = quote.text,
             summary = if (chat) "" else CardChecks.summary(str("summary")),
             category = category,
             weight = if (chat) 0f else weight,
             repaired = quote.repaired,
-            cueCut = !chat && CardChecks.cueTooLong(rawCue),
+            cueCut = !chat && !ungrounded && CardChecks.cueTooLong(rawCue),
+            ungrounded = ungrounded,
             ms = ms,
         )
     }

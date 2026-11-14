@@ -63,4 +63,16 @@ class PhoneCardsTest {
         assertTrue(fake.asked[1], fake.asked[1].contains("Earlier cues in this exercise: “Drop the jaw like a yawn”"))
         assertFalse(fake.asked[0].contains("Earlier cues"))
     }
+
+    @Test fun `a cue that has nothing to do with what she said is dropped`() {
+        val copied = PhoneCards.check(block("b1"), """{"cue":"Land high notes from above, don't reach","her_words":"Lovely.","summary":"","category":"pitch","weight":0.5}""")
+        assertEquals("", copied.cue)
+        assertTrue(copied.ungrounded)
+        assertEquals("Lovely.", copied.herWords)
+        val made = PhoneCards.check(block("b2"), """{"cue":"Sing from the heart","her_words":"Lovely.","summary":"","category":"phrasing","weight":0.5}""")
+        assertTrue(made.ungrounded)
+        val hers = PhoneCards.check(block("b3"), """{"cue":"Drop the jaw, think yawn","her_words":"Lovely.","summary":"","category":"vowel","weight":0.5}""")
+        assertFalse(hers.ungrounded)
+        assertEquals("Drop the jaw, think yawn", hers.cue)
+    }
 }

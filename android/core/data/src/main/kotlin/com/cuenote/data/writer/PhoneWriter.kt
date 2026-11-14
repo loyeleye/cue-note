@@ -62,7 +62,7 @@ object PhoneWriter {
         "Qwen Research License (non-commercial)",
     )
 
-    /** The one the phone downloads. Set from the vetting report. */
+    /** The one the phone downloads, from the first vetting (README, "Vetting a model for it"). */
     val VETTED = LLAMA_3_2_3B
 
     fun dir(context: Context) = File(context.filesDir, "models")
