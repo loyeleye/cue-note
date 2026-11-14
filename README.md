@@ -61,10 +61,17 @@ select id from auth.users where email = 'you@example.com';
 migration that drops `private.debug_user`, `private.is_debug()`, `public.am_debug()`
 and the `*_debug_read` policies. The phone sends who taught each lesson when it uploads it.
 
+### Teachers without an email
+
+Under "Your teachers" the student can save a teacher by name only ("Teachers
+without an email"). They get no invite and nothing from the app, and the name
+stays on the phone; picking them before a lesson puts their name on it. The
+Lessons tab then groups lessons by teacher with a chip per teacher.
+
 ### Teachers who keep lessons on this phone
 
 Some teachers would rather their voice didn't go online. Under "Your teachers"
-the student can add one by name ("Teachers who keep lessons on this phone"),
+the student can turn on "Keep lessons on this phone" for a saved teacher,
 or pick "Someone else" before a lesson and turn on **Keep this lesson on this
 phone**; either way the first-lesson welcome also has the switch. No invite is
 sent and the name stays on the phone (`LessonTeacherStore.localOnlyTeachers`).

@@ -130,6 +130,8 @@ fun HomeScreen(
     isLocalOnly: (String) -> Boolean = { false },
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    // Lessons tab: show one teacher's lessons only; null shows all.
+    var teacherFilter by rememberSaveable { mutableStateOf<String?>(null) }
     val player = rememberClipPlayer()
     Scaffold(
         bottomBar = {
@@ -174,7 +176,7 @@ fun HomeScreen(
                     onNextLesson = onNextLesson,
                 )
                 1 -> setlistTab(setlist, teacherName, player, onPractice, today)
-                else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen, isLocalOnly)
+                else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen, isLocalOnly, teacherFilter) { teacherFilter = it }
             }
         }
     }
@@ -379,6 +381,8 @@ private fun LazyListScope.lessonsTab(
     onDelete: (LessonEntity) -> Unit,
     onOpen: (LessonEntity) -> Unit,
     isLocalOnly: (String) -> Boolean,
+    teacherFilter: String?,
+    onTeacherFilter: (String?) -> Unit,
 ) {
     item(key = "mast") { Masthead("Your ", "lessons") }
     if (lessons.isEmpty()) {
@@ -386,7 +390,14 @@ private fun LazyListScope.lessonsTab(
             Text("Your lessons show up here after the first one.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
         }
     }
-    items(lessons, key = { it.id }) { LessonRow(it, cardCounts[it.id], teacherName(it.id), onExport, onDelete, onOpen, isLocalOnly(it.id)) }
+    // Grouped by who taught them: a chip per teacher, once there's more than one.
+    val groups = teacherGroups(lessons.map { teacherName(it.id) })
+    val current = groups.firstOrNull { sameTeacher(it, teacherFilter) }
+    if (groups.size > 1) item(key = "teachers") {
+        TeacherChips(groups, current, total = lessons.size, count = { g -> lessons.count { sameTeacher(teacherName(it.id) ?: NO_TEACHER, g) } }, onTeacherFilter)
+    }
+    val shown = if (current == null) lessons else lessons.filter { sameTeacher(teacherName(it.id) ?: NO_TEACHER, current) }
+    items(shown, key = { it.id }) { LessonRow(it, cardCounts[it.id], teacherName(it.id), onExport, onDelete, onOpen, isLocalOnly(it.id)) }
 }
 
 @Composable
@@ -730,6 +741,27 @@ private fun LessonRow(
         )
     }
 }
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun TeacherChips(groups: List<String>, current: String?, total: Int, count: (String) -> Int, onPick: (String?) -> Unit) {
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        androidx.compose.material3.FilterChip(selected = current == null, onClick = { onPick(null) }, label = { Text("All ($total)") })
+        groups.forEach { g ->
+            androidx.compose.material3.FilterChip(
+                selected = current == g, onClick = { onPick(if (current == g) null else g) }, label = { Text("$g (${count(g)})") },
+            )
+        }
+    }
+}
+
+private const val NO_TEACHER = com.cuenote.data.LessonGroups.NO_TEACHER
+
+private fun sameTeacher(a: String?, b: String?) = com.cuenote.data.LessonGroups.same(a, b)
+
+private fun teacherGroups(names: List<String?>) = com.cuenote.data.LessonGroups.of(names)
 
 private fun minutes(ms: Long): String {
     val m = (ms + 30_000) / 60_000

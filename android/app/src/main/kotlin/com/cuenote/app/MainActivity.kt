@@ -267,6 +267,7 @@ private fun AppNav(app: CueNoteApp) {
                     current = app.lessonTeachers.get(id),
                     teachers = myTeachers,
                     lastName = app.lessonTeachers.lastName,
+                    saved = app.lessonTeachers.namedTeachers,
                     savedLocal = app.lessonTeachers.localOnlyTeachers,
                     onSave = { t ->
                         changing = false
@@ -407,6 +408,7 @@ private fun AppNav(app: CueNoteApp) {
                 teachers = teachers,
                 lastPicked = app.lessonTeachers.lastPicked,
                 lastName = app.lessonTeachers.lastName,
+                namedTeachers = app.lessonTeachers.namedTeachers,
                 localOnlyTeachers = app.lessonTeachers.localOnlyTeachers,
                 mics = mics,
                 onCancel = { nav.popBackStack() },
