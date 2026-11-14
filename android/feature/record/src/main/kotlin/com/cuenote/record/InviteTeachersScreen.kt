@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -42,6 +44,9 @@ import kotlinx.coroutines.launch
 /**
  * The student invites teachers by email, sees which invites are waiting and
  * which teachers can already see their lessons, and takes any of them back.
+ *
+ * Below that, teachers who keep their lessons on this phone: a name only,
+ * kept on the phone, with no invite, no account and no dashboard.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +55,8 @@ fun InviteTeachersScreen(
     signedIn: Boolean,
     onSignIn: () -> Unit,
     onBack: () -> Unit,
+    /** Where the local-only teachers are kept; null hides that part. */
+    lessonTeachers: com.cuenote.data.LessonTeacherStore? = null,
 ) {
     val scope = rememberCoroutineScope()
     var teachers by remember { mutableStateOf<List<InvitedTeacher>?>(null) }
@@ -79,11 +86,12 @@ fun InviteTeachersScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp).fillMaxSize()) {
+        Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp).fillMaxSize()) {
             if (!signedIn) {
                 Text("Sign in first, so your teacher knows who the invite is from.")
                 Spacer(Modifier.padding(4.dp))
                 Button(onClick = onSignIn) { Text("Sign in") }
+                lessonTeachers?.let { LocalOnlyTeachers(it) }
                 return@Column
             }
 
@@ -124,16 +132,19 @@ fun InviteTeachersScreen(
                 teachers == null -> Text(if (busy) "Loading…" else "Couldn't load your invites. Tap Refresh.")
                 teachers!!.isEmpty() -> Text("No teachers yet.")
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(teachers.orEmpty(), key = { it.shareId }) { t ->
-                    TeacherRow(
-                        t,
-                        enabled = !busy,
-                        onRevoke = { confirmRevoke = t },
-                        onRestrict = { on -> run { shares.setRestricted(t, on); null } },
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                teachers.orEmpty().forEach { t ->
+                    androidx.compose.runtime.key(t.shareId) {
+                        TeacherRow(
+                            t,
+                            enabled = !busy,
+                            onRevoke = { confirmRevoke = t },
+                            onRestrict = { on -> run { shares.setRestricted(t, on); null } },
+                        )
+                    }
                 }
             }
+            lessonTeachers?.let { LocalOnlyTeachers(it) }
         }
     }
 
@@ -196,5 +207,78 @@ private fun TeacherRow(t: InvitedTeacher, enabled: Boolean, onRevoke: () -> Unit
                 }
             }
         }
+    }
+}
+
+/**
+ * Teachers who keep their lessons on this phone. Picking one before a lesson
+ * keeps that lesson off Cue Note's servers and away from AI: no invite, no
+ * dashboard, and their name stays on the phone too.
+ */
+@Composable
+private fun LocalOnlyTeachers(store: com.cuenote.data.LessonTeacherStore) {
+    var names by remember { mutableStateOf(store.localOnlyTeachers) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var confirmRemove by remember { mutableStateOf<String?>(null) }
+    val m = MaterialTheme.colorScheme
+    fun add() {
+        if (com.cuenote.data.LessonTeacher.tidy(name) == null) return
+        store.addLocalOnlyTeacher(name); names = store.localOnlyTeachers; name = ""
+    }
+    Spacer(Modifier.padding(12.dp))
+    Text("Teachers who keep lessons on this phone", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.padding(2.dp))
+    Text(
+        "For a teacher who'd rather their voice didn't go online. Their lessons record and get the phone's own notes, " +
+            "but nothing from them goes to Cue Note's servers or to an AI, and they don't use the dashboard. " +
+            "No invite is sent; their name stays on this phone.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = m.onSurfaceVariant,
+    )
+    Spacer(Modifier.padding(4.dp))
+    names.forEach { n ->
+        androidx.compose.runtime.key(n) {
+            Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.Filled.Lock, contentDescription = null, tint = m.primary,
+                        modifier = Modifier.padding(end = 10.dp),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(n, style = MaterialTheme.typography.titleSmall)
+                        Text("Lessons stay on this phone", style = MaterialTheme.typography.bodySmall, color = m.primary)
+                    }
+                    TextButton(onClick = { confirmRemove = n }) { Text("Remove") }
+                }
+            }
+        }
+    }
+    OutlinedTextField(
+        name, { name = it.take(com.cuenote.data.LessonTeacher.MAX_NAME) },
+        label = { Text("Teacher's name") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { add() }),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.padding(4.dp))
+    OutlinedButton(enabled = name.isNotBlank(), onClick = { add() }, modifier = Modifier.fillMaxWidth()) {
+        Text("Add a teacher who keeps lessons on this phone")
+    }
+    confirmRemove?.let { n ->
+        AlertDialog(
+            onDismissRequest = { confirmRemove = null },
+            title = { Text("Remove $n?") },
+            text = {
+                Text(
+                    "$n won't be offered before a lesson any more. Lessons already marked as theirs stay on this phone; " +
+                        "change one from the lesson itself.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { store.removeLocalOnlyTeacher(n); names = store.localOnlyTeachers; confirmRemove = null }) { Text("Remove") }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Keep") } },
+        )
     }
 }

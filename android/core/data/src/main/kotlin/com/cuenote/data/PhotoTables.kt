@@ -138,6 +138,10 @@ interface PhotoDao {
     @Query("update photo set needsUpload = 0 where id = :id")
     suspend fun uploaded(id: String)
 
+    /** The lesson's copy online is gone: its photos count as not uploaded, and lose the AI's captions. */
+    @Query("update photo set needsUpload = 1, caption = null, captionConfidence = null where lessonId = :lessonId")
+    suspend fun forgetCloud(lessonId: String)
+
     @Query("delete from photo where lessonId = :lessonId")
     suspend fun clear(lessonId: String)
 }

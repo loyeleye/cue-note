@@ -20,6 +20,7 @@ import com.cuenote.data.AuthRepository
 import com.cuenote.data.ClipEntity
 import com.cuenote.data.LessonDatabase
 import com.cuenote.data.LessonTeacherStore
+import com.cuenote.data.LocalOnly
 import com.cuenote.data.PipelineStageEntity
 import com.cuenote.pipeline.Pipeline
 import com.cuenote.pipeline.audio.LessonFolder
@@ -59,10 +60,13 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         fun record(stage: String, status: String, started: Long, detail: String) =
             PipelineStageEntity(lessonId, stage, status, started, System.currentTimeMillis(), detail)
 
+        val teachers = LessonTeacherStore(applicationContext)
+        // A local-only lesson: cut the replay clips for the phone, and stop there.
+        val localOnly = teachers.isLocalOnly(lessonId)
         val auth = AuthRepository.get()
         val cloud = CloudSync(auth)
-        val student = if (auth.isConfigured) cloud.studentId() else null
-        if (student == null) {
+        val student = if (localOnly) null else if (auth.isConfigured) cloud.studentId() else null
+        if (student == null && !localOnly) {
             stages.upsertStage(record("upload", "waiting", System.currentTimeMillis(),
                 if (auth.isConfigured) "Sign in on this phone to make cards" else "Sign-in isn't set up in this build"))
             // Nothing to do until someone signs in; the lesson screen offers "Make cards" then.
@@ -96,13 +100,19 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
             return@withContext Result.failure(workDataOf(KEY_ERROR to e.toString()))
         }
 
+        // Checked again here: the teacher may have been changed while the clips were cut.
+        if (student == null || teachers.isLocalOnly(lessonId)) {
+            stages.upsertStage(record("upload", "skipped", System.currentTimeMillis(), KEPT_ON_PHONE))
+            stages.setLessonState(lessonId, "processed")
+            return@withContext Result.success()
+        }
+
         // ---------------------------------------------------------- 2. upload
         started = System.currentTimeMillis()
         runCatching { setForeground(foreground("Uploading clips")) }
         val clips = cardsDao.clips(lessonId).filter { c -> plan.any { it.cloudId == c.id } }
         val pathOf = clips.associate { it.localId to cloud.clipPath(student, lessonId, File(it.file).name) }
         try {
-            val teachers = LessonTeacherStore(applicationContext)
             cloud.putLesson(student, lesson, teachers.get(lessonId))
             teachers.markPending(lessonId, false) // the upload carried the latest pick
             // Clips a teacher deleted, or whose audio they removed, stay off the cloud.
@@ -131,6 +141,7 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         runCatching { setForeground(foreground("Writing the cards")) }
         setProgress(workDataOf(KEY_STAGE to "cards", KEY_PROGRESS to 0))
         try {
+            if (teachers.isLocalOnly(lessonId)) throw LocalOnly.Refused(lessonId)
             val r = cloud.extractCues(CueRequest.from(lessonId, out) { pathOf[it] })
             cardsDao.replaceCards(lessonId, cloud.cards(lessonId))
             stages.setLessonState(lessonId, "cards")
@@ -139,6 +150,9 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
             stages.upsertStage(record("cards", "done", started, "${r.cards} cards by ${r.model ?: "the model"}$cost$kept"))
             // Sketches waiting for the cards can go now.
             runCatching { com.cuenote.data.sketch.PhotoUploadWorker.kick(applicationContext, lessonId) }
+            Result.success()
+        } catch (e: LocalOnly.Refused) {
+            stages.upsertStage(record("cards", "skipped", started, KEPT_ON_PHONE))
             Result.success()
         } catch (e: CloudSync.CueError) {
             stages.upsertStage(record("cards", "failed", started, e.message ?: "extract-cues failed"))
@@ -174,6 +188,7 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         const val KEY_ERROR = "error"
         private const val CHANNEL = "cards"
         private const val NOTIFICATION_ID = 4211
+        const val KEPT_ON_PHONE = "Kept on this phone: nothing uploaded"
 
         val STAGE_NAMES = mapOf(
             "clips" to "Cutting replay clips",
@@ -185,9 +200,11 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         fun workName(lessonId: String) = "upload-$lessonId"
 
         fun enqueue(context: Context, lessonId: String) {
+            // A local-only lesson only cuts its clips, so it needn't wait for a network.
+            val network = if (LessonTeacherStore(context).isLocalOnly(lessonId)) NetworkType.NOT_REQUIRED else NetworkType.CONNECTED
             val request = OneTimeWorkRequestBuilder<LessonUploadWorker>()
                 .setInputData(workDataOf(KEY_LESSON to lessonId))
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(network).build())
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
                 .addTag("upload")
                 .build()

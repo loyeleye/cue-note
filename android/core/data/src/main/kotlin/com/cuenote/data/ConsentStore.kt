@@ -39,5 +39,17 @@ class ConsentStore(context: Context) {
             • The teacher can fix any card, and their version always wins.
             • Nothing records unless you both say yes, before every lesson.
         """.trimIndent()
+
+        /** The consent text for a lesson the teacher keeps on the phone. */
+        fun localText(student: String) = """
+            This lesson stays on $student's phone.
+
+            • The phone records it on two mics, one for each of you, and turns it into text and notes itself.
+            • Cue Note doesn't send any of it to its servers or to an AI: not the recording, clips, words or sketch photos.
+            • It doesn't show on any teacher's dashboard, and no other teacher sees it.
+            • If $student exports a copy, where that copy goes is up to $student.
+            • If this phone is lost, the lesson goes with it.
+            • Nothing records unless you both say yes, before every lesson.
+        """.trimIndent()
     }
 }

@@ -33,6 +33,12 @@ class LessonRepository(
 
     val lessons = dao.observeAll()
 
+    /** Who taught each lesson, and which lessons stay on this phone. */
+    val teachers = LessonTeacherStore(context)
+
+    /** The teacher asked that this lesson stays on the phone: nothing of it goes to the cloud or an AI. */
+    fun isLocalOnly(id: String) = teachers.isLocalOnly(id)
+
     /** Card and practice counts per lesson, for the badges on the home screen. */
     val cardCounts: kotlinx.coroutines.flow.Flow<Map<String, CardCount>> =
         cardDao?.observeCounts()?.map { list -> list.associateBy { it.lessonId } }
@@ -101,6 +107,7 @@ class LessonRepository(
      */
     suspend fun compareModels(id: String, models: List<String> = ModelTrials.MODELS.keys.toList()): ModelTrials =
         withContext(Dispatchers.IO) {
+            if (isLocalOnly(id)) throw LocalOnly.Refused(id)
             val out = Pipeline.readOutput(LessonFolder(lessonDir(id))) ?: error("This lesson isn't processed yet")
             val cloud = CloudSync(AuthRepository.get())
             requireNotNull(cloud.studentId()) { "Sign in first" }
@@ -111,6 +118,7 @@ class LessonRepository(
 
     /** Copies the lesson's cards from the cloud again, her latest edits included. */
     suspend fun refreshCards(id: String) = withContext(Dispatchers.IO) {
+        if (isLocalOnly(id)) return@withContext
         val cloud = CloudSync(AuthRepository.get())
         if (cloud.studentId() == null) return@withContext
         cardDao?.replaceCards(id, cloud.cards(id))
@@ -152,8 +160,11 @@ class LessonRepository(
      * throws, so nothing is half-deleted without the student knowing.
      */
     suspend fun delete(id: String) = withContext(Dispatchers.IO) {
-        val cloud = CloudSync(AuthRepository.get())
-        cloud.studentId()?.let { student -> cloud.deleteLesson(student, id) }
+        // A local-only lesson was never sent, so there's nothing to delete online.
+        if (!isLocalOnly(id)) {
+            val cloud = CloudSync(AuthRepository.get())
+            cloud.studentId()?.let { student -> cloud.deleteLesson(student, id) }
+        }
         lessonDir(id).deleteRecursively()
         pipelineDao?.clearAll(id)
         photoDao?.clear(id)
@@ -166,6 +177,7 @@ class LessonRepository(
         practiceDao?.deleteLessonTakes(id)
         practiceDao?.deleteLessonQuestions(id)
         dao.delete(id)
+        teachers.forget(id)
     }
 
     /**

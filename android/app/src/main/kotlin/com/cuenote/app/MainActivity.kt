@@ -179,6 +179,8 @@ private fun AppNav(app: CueNoteApp) {
     val pendingLesson = remember { mutableStateOf<PendingLesson?>(null) }
     // Bumped when a lesson's teacher changes, so names shown for it are read again.
     var teacherVersion by remember { mutableIntStateOf(0) }
+    // "Start without soundcheck": straight from both saying yes to recording, on last time's mics.
+    var quickStart by remember { mutableStateOf(false) }
 
     fun startLesson(posture: PostureSetup?) {
         val p = pendingLesson.value ?: return
@@ -188,6 +190,8 @@ private fun AppNav(app: CueNoteApp) {
             app.lessonTeachers.set(lesson.id, p.teacher)
             p.teacher.teacherId?.let { app.lessonTeachers.lastPicked = it }
             p.teacher.name?.let { app.lessonTeachers.lastName = it }
+            // Remember a teacher who keeps lessons on the phone, so next time they're one tap away.
+            if (p.teacher.localOnly) p.teacher.name?.let { app.lessonTeachers.addLocalOnlyTeacher(it) }
             val dir = app.lessons.lessonDir(lesson.id)
             RecordingService.start(app, lesson.id, dir)
             if (posture != null) app.posture.begin(lesson.id, dir, posture)
@@ -206,7 +210,9 @@ private fun AppNav(app: CueNoteApp) {
                 teacherName = { lessonId -> teacherNameFor(app, myTeachers, firstSetup?.teacherName, lessonId, teacherVersion) },
                 recordingInProgress = recState is RecordingState.Recording,
                 signedInEmail = email,
-                onStartLesson = { withPermission { nav.navigate("consent") } },
+                onStartLesson = { withPermission { quickStart = false; nav.navigate("consent") } },
+                onQuickStart = { withPermission { quickStart = true; nav.navigate("consent") } },
+                isLocalOnly = { lessonId -> teacherVersion.let { app.lessonTeachers.isLocalOnly(lessonId) } },
                 onReturnToRecording = {
                     (recState as? RecordingState.Recording)?.let { nav.navigate("recording/${it.lessonId}") }
                 },
@@ -261,11 +267,15 @@ private fun AppNav(app: CueNoteApp) {
                     current = app.lessonTeachers.get(id),
                     teachers = myTeachers,
                     lastName = app.lessonTeachers.lastName,
+                    savedLocal = app.lessonTeachers.localOnlyTeachers,
                     onSave = { t ->
-                        LessonTeacherSyncWorker.change(app, id, t)
-                        t.name?.let { app.lessonTeachers.lastName = it }
-                        teacherVersion++
                         changing = false
+                        scope.launch {
+                            LessonTeacherSyncWorker.change(app, id, t)
+                            t.name?.let { app.lessonTeachers.lastName = it }
+                            if (t.localOnly) t.name?.let { app.lessonTeachers.addLocalOnlyTeacher(it) }
+                            teacherVersion++
+                        }
                     },
                     onDismiss = { changing = false },
                 )
@@ -285,6 +295,8 @@ private fun AppNav(app: CueNoteApp) {
                     onSendToTeacher = { nav.navigate("next") },
                     voiceNote = if (email != null) { path -> app.practice.voiceNote(path) } else null,
                     onAsk = { card -> app.practice.ask(card, null, "Can we go over this one? “${card.cue.ifBlank { card.herWords.take(80) }}”") },
+                    localOnly = teacherVersion.let { app.lessonTeachers.isLocalOnly(id) },
+                    deletingOnline = teacherVersion.let { app.lessonTeachers.isLocalOnly(id) && id in app.lessonTeachers.pendingSync() },
                 )
             }
         }
@@ -301,7 +313,8 @@ private fun AppNav(app: CueNoteApp) {
                 onFixCorners = { nav.navigate("corners/$id/$photoId") },
                 onBack = { nav.popBackStack() },
                 teacherName = teacherNameFor(app, myTeachers, firstSetup?.teacherName, id, teacherVersion),
-                canShare = sharing,
+                // A lesson kept on this phone never shares a photo, even of the student.
+                canShare = sharing && !app.lessonTeachers.isLocalOnly(id),
             )
         }
         composable("corners/{lesson}/{photo}") { entry ->
@@ -394,6 +407,7 @@ private fun AppNav(app: CueNoteApp) {
                 teachers = teachers,
                 lastPicked = app.lessonTeachers.lastPicked,
                 lastName = app.lessonTeachers.lastName,
+                localOnlyTeachers = app.lessonTeachers.localOnlyTeachers,
                 mics = mics,
                 onCancel = { nav.popBackStack() },
                 onConsented = { c ->
@@ -402,7 +416,8 @@ private fun AppNav(app: CueNoteApp) {
                         pendingLesson.value = PendingLesson(c.consentAt, c.teacher, posture)
                         if (mics.trusted(c.recheckMics)) ChannelSwap.set(app, mics!!.verdict.studentOnRight)
                         when {
-                            !mics.trusted(c.recheckMics) -> nav.navigate("whoiswho")
+                            // Without the mic check, the channels stay as they were last time.
+                            !mics.trusted(c.recheckMics) && !quickStart -> nav.navigate("whoiswho")
                             posture -> nav.navigate("framing") { popUpTo("consent") }
                             else -> startLesson(null)
                         }
@@ -443,7 +458,11 @@ private fun AppNav(app: CueNoteApp) {
         }
         composable("recording/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
-            RecordingScreen(lessonDir = app.lessons.lessonDir(id), onFinished = { nav.popBackStack("home", false) })
+            RecordingScreen(
+                lessonDir = app.lessons.lessonDir(id),
+                onFinished = { nav.popBackStack("home", false) },
+                keptOnPhone = app.lessonTeachers.isLocalOnly(id),
+            )
         }
         composable("teachers") {
             InviteTeachersScreen(
@@ -451,6 +470,7 @@ private fun AppNav(app: CueNoteApp) {
                 signedIn = email != null,
                 onSignIn = { nav.navigate("signin") },
                 onBack = { nav.popBackStack() },
+                lessonTeachers = app.lessonTeachers,
             )
         }
         composable("signin") { SignInScreen(app.auth, email, linkStatus, onBack = { nav.popBackStack() }) }

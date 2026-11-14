@@ -104,7 +104,10 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
     private suspend fun syncTakes(client: SupabaseClient, student: String, dao: PracticeDao, repo: PracticeRepository) {
         val clips = client.storage.from("clips")
         val table = client.from("practice_take")
+        val teachers = com.cuenote.data.LessonTeacherStore(applicationContext)
         for (t in dao.takesToSync()) {
+            // A take on a local-only lesson's note stays on the phone, like the lesson.
+            if (t.shared && !t.cloudShared && !t.deleted && teachers.isLocalOnly(t.lessonId)) continue
             val path = clipPath(student, t)
             when {
                 t.deleted || (!t.shared && t.cloudShared) -> {
@@ -220,7 +223,10 @@ class PracticeSyncWorker(context: Context, params: WorkerParameters) : Coroutine
         val table = client.from("student_question")
         val cloud = table.select(Columns.list("id", "status", "answer", "answer_clip_path", "answered_at")) { filter { eq("student_id", student) } }
             .decodeList<CloudQuestion>().associateBy { it.id }
+        val teachers = com.cuenote.data.LessonTeacherStore(applicationContext)
         for (q in dao.questions().filter { it.dirty }) {
+            // A question about a local-only lesson could quote the teacher: it stays on the phone.
+            if (q.id !in cloud && q.lessonId?.let(teachers::isLocalOnly) == true) continue
             if (q.id !in cloud) {
                 if (q.status == "dropped") { dao.upsertQuestion(q.copy(dirty = false)); continue }   // never went up
                 try {

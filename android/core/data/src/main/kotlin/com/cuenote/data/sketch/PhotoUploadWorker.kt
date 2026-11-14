@@ -49,6 +49,11 @@ class PhotoUploadWorker(context: Context, params: WorkerParameters) : CoroutineW
         val lesson = db.lessons().get(lessonId) ?: return Result.success()
         val dao = db.photos()
         val dir = File(lesson.dirPath)
+        // A local-only lesson's photos stay on the phone, and no AI captions them; a deleted one has no other copy.
+        if (com.cuenote.data.LessonTeacherStore(applicationContext).isLocalOnly(lessonId)) {
+            for (p in dao.forLesson(lessonId)) if (p.deleted) SketchRepository.removeLocal(dao, dir, p)
+            return Result.success()
+        }
         val client = AuthRepository.get().client
         if (client == null) {
             // this build has no cloud, so a deleted photo has no copy anywhere else
