@@ -94,6 +94,7 @@ import com.cuenote.data.LessonEntity
 import com.cuenote.data.LessonOutline
 import com.cuenote.data.LessonOutline.SummaryCheck as S
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.cuenote.data.LessonRepository
 import com.cuenote.data.TakeEntity
@@ -650,11 +651,20 @@ private fun CueCard(
                         },
                         teacher = false,
                     )
+                    // Folded to four lines, but never stranded mid-word: if it runs long, offer the rest.
+                    var summaryOpen by rememberSaveable(card.summary) { mutableStateOf(false) }
+                    var summaryLong by remember(card.summary) { mutableStateOf(false) }
                     Text(
                         card.summary,
                         style = if (check == S.CLOSE) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
-                        maxLines = 4, overflow = TextOverflow.Ellipsis,
+                        maxLines = if (summaryOpen) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis,
+                        onTextLayout = { if (!summaryOpen) summaryLong = it.hasVisualOverflow },
                     )
+                    if (summaryLong || summaryOpen) {
+                        TextButton(onClick = { summaryOpen = !summaryOpen }, contentPadding = PaddingValues(0.dp)) {
+                            Text(if (summaryOpen) "Less" else "Read all of it")
+                        }
+                    }
                     if (check != S.CONFIRMED) {
                         Text("When in doubt, listen to the lesson clip.", style = MaterialTheme.typography.labelSmall, color = muted)
                     }
@@ -999,9 +1009,14 @@ private fun NextStepBar(onSetlist: Int, practice: (() -> Unit)?, send: (() -> Un
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 // Opens the next-lesson page (takes to share, questions to ask). Nothing is sent from here,
                 // so the label names the page, not an action it doesn't take.
-                if (send != null) OutlinedButton(onClick = send, modifier = Modifier.weight(1f)) { Text("Before next lesson", maxLines = 1) }
-                Button(onClick = { practice?.invoke() }, enabled = practice != null, modifier = Modifier.weight(1f)) {
-                    Text("Start practicing")
+                // Half the bar is narrow on a phone with larger text, so the labels may wrap to two
+                // centered lines rather than being clipped ("Before next" instead of "Before next lesson").
+                val pad = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                if (send != null) OutlinedButton(onClick = send, contentPadding = pad, modifier = Modifier.weight(1f)) {
+                    Text("Before next lesson", maxLines = 2, textAlign = TextAlign.Center)
+                }
+                Button(onClick = { practice?.invoke() }, enabled = practice != null, contentPadding = pad, modifier = Modifier.weight(1f)) {
+                    Text("Start practicing", maxLines = 2, textAlign = TextAlign.Center)
                 }
             }
             Text(
