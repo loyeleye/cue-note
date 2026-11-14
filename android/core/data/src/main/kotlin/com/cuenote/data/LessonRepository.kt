@@ -8,6 +8,7 @@ import com.cuenote.audio.RecordingSummary
 import com.cuenote.data.pipeline.PipelineScheduler
 import com.cuenote.data.sync.CloudSync
 import com.cuenote.pipeline.Pipeline
+import com.cuenote.pipeline.Removal
 import com.cuenote.pipeline.audio.LessonFolder
 import com.cuenote.pipeline.cards.CueRequest
 import com.cuenote.pipeline.cards.ModelTrials
@@ -121,7 +122,8 @@ class LessonRepository(
         if (isLocalOnly(id)) return@withContext
         val cloud = CloudSync(AuthRepository.get())
         if (cloud.studentId() == null) return@withContext
-        val fresh = cloud.cards(id)
+        // Cards in a part the student deleted, while the delete online is still to come, stay off the phone.
+        val fresh = LessonParts.dropDeletedCards(cloud.cards(id), LessonRemovals.read(lessonDir(id)))
         // A lesson that was kept on the phone until now has only the phone's notes: keep them until the cloud has cards.
         val phoneOnly = cardDao?.cards(id)?.let { have -> have.isNotEmpty() && have.all { it.onPhone } } == true
         if (fresh.isNotEmpty() || !phoneOnly) cardDao?.replaceCards(id, fresh)
@@ -185,7 +187,9 @@ class LessonRepository(
             val cloud = CloudSync(AuthRepository.get())
             cloud.studentId()?.let { student -> cloud.deleteLesson(student, id) }
         }
+        androidx.work.WorkManager.getInstance(context).cancelUniqueWork(com.cuenote.data.sync.RemovalWorker.workName(id))
         lessonDir(id).deleteRecursively()
+        LessonRemovals.forget(lessonDir(id))
         pipelineDao?.clearAll(id)
         photoDao?.clear(id)
         cardDao?.clearAll(id)
@@ -198,6 +202,43 @@ class LessonRepository(
         practiceDao?.deleteLessonQuestions(id)
         dao.delete(id)
         teachers.forget(id)
+    }
+
+    /** The parts of this lesson the student deleted, pending ones (Undo still offered) included. */
+    fun removals(id: String) = LessonRemovals.observe(lessonDir(id))
+
+    /**
+     * Deletes an exercise, or ([toEnd]) it and everything after it: for when
+     * the recorder kept running after the lesson. It disappears now; Undo is
+     * offered for [LessonRemovals.UNDO_MS], then its tries, notes, clips and
+     * audio are deleted on the phone and online.
+     */
+    suspend fun removeExercise(lessonId: String, exercise: ExerciseEntity, label: String, toEnd: Boolean): Removal = withContext(Dispatchers.IO) {
+        val pd = requireNotNull(pipelineDao)
+        val exercises = pd.exercises(lessonId)
+        val span = LessonParts.span(exercise, pd.takes(lessonId), pd.feedback(lessonId), dao.get(lessonId)?.durationMs ?: 0, toEnd)
+        val ids = if (toEnd) exercises.filter { it.startMs >= exercise.startMs }.map { it.id } else listOf(exercise.id)
+        add(lessonId, Removal(UUID.randomUUID().toString(), Removal.PART, span.first, span.last, exerciseIds = ids, label = label, at = System.currentTimeMillis()))
+    }
+
+    /** Deletes one try: its clip and audio go, her notes around it stay. Undo as for [removeExercise]. */
+    suspend fun removeTake(lessonId: String, take: TakeEntity, label: String): Removal = withContext(Dispatchers.IO) {
+        add(lessonId, Removal(UUID.randomUUID().toString(), Removal.TAKE, take.startMs, take.endMs, takeId = take.id, label = label, at = System.currentTimeMillis()))
+    }
+
+    private fun add(lessonId: String, r: Removal): Removal {
+        LessonRemovals.update(lessonDir(lessonId)) { it + r }
+        com.cuenote.data.sync.RemovalWorker.enqueue(context, lessonId)
+        return r
+    }
+
+    /** Takes a delete back, while Undo is still offered. False once it's too late. */
+    suspend fun undoRemoval(lessonId: String, removalId: String): Boolean = withContext(Dispatchers.IO) {
+        var undone = false
+        LessonRemovals.update(lessonDir(lessonId)) { list ->
+            list.filterNot { r -> (r.id == removalId && LessonRemovals.undoable(r)).also { if (it) undone = true } }
+        }
+        undone
     }
 
     /**

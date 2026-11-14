@@ -97,6 +97,10 @@ interface PhotoDao {
     @Query("delete from photo where id = :id")
     suspend fun remove(id: String)
 
+    /** The student deleted the part of the lesson these blocks were in: the photos stay, on no card. */
+    @Query("update photo set feedbackId = null where lessonId = :lessonId and feedbackId in (:feedbackIds)")
+    suspend fun unlinkFeedback(lessonId: String, feedbackIds: List<String>)
+
     @Query("select * from photo where lessonId = :lessonId order by takenAtMs")
     suspend fun forLesson(lessonId: String): List<PhotoEntity>
 

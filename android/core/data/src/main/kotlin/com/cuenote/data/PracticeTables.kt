@@ -163,6 +163,8 @@ interface PracticeDao {
 
     @Query("select * from practice_take where lessonId = :lessonId") suspend fun takesForLesson(lessonId: String): List<PracticeTakeEntity>
 
+    @Query("select * from practice_take where cardId in (:cardIds) and deleted = 0") suspend fun takesForCards(cardIds: List<String>): List<PracticeTakeEntity>
+
     @Query("delete from practice_take where lessonId = :lessonId") suspend fun deleteLessonTakes(lessonId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlan(p: PracticePlanEntity)

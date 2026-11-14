@@ -167,6 +167,8 @@ interface CardDao {
 
     @Query("delete from card where lessonId = :lessonId") suspend fun clearCards(lessonId: String)
 
+    @Query("delete from card where id in (:ids)") suspend fun deleteCards(ids: List<String>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertCards(c: List<CardEntity>)
 
     /** Adds cards that aren't there yet; one already there (the student's words, say) is kept. */

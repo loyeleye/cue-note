@@ -113,6 +113,22 @@ A lesson started within two hours uses that answer instead of asking "Who's on
 which mic?" again; the consent screen shows it with a "Change" button. When the
 soundcheck wasn't sure, the question still follows, already filled in.
 
+### Deleting part of a lesson
+
+When the recorder kept running after the lesson, or a "warmup" is really
+chatter, the ⋯ on an exercise in the lesson deletes it: **Delete tries…** (pick
+tries, each with a play button), **Delete this exercise**, or **Delete this and
+everything after**. Each asks first, then shows Undo for 10 seconds. After that
+the phone deletes the part's replay clips, tries, cards (and their setlist
+switches, practice takes and questions), what was said in it, and silences its
+audio in the recording, so processing again finds nothing there. Online
+(`remove_lesson_part`), the same rows go, the cards leave tombstones so making
+the notes again doesn't bring them back, and the clips are deleted; offline or
+signed out, that waits for the next connection or upload. A lesson kept on the
+phone has nothing online, so only the phone's copy goes. Deleting a try keeps
+what the teacher said about it. The deletions are kept in
+`<lesson>/removed.json`, outside `pipeline/`.
+
 ## Layout
 
 | Folder      | What it is |
