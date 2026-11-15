@@ -375,18 +375,24 @@ private fun LazyListScope.setlistTab(
     } else {
         today?.let { t -> item(key = "today") { t() } }
     }
+    val todaysTip = tipFor(Calendar.getInstance())
     item(key = "warmh") { SectionHead("Today's warm-up", null) {} }
-    item(key = "warm") { WarmUpCard(warmUpFor(Calendar.getInstance())) }
-    if (setlist.isEmpty()) return
-    item(key = "seth") { SectionHead("Your setlist", null) {} }
-    item(key = "hint") {
-        Text(
-            "What your teacher asked you to practice, newest first. Switch a note off in its lesson once you've got it.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-        )
+    item(key = "warm") { WarmUpCard(warmUpFor(Calendar.getInstance()), TEACHER_TIPS[todaysTip].tip) }
+    if (setlist.isNotEmpty()) {
+        item(key = "seth") { SectionHead("Your setlist", null) {} }
+        item(key = "hint") {
+            Text(
+                "What your teacher asked you to practice, newest first. Switch a note off in its lesson once you've got it.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        items(setlist, key = { "s-" + it.card.id }) { SetlistNote(it, teacherName, player, onPractice) }
     }
-    items(setlist, key = { "s-" + it.card.id }) { SetlistNote(it, teacherName, player, onPractice) }
+    // The tips from the teacher's card, each with a short note and a diagram.
+    item(key = "tipsh") { SectionHead("Tips from your teacher's card", null) {} }
+    items(TEACHER_TIPS.size, key = { "tip-$it" }) { TeacherTipRow(it, today = it == todaysTip) }
+    item(key = "tipsf") { TeacherTipsFooter() }
 }
 
 private fun LazyListScope.lessonsTab(
@@ -610,7 +616,7 @@ internal val WARM_UPS = listOf(
 internal fun warmUpFor(day: Calendar): WarmUp = WARM_UPS[day.get(Calendar.DAY_OF_YEAR) % WARM_UPS.size]
 
 @Composable
-private fun WarmUpCard(w: WarmUp) {
+private fun WarmUpCard(w: WarmUp, keepInMind: String) {
     val c = w.topic.colors()
     Column(
         Modifier
@@ -625,6 +631,11 @@ private fun WarmUpCard(w: WarmUp) {
         Text(w.name, fontFamily = Fraunces, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurface)
         Text(w.how, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         Text("Easy and light. Stop if anything feels tight.", style = MaterialTheme.typography.bodySmall, color = c.content)
+        Text(
+            "Keep in mind, from your teacher's card: $keepInMind",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

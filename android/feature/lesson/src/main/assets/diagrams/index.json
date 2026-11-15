@@ -154,5 +154,29 @@
     "area": "Health",
     "title": "Warm-up order",
     "shows": "Breath, then lip trills, then sirens, then scales, then songs"
+  },
+  {
+    "id": "vowels-next-door",
+    "area": "Vowels",
+    "title": "Vowels next door",
+    "shows": "The vowels U, O, A, E, I in a row, each one a small step from the last"
+  },
+  {
+    "id": "registers-more-less-least",
+    "area": "Registers",
+    "title": "More, less, least",
+    "shows": "More low, less in the middle, least up high, as the pitch rises"
+  },
+  {
+    "id": "larynx-onset-above",
+    "area": "Larynx",
+    "title": "Onset from above",
+    "shows": "A note started from just above its pitch, compared with scooping up from below"
+  },
+  {
+    "id": "breath-inhale-vowel",
+    "area": "Breath",
+    "title": "Breathe in the vowel",
+    "shows": "The mouth taking the vowel's shape on the in-breath, then singing it in the same shape"
   }
 ]

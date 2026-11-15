@@ -735,6 +735,82 @@ def warmup():
     return b
 
 
+# ---------------------------------------------------------------- Tip card
+# Drawn for the tips on a teacher's card (see the phone's TeacherTips.kt),
+# and part of the library like the rest.
+
+def vowels_next_door():
+    b = []
+    # u, o, a, e, i: (outer rx, ry), (inner rx, ry)
+    shapes = (("U", 14, 15, 5, 6), ("O", 20, 23, 12, 15), ("A", 25, 30, 18, 23),
+              ("E", 28, 20, 21, 12), ("I", 28, 13, 22, 5))
+    xs = (48, 112, 180, 250, 316)
+    b.append(f'<rect x="12" y="62" width="336" height="76" rx="38" fill="{SOFT}" opacity="0.7"/>')
+    for (v, ox, oy, ix, iy), cx in zip(shapes, xs):
+        b.append(ellipse(cx, 100, ox, oy, INK, FILL2))
+        b.append(ellipse(cx, 100, ix, iy, INK, INK, 1.4))
+        b.append(t(cx, 168, v, "middle", 17, 700))
+    for a, c in zip(xs, xs[1:]):
+        b.append(p(f"M{a + 10},146 Q{(a + c) / 2},158 {c - 10},146", ACC, 1.6, marker="aA"))
+    b.append(t(180, 40, "Lips from the front, one small step at a time", "middle", 11, color=MUTED))
+    b.append(cap(180, 206, "Each vowel lives right next door to the last"))
+    b.append(t(180, 224, "the same space, only a small change between them", "middle", 11))
+    return b
+
+
+def more_less_least():
+    b = []
+    cols = ((70, "Low", "More", 96, 84), (180, "Middle", "Less", 64, 62), (290, "High", "Least", 34, 40))
+    b.append(p("M70,84 L180,62 L290,40", MUTED, 1, dash="3 4"))
+    for cx, place, amount, bar, note_y in cols:
+        b.append(f'<rect x="{cx - 28}" y="{196 - bar}" width="56" height="{bar}" rx="8" fill="{FILL2}" stroke="{ACC}" stroke-width="1.6"/>')
+        b.append(t(cx, 188, amount, "middle", 14, 700, ACC))
+        b.append(ellipse(cx, note_y, 9, 6.5, INK, INK, 1))
+        b.append(p(f"M{cx + 8},{note_y - 1} L{cx + 8},{note_y - 28}", INK, 2))
+        b.append(t(cx, 214, place, "middle", 12.5, 600))
+    b.append(t(180, 234, "As the pitch goes up, use less", "middle", 11, color=MUTED))
+    return b
+
+
+def onset_from_above():
+    b = [divider()]
+    for cx, name, sub, above in ((90, "From below", "a scoop up to the note", False),
+                                 (270, "From above", "aim high, land on the note", True)):
+        x0, x1, y = cx - 70, cx + 70, 104
+        b.append(p(f"M{x0},{y} L{x1},{y}", AIR, 1, dash="5 4"))
+        b.append(t(x1, y - 8, "the note", "end", 10.5, color=AIR))
+        if above:
+            b.append(arrow(x0 + 6, 52, x0 + 6, 70, "A", 1.6))
+            b.append(p(f"M{x0 + 6},76 C{x0 + 26},80 {x0 + 34},{y} {x0 + 50},{y} L{x1 - 6},{y}", INK, 2.4))
+        else:
+            b.append(p(f"M{x0 + 6},150 C{x0 + 30},146 {x0 + 36},{y} {x0 + 56},{y} L{x1 - 6},{y}", INK, 2.4))
+            b.append(t(x0 + 10, 168, "flat at first", size=10.5, color=ACC))
+        b.append(cap(cx, 200, name))
+        b.append(t(cx, 216, sub, "middle", 11))
+    b.append(t(8, 26, "Pitch over time, at the start of a note", size=10.5, color=MUTED))
+    return b
+
+
+def inhale_vowel():
+    b = []
+    for cx, name, sub, inward in ((90, "Breathe in", "through the shape of “ah”", True),
+                                  (270, "Sing", "“ah”, already in place", False)):
+        b.append(ellipse(cx, 96, 30, 34, INK, FILL2))
+        b.append(ellipse(cx, 96, 22, 26, INK, INK, 1.4))
+        if inward:
+            b.append(arrow(cx - 70, 96, cx - 36, 96, "B", 2))
+            b.append(arrow(cx - 66, 70, cx - 36, 82, "B", 1.6))
+            b.append(arrow(cx - 66, 122, cx - 36, 110, "B", 1.6))
+        else:
+            b.append(p(wave(cx + 36, cx + 82, 96, 8, 14), INK, 1.8))
+        b.append(cap(cx, 170, name))
+        b.append(t(cx, 186, sub, "middle", 11))
+    b.append(arrow(150, 96, 210, 96, "I", 1.4))
+    b.append(t(180, 86, "same shape", "middle", 10.5, color=MUTED))
+    b.append(t(180, 224, "Set the vowel on the way in, so the note starts ready", "middle", 11.5))
+    return b
+
+
 DIAGRAMS = [
     ("breath-diaphragm", "Breath", "Diaphragm on the in-breath", "The diaphragm lowering and the ribs widening as air comes in", diaphragm),
     ("breath-low-high", "Breath", "Low breath vs high breath", "The belly and back expanding, compared with the shoulders lifting", low_high_breath),
@@ -762,6 +838,10 @@ DIAGRAMS = [
     ("line-phrase-arc", "Line", "Phrase arc", "A phrase shaped to rise toward its high point and ease off at the end", phrase_arc),
     ("diction-consonants", "Diction", "Consonants on the beat", "The vowel landing on the beat, with consonants placed just before it", consonants_beat),
     ("health-warmup", "Health", "Warm-up order", "Breath, then lip trills, then sirens, then scales, then songs", warmup),
+    ("vowels-next-door", "Vowels", "Vowels next door", "The vowels U, O, A, E, I in a row, each one a small step from the last", vowels_next_door),
+    ("registers-more-less-least", "Registers", "More, less, least", "More low, less in the middle, least up high, as the pitch rises", more_less_least),
+    ("larynx-onset-above", "Larynx", "Onset from above", "A note started from just above its pitch, compared with scooping up from below", onset_from_above),
+    ("breath-inhale-vowel", "Breath", "Breathe in the vowel", "The mouth taking the vowel's shape on the in-breath, then singing it in the same shape", inhale_vowel),
 ]
 
 
