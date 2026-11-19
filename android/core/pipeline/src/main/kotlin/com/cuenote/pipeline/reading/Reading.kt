@@ -26,7 +26,11 @@ data class VoiceHome(
     }
 
     companion object {
-        /** A speaking voice under E3 reads an octave down (or in bass clef); above, in treble. */
+        /**
+         * A low voice (baritone or bass) reads bass clef, as their parts are
+         * usually written; others read treble. Tenors can switch to treble
+         * with an 8 below on the reading screen.
+         */
         const val LOW_VOICE_BELOW = 52
 
         /** Women's and children's default before a voice check, around A3. */
@@ -43,7 +47,7 @@ data class VoiceHome(
             val mid = s[s.size / 2].roundToInt()
             // Speech sits low in the singing range; lift the home note a little so exercises aren't growled.
             val home = (mid + SPEECH_TO_HOME).coerceIn(40, 69)
-            return VoiceHome(home, if (home < LOW_VOICE_BELOW) Clef.TREBLE_8VB else Clef.TREBLE)
+            return VoiceHome(home, if (home < LOW_VOICE_BELOW) Clef.BASS else Clef.TREBLE)
         }
 
         const val MIN_CLEAR_FRAMES = 30

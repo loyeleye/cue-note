@@ -162,7 +162,7 @@ class ReadingTest {
         assertEquals(55, h!!.speaking)                     // a step up from the speaking voice, G3
         assertEquals(Clef.TREBLE, h.clef)
         val low = VoiceHome.fromSpeech(List(60) { frame(45f) })!!
-        assertEquals(Clef.TREBLE_8VB, low.clef)
+        assertEquals(Clef.BASS, low.clef)
         assertNull(VoiceHome.fromSpeech(List(10) { frame(50f) }))
         // Stage 1's five notes are five natural notes in a row.
         assertEquals(listOf(55, 57, 59, 60, 62), h.firstFive)

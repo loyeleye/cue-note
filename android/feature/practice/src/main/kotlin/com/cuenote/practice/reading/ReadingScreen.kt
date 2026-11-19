@@ -183,7 +183,7 @@ private fun Hub(progress: ReadingProgress, modifier: Modifier, onOpen: (Exercise
         item { SectionLabel("Reading in") }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Most women's and children's songs are written in treble clef. Men's parts are often in treble clef with a small 8 below, which means an octave lower.",
+                Text("Women's and children's parts are written in treble clef. Baritone and bass parts are usually in bass clef. Tenor parts are often in treble clef with a small 8 below, which means an octave lower.",
                     style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Clef.entries.forEach { c ->
