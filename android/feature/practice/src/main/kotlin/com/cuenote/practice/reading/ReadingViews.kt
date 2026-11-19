@@ -71,11 +71,31 @@ fun StaffNote(
     modifier: Modifier = Modifier,
     noteColor: Color = MaterialTheme.colorScheme.onSurface,
     space: Dp = 14.dp,
+) = StaffNotes(listOfNotNull(midi), clef, modifier, listOf(noteColor), space)
+
+/**
+ * Notes side by side on one staff, left to right, for seeing a step, skip or
+ * leap. [colors] colours each note in turn (the last colour repeats); a
+ * [hidden] note is left off, for "sing it before you see it".
+ */
+@Composable
+fun StaffNotes(
+    notes: List<Int>,
+    clef: Clef,
+    modifier: Modifier = Modifier,
+    colors: List<Color> = listOf(MaterialTheme.colorScheme.onSurface),
+    space: Dp = 14.dp,
+    hidden: Set<Int> = emptySet(),
 ) {
     val lineColor = MaterialTheme.colorScheme.onSurfaceVariant
     val ink = MaterialTheme.colorScheme.onSurface
     val measurer = rememberTextMeasurer()
-    val label = midi?.let { "A note ${Staff.describe(Staff.place(it, clef))}" } ?: "An empty staff"
+    val label = when {
+        notes.isEmpty() -> "An empty staff"
+        notes.size == 1 -> "A note ${Staff.describe(Staff.place(notes[0], clef))}"
+        else -> notes.withIndex().filter { it.index !in hidden }
+            .joinToString(", then ") { "a note ${Staff.describe(Staff.place(it.value, clef))}" }.replaceFirstChar { it.uppercase() }
+    }
     Canvas(modifier.fillMaxWidth().height(space * 12).semantics { contentDescription = label }) {
         val sp = space.toPx()
         val stroke = 1.2.dp.toPx()
@@ -97,13 +117,19 @@ fun StaffNote(
             Clef.TREBLE_8VB -> glyph(Glyph.G_CLEF_8VB, left + sp * 0.4f, y(2))
             Clef.BASS -> glyph(Glyph.F_CLEF, left + sp * 0.4f, y(6))
         }
-        if (midi == null) return@Canvas
-        val p = Staff.place(midi, clef)
-        val cx = size.width * 0.58f
         val headW = sp * 1.7f
-        for (l in p.ledgers) drawLine(lineColor, Offset(cx - headW * 0.85f, y(l)), Offset(cx + headW * 0.85f, y(l)), stroke * 1.3f)
-        p.accidental?.let { glyph(if (it == Accidental.SHARP) Glyph.SHARP else Glyph.FLAT, cx - headW * 1.6f, y(p.step), noteColor) }
-        glyph(Glyph.WHOLE, cx - headW / 2, y(p.step), noteColor)
+        // One note sits a little right of centre; more share the space after the clef.
+        val xs = if (notes.size <= 1) listOf(size.width * 0.58f)
+            else notes.indices.map { i -> size.width * (0.42f + 0.4f * i / (notes.size - 1)) }
+        notes.forEachIndexed { i, midi ->
+            if (i in hidden) return@forEachIndexed
+            val color = colors.getOrElse(i) { colors.last() }
+            val p = Staff.place(midi, clef)
+            val cx = xs[i]
+            for (l in p.ledgers) drawLine(lineColor, Offset(cx - headW * 0.85f, y(l)), Offset(cx + headW * 0.85f, y(l)), stroke * 1.3f)
+            p.accidental?.let { glyph(if (it == Accidental.SHARP) Glyph.SHARP else Glyph.FLAT, cx - headW * 1.6f, y(p.step), color) }
+            glyph(Glyph.WHOLE, cx - headW / 2, y(p.step), color)
+        }
     }
 }
 

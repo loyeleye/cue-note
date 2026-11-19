@@ -102,6 +102,8 @@ data class ReadingProgress(
     /** Written notes sung in Sing what you see, by MIDI note. */
     val sungFromPage: Map<Int, Int> = emptyMap(),
     val deck: NameDeck = NameDeck(),
+    /** Stage 3: steps, skips and leaps. */
+    val motions: MotionProgress = MotionProgress(),
 ) {
     val voice: VoiceHome get() = home ?: VoiceHome.DEFAULT
 
@@ -112,7 +114,7 @@ data class ReadingProgress(
 }
 
 /**
- * Which stage the student is on. Only the first two are built so far; the
+ * Which stage the student is on. The first three are built so far; the
  * later ones show on the ladder as what comes next.
  */
 object ReadingLadder {
@@ -125,7 +127,8 @@ object ReadingLadder {
     fun stage(p: ReadingProgress): ReadingStage = when {
         !foundVoice(p) -> ReadingStage.FIND_YOUR_VOICE
         !knowsStaff(p) -> ReadingStage.THE_STAFF
-        else -> ReadingStage.STEPS_SKIPS_LEAPS
+        !p.motions.done -> ReadingStage.STEPS_SKIPS_LEAPS
+        else -> ReadingStage.SHORT_MELODIES
     }
 
     fun foundVoice(p: ReadingProgress): Boolean =
@@ -154,7 +157,16 @@ object ReadingLadder {
                 else -> "You know all five by name. Sing each one from the page ($sung of 5 so far)."
             }
         }
-        else -> "You can name and sing your five notes. Steps, skips and leaps are next."
+        ReadingStage.STEPS_SKIPS_LEAPS -> {
+            val m = p.motions
+            val left = Motion.PRACTICED.filter {
+                (m.heard[it] ?: 0) < MotionProgress.BY_EAR || (m.seen[it] ?: 0) < MotionProgress.BY_EYE || (m.sung[it] ?: 0) < MotionProgress.SUNG
+            }
+            if (left.size == Motion.PRACTICED.size && m.heard.isEmpty() && m.seen.isEmpty() && m.sung.isEmpty())
+                "You can name and sing your five notes. Now hear, spot and sing steps, skips and leaps."
+            else "Still to settle: ${left.joinToString(", ") { it.word + "s" }}. Hear them, spot them and sing them."
+        }
+        else -> "Steps, skips and leaps feel solid. Short melodies are next."
     }
 
     /** Days since the epoch in local time, for [ReadingProgress.matchedDays]. */

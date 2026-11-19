@@ -58,6 +58,8 @@ import com.cuenote.audio.Listening
 import com.cuenote.data.ReadingStore
 import com.cuenote.pipeline.reading.Clef
 import com.cuenote.pipeline.reading.LivePitch
+import com.cuenote.pipeline.reading.Motion
+import com.cuenote.pipeline.reading.MotionProgress
 import com.cuenote.pipeline.reading.NoteMatch
 import com.cuenote.pipeline.reading.ReadingLadder
 import com.cuenote.pipeline.reading.ReadingProgress
@@ -79,12 +81,16 @@ private enum class Exercise(val title: String) {
     SING_SEEN("Sing what you see"),
     NAME_IT("Name it"),
     CHECK_PITCH("Check my pitch"),
+    HEAR_MOTION("Step, skip or leap?"),
+    SPOT_MOTION("Spot the motion"),
+    SING_MOTION("Step or leap from here"),
 }
 
 /**
  * The reading and pitch track: a beginner's way from matching a note to
- * reading a piano-vocal score. This first part holds Stages 1 and 2: the
- * voice check, Match the note, Check my pitch, Name it and Sing what you see.
+ * reading a piano-vocal score. Built so far, Stages 1 to 3: the voice
+ * check, Match the note, Check my pitch, Name it, Sing what you see, and
+ * steps, skips and leaps (by ear, by eye and sung).
  * Its own track, beside the teacher's homework, never inside it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -128,6 +134,15 @@ fun ReadingScreen(store: ReadingStore, onBack: () -> Unit) {
                 onAnswer = { midi, right -> store.update { it.copy(deck = it.deck.answer(midi, right)) } },
                 onDone = { exercise = Exercise.HUB })
             Exercise.CHECK_PITCH -> CheckPitch(progress.voice.clef, body)
+            Exercise.HEAR_MOTION -> MotionQuiz(progress, byEar = true, body,
+                onRight = { mo -> store.update { it.copy(motions = it.motions.heardRight(mo)) } },
+                onDone = { exercise = Exercise.HUB })
+            Exercise.SPOT_MOTION -> MotionQuiz(progress, byEar = false, body,
+                onRight = { mo -> store.update { it.copy(motions = it.motions.seenRight(mo)) } },
+                onDone = { exercise = Exercise.HUB })
+            Exercise.SING_MOTION -> SingMotion(progress, body,
+                onSung = { mo -> store.update { it.copy(motions = it.motions.sang(mo)) } },
+                onDone = { exercise = Exercise.HUB })
         }
     }
 }
@@ -176,9 +191,25 @@ private fun Hub(progress: ReadingProgress, modifier: Modifier, onOpen: (Exercise
             ExerciseRow("Sing what you see", "A note on the staff. Sing it. Turn on \"Try before I hear it\" when you're ready.",
                 done = five.all { (progress.sungFromPage[it] ?: 0) >= ReadingLadder.SUNG_EACH }, primary = false) { onOpen(Exercise.SING_SEEN) }
         }
+        item { SectionLabel("Stage 3: Steps, skips and leaps") }
+        val mp = progress.motions
+        fun settled(counts: Map<Motion, Int>, need: Int) = Motion.PRACTICED.all { (counts[it] ?: 0) >= need }
+        val onStage3 = stage == ReadingStage.STEPS_SKIPS_LEAPS
+        item {
+            ExerciseRow("Step, skip or leap?", "Two notes play. Is the second one next door, one over, or further?",
+                done = settled(mp.heard, MotionProgress.BY_EAR), primary = onStage3 && !settled(mp.heard, MotionProgress.BY_EAR)) { onOpen(Exercise.HEAR_MOTION) }
+        }
+        item {
+            ExerciseRow("Spot the motion", "Two notes on the staff. Count the lines and spaces between them.",
+                done = settled(mp.seen, MotionProgress.BY_EYE), primary = false) { onOpen(Exercise.SPOT_MOTION) }
+        }
+        item {
+            ExerciseRow("Step or leap from here", "Hear the first note, read how far the second is, and sing it before you hear it.",
+                done = settled(mp.sung, MotionProgress.SUNG), primary = false) { onOpen(Exercise.SING_MOTION) }
+        }
         item { SectionLabel("Coming next") }
-        items(ReadingStage.entries.drop(2).size) { i ->
-            val s = ReadingStage.entries[i + 2]
+        items(ReadingStage.entries.drop(3).size) { i ->
+            val s = ReadingStage.entries[i + 3]
             Column(Modifier.alpha(0.55f).padding(vertical = 2.dp)) {
                 Text("Stage ${s.ordinal + 1}: ${s.title}", style = MaterialTheme.typography.titleSmall)
                 Text(s.about, style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
