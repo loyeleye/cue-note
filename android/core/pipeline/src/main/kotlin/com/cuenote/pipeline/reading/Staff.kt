@@ -8,13 +8,15 @@ enum class Clef(
     /** The note on the bottom line of the staff, as a diatonic number (see [Staff.diatonic]). */
     val bottomLine: Int,
     val label: String,
+    /** A short name for the clef buttons, so all three fit on a phone. */
+    val short: String,
 ) {
     /** Higher voices: E4 on the bottom line. */
-    TREBLE(Staff.diatonic(64), "Treble"),
+    TREBLE(Staff.diatonic(64), "Treble", "Treble"),
     /** Tenor parts and many men's lines: a treble clef with an 8 below, sounding an octave lower (E3 on the bottom line). */
-    TREBLE_8VB(Staff.diatonic(52), "Treble, an octave down"),
+    TREBLE_8VB(Staff.diatonic(52), "Treble, an octave down", "Treble, 8 down"),
     /** Low voices and the piano's left hand: G2 on the bottom line. */
-    BASS(Staff.diatonic(43), "Bass"),
+    BASS(Staff.diatonic(43), "Bass", "Bass"),
 }
 
 enum class Accidental { SHARP, FLAT }
