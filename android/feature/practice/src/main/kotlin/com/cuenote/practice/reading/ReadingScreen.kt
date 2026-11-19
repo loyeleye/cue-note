@@ -59,6 +59,7 @@ import com.cuenote.data.ReadingStore
 import com.cuenote.pipeline.reading.Clef
 import com.cuenote.pipeline.reading.LivePitch
 import com.cuenote.pipeline.reading.Motion
+import com.cuenote.pipeline.reading.MelodyProgress
 import com.cuenote.pipeline.reading.MotionProgress
 import com.cuenote.pipeline.reading.NoteMatch
 import com.cuenote.pipeline.reading.ReadingLadder
@@ -84,13 +85,17 @@ private enum class Exercise(val title: String) {
     HEAR_MOTION("Step, skip or leap?"),
     SPOT_MOTION("Spot the motion"),
     SING_MOTION("Step or leap from here"),
+    SIGHT_SING("Sing a melody"),
+    TAP_RHYTHM("Tap the rhythm"),
+    ANCHORS("Songs for each leap"),
 }
 
 /**
  * The reading and pitch track: a beginner's way from matching a note to
- * reading a piano-vocal score. Built so far, Stages 1 to 3: the voice
- * check, Match the note, Check my pitch, Name it, Sing what you see, and
- * steps, skips and leaps (by ear, by eye and sung).
+ * reading a piano-vocal score. Built so far, Stages 1 to 4: the voice
+ * check, Match the note, Check my pitch, Name it, Sing what you see,
+ * steps, skips and leaps (by ear, by eye and sung), and Stage 4's short
+ * melodies (sung, tapped, and a song for each leap).
  * Its own track, beside the teacher's homework, never inside it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -142,6 +147,15 @@ fun ReadingScreen(store: ReadingStore, onBack: () -> Unit) {
                 onDone = { exercise = Exercise.HUB })
             Exercise.SING_MOTION -> SingMotion(progress, body,
                 onSung = { mo -> store.update { it.copy(motions = it.motions.sang(mo)) } },
+                onDone = { exercise = Exercise.HUB })
+            Exercise.SIGHT_SING -> SightSing(progress, body,
+                onClean = { id -> store.update { it.copy(melodies = it.melodies.sangClean(id)) } },
+                onDone = { exercise = Exercise.HUB })
+            Exercise.TAP_RHYTHM -> TapRhythm(progress, body,
+                onClean = { id -> store.update { it.copy(melodies = it.melodies.tappedClean(id)) } },
+                onDone = { exercise = Exercise.HUB })
+            Exercise.ANCHORS -> LeapAnchors(progress, body,
+                onRight = { a -> store.update { it.copy(melodies = it.melodies.anchorRight(a)) } },
                 onDone = { exercise = Exercise.HUB })
         }
     }
@@ -207,9 +221,26 @@ private fun Hub(progress: ReadingProgress, modifier: Modifier, onOpen: (Exercise
             ExerciseRow("Step or leap from here", "Hear the first note, read how far the second is, and sing it before you hear it.",
                 done = settled(mp.sung, MotionProgress.SUNG), primary = false) { onOpen(Exercise.SING_MOTION) }
         }
+        item { SectionLabel("Stage 4: Short melodies") }
+        val mel = progress.melodies
+        val onStage4 = stage == ReadingStage.SHORT_MELODIES
+        item {
+            ExerciseRow("Sing a melody", "A few bars on the staff. Hear the first note, then sing on from the page. " +
+                "Sung: ${mel.tunesSung} of ${MelodyProgress.SUNG_TUNES} tunes.",
+                done = mel.tunesSung >= MelodyProgress.SUNG_TUNES, primary = onStage4 && mel.tunesSung < MelodyProgress.SUNG_TUNES) { onOpen(Exercise.SIGHT_SING) }
+        }
+        item {
+            ExerciseRow("Tap the rhythm", "The same bars against a click. Tap where each note starts. " +
+                "Tapped: ${mel.tunesTapped} of ${MelodyProgress.TAPPED_TUNES}.",
+                done = mel.tunesTapped >= MelodyProgress.TAPPED_TUNES, primary = false) { onOpen(Exercise.TAP_RHYTHM) }
+        }
+        item {
+            ExerciseRow("Songs for each leap", "A song you know for each leap, like Shenandoah for a fourth. Then a quick quiz.",
+                done = mel.anchorsKnown, primary = false) { onOpen(Exercise.ANCHORS) }
+        }
         item { SectionLabel("Coming next") }
-        items(ReadingStage.entries.drop(3).size) { i ->
-            val s = ReadingStage.entries[i + 3]
+        items(ReadingStage.entries.drop(4).size) { i ->
+            val s = ReadingStage.entries[i + 4]
             Column(Modifier.alpha(0.55f).padding(vertical = 2.dp)) {
                 Text("Stage ${s.ordinal + 1}: ${s.title}", style = MaterialTheme.typography.titleSmall)
                 Text(s.about, style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)

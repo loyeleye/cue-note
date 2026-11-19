@@ -104,6 +104,8 @@ data class ReadingProgress(
     val deck: NameDeck = NameDeck(),
     /** Stage 3: steps, skips and leaps. */
     val motions: MotionProgress = MotionProgress(),
+    /** Stage 4: short melodies. */
+    val melodies: MelodyProgress = MelodyProgress(),
 ) {
     val voice: VoiceHome get() = home ?: VoiceHome.DEFAULT
 
@@ -114,8 +116,8 @@ data class ReadingProgress(
 }
 
 /**
- * Which stage the student is on. The first three are built so far; the
- * later ones show on the ladder as what comes next.
+ * Which stage the student is on. The first four are built so far; the
+ * last shows on the ladder as what comes next.
  */
 object ReadingLadder {
     /** Matched notes, over at least two days, before the staff opens up. */
@@ -128,7 +130,8 @@ object ReadingLadder {
         !foundVoice(p) -> ReadingStage.FIND_YOUR_VOICE
         !knowsStaff(p) -> ReadingStage.THE_STAFF
         !p.motions.done -> ReadingStage.STEPS_SKIPS_LEAPS
-        else -> ReadingStage.SHORT_MELODIES
+        !p.melodies.done -> ReadingStage.SHORT_MELODIES
+        else -> ReadingStage.THE_SCORE
     }
 
     fun foundVoice(p: ReadingProgress): Boolean =
@@ -166,8 +169,21 @@ object ReadingLadder {
                 "You can name and sing your five notes. Now hear, spot and sing steps, skips and leaps."
             else "Still to settle: ${left.joinToString(", ") { it.word + "s" }}. Hear them, spot them and sing them."
         }
-        else -> "Steps, skips and leaps feel solid. Short melodies are next."
+        ReadingStage.SHORT_MELODIES -> {
+            val m = p.melodies
+            val left = buildList {
+                if (m.tunesSung < MelodyProgress.SUNG_TUNES) add("sing " + more(MelodyProgress.SUNG_TUNES - m.tunesSung, "tune") + " from the page")
+                if (m.tunesTapped < MelodyProgress.TAPPED_TUNES) add("tap " + more(MelodyProgress.TAPPED_TUNES - m.tunesTapped, "rhythm"))
+                if (!m.anchorsKnown) add("learn the songs for each leap")
+            }
+            if (m.sung.isEmpty() && m.tapped.isEmpty() && m.anchors.isEmpty())
+                "Steps, skips and leaps feel solid. Now sing a few bars from just the first note."
+            else "Still to do: ${left.joinToString(", ")}."
+        }
+        ReadingStage.THE_SCORE -> "Short melodies feel solid. The piano-vocal score is next."
     }
+
+    private fun more(n: Int, thing: String) = if (n == 1) "1 more $thing" else "$n more ${thing}s"
 
     /** Days since the epoch in local time, for [ReadingProgress.matchedDays]. */
     fun day(epochMs: Long, offsetMs: Int): Long = Math.floorDiv(epochMs + offsetMs, 86_400_000L)
