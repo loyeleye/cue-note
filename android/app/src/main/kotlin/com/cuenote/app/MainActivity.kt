@@ -45,6 +45,8 @@ import com.cuenote.practice.PlanScreen
 import com.cuenote.practice.PracticeScreen
 import com.cuenote.practice.TodayCard
 import com.cuenote.practice.TimingCheckScreen
+import com.cuenote.practice.reading.ReadingCard
+import com.cuenote.practice.reading.ReadingScreen
 import com.cuenote.record.AgeBlockedScreen
 import com.cuenote.record.AgeGateScreen
 import com.cuenote.record.ConsentScreen
@@ -256,6 +258,10 @@ private fun AppNav(app: CueNoteApp) {
                         onResume = { id -> withPermission { nav.navigate("plan/$id/run") } },
                     )
                 },
+                reading = {
+                    val progress by app.reading.progress.collectAsStateWithLifecycle()
+                    ReadingCard(progress, onOpen = { withPermission { nav.navigate("reading") } })
+                },
                 modelStatus = modelStatus(app.lessons.modelsReady(), download),
                 onDownloadModels = if (app.lessons.modelsReady() || download?.first == WorkInfo.State.RUNNING ||
                     download?.first == WorkInfo.State.ENQUEUED
@@ -395,6 +401,7 @@ private fun AppNav(app: CueNoteApp) {
                 onBack = { nav.popBackStack() },
             )
         }
+        composable("reading") { ReadingScreen(app.reading, onBack = { nav.popBackStack() }) }
         composable("timing") { TimingCheckScreen(app.practice, onDone = { nav.popBackStack() }) }
         composable("setup") { SetupCheckScreen(onDone = { nav.popBackStack() }) }
         // "Yes" to the sound check question: the check, then on to the lesson.
