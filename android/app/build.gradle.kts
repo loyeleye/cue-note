@@ -72,4 +72,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.play.services)
+    // Android Auto: the car's media library and player (CarPlaybackService).
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
+    implementation(libs.kotlinx.coroutines.guava)
 }
