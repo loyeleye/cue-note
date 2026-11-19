@@ -52,7 +52,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -169,6 +171,8 @@ fun TodayCard(
     val lengths = PracticePlan.lengths(maxMinutes)
     var minutes by rememberSaveable { mutableStateOf(lengths.last()) }
     var again by rememberSaveable { mutableStateOf(false) }
+    // Start was tapped before a voice was picked.
+    var nudge by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val t = today
     val fresh = t != null && t.endedAt == null && System.currentTimeMillis() - t.updatedAt < 3_600_000L
@@ -210,7 +214,7 @@ fun TodayCard(
                     val opts = listOf(Voice.FINE to "Fine", Voice.TIRED to "A bit tired", Voice.HOARSE to "Hoarse or sore")
                     opts.forEachIndexed { i, (v, label) ->
                         SegmentedButton(
-                            selected = voice == v, onClick = { voice = v },
+                            selected = voice == v, onClick = { voice = v; nudge = false },
                             shape = SegmentedButtonDefaults.itemShape(i, opts.size),
                             icon = {},
                             modifier = Modifier.fillMaxHeight(),
@@ -230,15 +234,23 @@ fun TodayCard(
                     }
                     if (voice == Voice.TIRED) Text("A tired voice gets an easy ${PracticePlan.TIRED_MINUTES} minutes in the middle of your range.", color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 }
+                // Always tappable: a tap before the voice is picked says why, instead of doing nothing.
                 StartButton(
                     if (voice == Voice.HOARSE) "Listen instead" else "Start today's practice",
-                    { voice?.let { v -> again = false; onStart(v, minutes) } },
-                    Modifier.fillMaxWidth(), enabled = voice != null,
+                    {
+                        val v = voice
+                        if (v == null) nudge = true else { again = false; nudge = false; onStart(v, minutes) }
+                    },
+                    Modifier.fillMaxWidth(),
                 )
                 if (voice == null) {
                     Text(
-                        "Pick how your voice feels first. ${teacher?.let { "$it's" } ?: "Your teacher's"} notes, in an order for today.",
-                        color = m.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
+                        if (nudge) "Pick how your voice feels first: Fine, A bit tired, or Hoarse or sore."
+                        else "Pick how your voice feels first. ${teacher?.let { "$it's" } ?: "Your teacher's"} notes, in an order for today.",
+                        color = if (nudge) m.error else m.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = if (nudge) FontWeight.SemiBold else null,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
             }

@@ -141,6 +141,8 @@ private fun AppNav(app: CueNoteApp) {
     val download by app.lessons.modelDownload().collectAsStateWithLifecycle(null)
 
     // Ask for the microphone (and notification) permission, then go on.
+    // One plan per tap on "Start today's practice", however fast the taps.
+    var startingPlan by remember { mutableStateOf(false) }
     val afterPermission = remember { mutableStateOf<(() -> Unit)?>(null) }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted[Manifest.permission.RECORD_AUDIO] == true) afterPermission.value?.invoke()
@@ -250,9 +252,16 @@ private fun AppNav(app: CueNoteApp) {
                         plans = app.plans,
                         teacher = onlyTeacher,
                         onStart = { voice, minutes ->
-                            scope.launch {
-                                val id = app.plans.start(setlist, voice, minutes, nextLessonAt)
-                                nav.navigate("plan/$id")
+                            if (!startingPlan) {
+                                startingPlan = true
+                                scope.launch {
+                                    runCatching { app.plans.start(setlist, voice, minutes, nextLessonAt) }
+                                        .onSuccess { id -> nav.navigate("plan/$id") }
+                                        .onFailure {
+                                            Toast.makeText(app, "Couldn't make today's practice. Try again.", Toast.LENGTH_LONG).show()
+                                        }
+                                    startingPlan = false
+                                }
                             }
                         },
                         onResume = { id -> withPermission { nav.navigate("plan/$id/run") } },
