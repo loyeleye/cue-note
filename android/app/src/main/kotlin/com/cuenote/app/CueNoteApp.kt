@@ -43,6 +43,8 @@ class CueNoteApp : Application() {
     lateinit var practicePosture: PracticePosture private set
     lateinit var practice: PracticeRepository private set
     lateinit var plans: com.cuenote.data.PracticePlans private set
+    /** The reading and pitch track's progress, kept on the phone. */
+    val reading: com.cuenote.data.ReadingStore get() = com.cuenote.data.ReadingStore.get(this)
     lateinit var deviceTokens: DeviceTokens private set
 
     /** A lesson to open, from a tapped "card updated" notification; the nav clears it once shown. */

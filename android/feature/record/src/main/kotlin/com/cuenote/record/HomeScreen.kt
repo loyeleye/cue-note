@@ -124,6 +124,8 @@ fun HomeScreen(
     onNextLesson: () -> Unit = {},
     /** Today's suggested practice (the check-in), shown above the setlist when there are notes. */
     today: (@Composable () -> Unit)? = null,
+    /** The reading and pitch card, on the Practice tab under the warm-up; null hides it. */
+    reading: (@Composable () -> Unit)? = null,
     /**
      * "Yes" to "Would you like to do a sound check?": the soundcheck, then the
      * lesson. null starts straight away, without asking.
@@ -192,7 +194,7 @@ fun HomeScreen(
                     nextLesson = nextLesson,
                     onNextLesson = onNextLesson,
                 )
-                1 -> setlistTab(setlist, teacherName, player, onPractice, today)
+                1 -> setlistTab(setlist, teacherName, player, onPractice, today, reading)
                 else -> lessonsTab(lessons, cardCounts, teacherName, onExport, onDelete, onOpen, isLocalOnly, teacherFilter) { teacherFilter = it }
             }
         }
@@ -368,6 +370,7 @@ private fun LazyListScope.setlistTab(
     player: ClipPlayer,
     onPractice: (String) -> Unit,
     today: (@Composable () -> Unit)?,
+    reading: (@Composable () -> Unit)?,
 ) {
     item(key = "mast") { Masthead("Time to ", "practice") }
     if (setlist.isEmpty()) {
@@ -378,6 +381,8 @@ private fun LazyListScope.setlistTab(
     val todaysTip = tipFor(Calendar.getInstance())
     item(key = "warmh") { SectionHead("Today's warm-up", null) {} }
     item(key = "warm") { WarmUpCard(warmUpFor(Calendar.getInstance()), TEACHER_TIPS[todaysTip].tip) }
+    // Reading music and matching pitch: its own track, beside the teacher's homework.
+    reading?.let { r -> item(key = "reading") { r() } }
     if (setlist.isNotEmpty()) {
         item(key = "seth") { SectionHead("Your setlist", null) {} }
         item(key = "hint") {
