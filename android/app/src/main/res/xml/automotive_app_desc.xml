@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto: Cue Note is a media app (today's practice, notes, backing tracks, lessons). -->
+<automotiveApp>
+    <uses name="media" />
+</automotiveApp>

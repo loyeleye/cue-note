@@ -594,6 +594,39 @@ a tired voice was followed by a hoarse one within a week. `PracticeSyncWorker`
 sends sittings and brings the settings back
 (`supabase/migrations/20261124000001_suggested_practice.sql`).
 
+**In the car (Android Auto).** Cue Note is also an Android Auto media app
+(`CarPlaybackService` in `:app`, built on Media3). The car shows Google's own
+browse list and player, never Cue Note's screens, so nothing there needs
+reading or a tap mid-practice:
+
+- **Today's practice** plays a sitting as a playlist, like a music app: each
+  step is a short spoken instruction (the phone's voice, synthesized once and
+  kept in the cache), then her words from the lesson, her demo and the piano
+  looped to fill the step's minutes, then the next step. The gentle start and
+  cool-down are a few minutes of quiet that end in a soft chime. Pick how the
+  voice feels (10 or 20 minutes, "A bit tired", "Hoarse or sore"), or **Pick up
+  at step 4 of 6**. Each step is saved to the sitting as the playlist moves
+  past it, just as Next or Skip would on the phone (skipped when nothing of it
+  played), so the teacher's log stays right. "Still feel easy?" is spoken
+  halfway, and the player's **Cool-down** button drops the rest and plays the
+  cool-down. The order is `CarPlaylist` in `:core:pipeline`, tested on the JVM.
+- **Practice this**: each note on the setlist, as her cue read aloud, her
+  words, her demo and the piano once.
+- **Backing tracks**: the piano (and a slower copy) and demos for each note.
+- **Lessons**: the last 20 lessons on this phone, to listen back.
+
+Nothing is recorded in the car, and it all plays from the phone's own copies,
+so it works with no signal. The same service drives the phone's own media
+controls and lock screen.
+
+To try it with an APK from CI (not the Play Store), Android Auto has to allow
+unknown sources once: in the Android Auto app's settings, tap **Version** ten
+times, then under **Developer settings** turn on **Unknown sources**. On a
+laptop, Google's Desktop Head Unit (in the Android SDK under "Android Auto
+Desktop Head Unit Emulator") shows the car screen. Before Cue Note can go to
+real cars from the Play Store, Google reviews it against its driver
+distraction rules for media apps.
+
 **Posture during practice.** **Watch my posture** on the practice screen
 uses the lesson's posture tracking (`PostureService`, MediaPipe on the
 phone). Switching it on runs the framing check from the student's singing
