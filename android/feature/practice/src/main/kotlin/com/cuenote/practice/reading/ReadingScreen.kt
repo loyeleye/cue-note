@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,6 +49,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -131,6 +134,7 @@ fun ReadingScreen(store: ReadingStore, onBack: () -> Unit) {
 
 // ---- The hub ----
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Hub(progress: ReadingProgress, modifier: Modifier, onOpen: (Exercise) -> Unit, onClef: (Clef) -> Unit) {
     val m = MaterialTheme.colorScheme
@@ -185,10 +189,13 @@ private fun Hub(progress: ReadingProgress, modifier: Modifier, onOpen: (Exercise
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Women's and children's parts are written in treble clef. Baritone and bass parts are usually in bass clef. Tenor parts are often in treble clef with a small 8 below, which means an octave lower.",
                     style = MaterialTheme.typography.bodySmall, color = m.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Wraps onto a second line on a narrow phone or with large text, rather than squeezing a button.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Clef.entries.forEach { c ->
                         val picked = progress.voice.clef == c
-                        if (picked) FilledTonalButton(onClick = {}) { Text(c.label) } else OutlinedButton(onClick = { onClef(c) }) { Text(c.label) }
+                        val label = @Composable { Text(c.short, maxLines = 1, softWrap = false) }
+                        if (picked) FilledTonalButton(onClick = {}, modifier = Modifier.semantics { selected = true }) { label() }
+                        else OutlinedButton(onClick = { onClef(c) }) { label() }
                     }
                 }
             }
