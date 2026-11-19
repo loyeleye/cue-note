@@ -3,6 +3,7 @@ package com.cuenote.practice.reading
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioTimestamp
 import android.media.AudioTrack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -57,8 +58,13 @@ class TonePlayer {
 
     /** Plays [midi] for [ms]; returns how long it lasts, so the caller can wait for the speaker to go quiet. */
     fun play(midi: Int, ms: Int = NOTE_MS): Int {
+        playPcm(StartingNote.tone(StartingNote.Note(midi), ms))
+        return ms
+    }
+
+    /** Plays a ready-made 48 kHz mono buffer (a melody, a click track); returns its length in ms. */
+    fun playPcm(pcm: ShortArray): Int {
         stop()
-        val pcm = StartingNote.tone(StartingNote.Note(midi), ms)
         val t = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
@@ -74,7 +80,19 @@ class TonePlayer {
         t.write(pcm, 0, pcm.size)
         t.play()
         track = t
-        return ms
+        return (pcm.size * 1000L / LiveMic.SAMPLE_RATE).toInt()
+    }
+
+    /**
+     * When the first sample of the buffer playing now left the speaker, on
+     * the [System.nanoTime] clock, so taps can be timed against what was
+     * heard rather than when play was called. Null until the output reports it.
+     */
+    fun startedAtNanos(): Long? {
+        val t = track ?: return null
+        val ts = AudioTimestamp()
+        if (!runCatching { t.getTimestamp(ts) }.getOrDefault(false) || ts.framePosition <= 0) return null
+        return ts.nanoTime - ts.framePosition * 1_000_000_000L / LiveMic.SAMPLE_RATE
     }
 
     fun stop() {
